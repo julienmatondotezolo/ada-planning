@@ -181,27 +181,19 @@ export const MonthlyCalendar: React.FC = () => {
     try {
       dispatch({ type: 'SET_LOADING', payload: true });
       
-      // Try API first, fallback to demo data
-      try {
-        const startDate = new Date(currentYear, currentMonth, 1).toISOString().split('T')[0];
-        const shiftsResponse = await adaPlanningAPI.getShifts({ date: startDate });
-        
-        // Filter shifts for the current month view (including adjacent days)
-        const monthShifts = shiftsResponse.data.filter(shift => {
-          const shiftDate = new Date(shift.scheduled_date);
-          const firstCalendarDay = calendarDays[0];
-          const lastCalendarDay = calendarDays[calendarDays.length - 1];
-          return shiftDate >= firstCalendarDay && shiftDate <= lastCalendarDay;
-        });
-        
-        dispatch({ type: 'SET_SHIFTS', payload: monthShifts });
-      } catch (apiError) {
-        // Fallback to demo data for development
-        const { generateDemoShifts } = await import('@/lib/demo-data');
-        const demoShifts = generateDemoShifts(currentYear, currentMonth);
-        dispatch({ type: 'SET_SHIFTS', payload: demoShifts });
-        console.warn('Using demo data - API unavailable');
-      }
+      const startDate = new Date(currentYear, currentMonth, 1).toISOString().split('T')[0];
+      const shiftsResponse = await adaPlanningAPI.getShifts({ date: startDate });
+      
+      // Filter shifts for the current month view (including adjacent days)  
+      const monthShifts = shiftsResponse.data.filter(shift => {
+        const shiftDate = new Date(shift.scheduled_date);
+        const firstCalendarDay = calendarDays[0];
+        const lastCalendarDay = calendarDays[calendarDays.length - 1];
+        return shiftDate >= firstCalendarDay && shiftDate <= lastCalendarDay;
+      });
+      
+      dispatch({ type: 'SET_SHIFTS', payload: monthShifts });
+      console.log('✅ Shifts loaded from API:', monthShifts.length, 'shifts');
       
     } catch (error) {
       dispatch({ type: 'SET_ERROR', payload: 'Erreur lors du chargement des données' });
@@ -213,18 +205,12 @@ export const MonthlyCalendar: React.FC = () => {
 
   const loadStaff = async () => {
     try {
-      // Try API first, fallback to demo data
-      try {
-        const staffResponse = await adaPlanningAPI.getStaff({ active_only: true });
-        dispatch({ type: 'SET_STAFF', payload: staffResponse.data });
-      } catch (apiError) {
-        // Fallback to demo data
-        const { demoStaff } = await import('@/lib/demo-data');
-        dispatch({ type: 'SET_STAFF', payload: demoStaff });
-        console.warn('Using demo staff data - API unavailable');
-      }
+      const staffResponse = await adaPlanningAPI.getStaff({ active_only: true });
+      dispatch({ type: 'SET_STAFF', payload: staffResponse.data });
+      console.log('✅ Staff loaded from API:', staffResponse.data.length, 'members');
     } catch (error) {
-      console.error('Erreur lors du chargement du personnel', error);
+      console.error('❌ Erreur lors du chargement du personnel:', error);
+      dispatch({ type: 'SET_ERROR', payload: 'Erreur lors du chargement du personnel' });
     }
   };
 
