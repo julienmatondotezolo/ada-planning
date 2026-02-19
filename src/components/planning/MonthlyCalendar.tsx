@@ -165,14 +165,15 @@ const CalendarDay: React.FC<{
       onDragOver={(e) => {
         e.preventDefault();
         e.dataTransfer.dropEffect = 'move';
-        onDragOver(date);
+        onDragOver(date); // Only visual feedback - no database updates!
       }}
       onDragLeave={() => {
-        onDragOver(null);
+        onDragOver(null); // Clear visual feedback
       }}
       onDrop={(e) => {
         e.preventDefault();
-        onDrop(date);
+        console.log(`📅 Drop detected on ${date.toISOString().split('T')[0]}`);
+        onDrop(date); // 🎯 THIS triggers the actual database update with this date!
         onDragOver(null);
       }}
     >
@@ -328,53 +329,62 @@ export const MonthlyCalendar: React.FC = () => {
   };
 
   const handleDragStart = (shift: Shift) => {
+    console.log(`🎯 Drag started: ${shift.staff?.first_name || 'Employee'} (${shift.start_time.slice(0, 5)}-${shift.end_time.slice(0, 5)}) from ${shift.scheduled_date}`);
     setDraggedShift(shift);
   };
 
   const handleDragOver = (date: Date | null) => {
+    // Only visual feedback - NO database updates here!
     setDragOverDate(date);
   };
 
   const handleDrop = async (targetDate: Date) => {
-    if (!draggedShift) return;
+    if (!draggedShift) {
+      console.log('❌ Drop failed: no dragged shift');
+      return;
+    }
     
     const targetDateString = targetDate.toISOString().split('T')[0];
     const originalDateString = draggedShift.scheduled_date;
     
+    console.log(`📍 DROPPED on ${targetDateString} (from ${originalDateString})`);
+    
     // Don't do anything if dropped on same date
     if (targetDateString === originalDateString) {
+      console.log('⚪ Same date drop - no update needed');
       setDraggedShift(null);
       return;
     }
     
+    // ✅ THIS IS WHERE THE UPDATE HAPPENS - ONLY ON DROP!
+    console.log(`🚀 UPDATING SHIFT: Moving ${draggedShift.staff?.first_name || 'Employee'} from ${originalDateString} → ${targetDateString}`);
+    
     // Create the optimistic update immediately
     const optimisticShift = {
       ...draggedShift,
-      scheduled_date: targetDateString
+      scheduled_date: targetDateString  // 🎯 Update to DROP DATE
     };
     
     // Immediately update the UI state (optimistic update)
     dispatch({ type: 'UPDATE_SHIFT', payload: optimisticShift });
     setDraggedShift(null);
     
-    console.log(`🔄 Moving ${draggedShift.staff?.first_name || 'Employee'} from ${originalDateString} to ${targetDateString}`);
-    
     try {
       // Update the shift's date in the background
       const updatedShift = await adaPlanningAPI.updateShift(draggedShift.id, {
-        scheduled_date: targetDateString
+        scheduled_date: targetDateString  // 🎯 API call with DROP DATE
       });
       
       // Update with the real response from API (in case server changed anything)
       dispatch({ type: 'UPDATE_SHIFT', payload: updatedShift });
       
-      console.log(`✅ Successfully moved ${draggedShift.staff?.first_name || 'Employee'} to ${targetDateString}`);
+      console.log(`✅ Database updated: ${draggedShift.staff?.first_name || 'Employee'} now scheduled for ${targetDateString}`);
       
     } catch (error) {
       // Revert the optimistic update on error
       dispatch({ type: 'UPDATE_SHIFT', payload: draggedShift });
       dispatch({ type: 'SET_ERROR', payload: 'Erreur lors du déplacement de l\'affectation' });
-      console.error('❌ Error moving shift, reverting:', error);
+      console.error('❌ Database update failed, reverted to original date:', error);
     }
   };
 
@@ -578,13 +588,16 @@ export const MonthlyCalendar: React.FC = () => {
           <div className="flex items-center space-x-2">
             <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
             <span className="font-medium">
-              Déplacement de {draggedShift.staff?.first_name || 'Employé'} 
+              {draggedShift.staff?.first_name || 'Employé'} 
               ({draggedShift.start_time.slice(0, 5)} - {draggedShift.end_time.slice(0, 5)})
             </span>
             <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
           </div>
           <div className="text-blue-200 text-xs text-center mt-1">
-            Glissez vers une nouvelle date
+            📍 Relâchez pour planifier à cette date
+          </div>
+          <div className="text-blue-100 text-xs text-center mt-0.5 font-mono">
+            Date actuelle: {draggedShift.scheduled_date}
           </div>
         </div>
       )}
