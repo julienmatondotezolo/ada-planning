@@ -2,8 +2,8 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
+import { SimpleButton as Button } from '@/components/ui/simple-button';
+import { SimpleCard as Card, SimpleCardHeader as CardHeader, SimpleCardTitle as CardTitle, SimpleCardContent as CardContent } from '@/components/ui/simple-card';
 import { useAuth } from '@/hooks/useAuth';
 import { Calendar, Lock, Mail } from 'lucide-react';
 

@@ -5,8 +5,8 @@ import { Plus, Edit2, Trash2, Phone, Mail, Clock } from 'lucide-react';
 import { usePlanningStore } from '@/stores/planning-store';
 import { adaPlanningAPI } from '@/lib/api';
 import { StaffMember } from '@/types/planning';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { SimpleButton as Button } from '@/components/ui/simple-button';
+import { SimpleCard as Card, SimpleCardContent as CardContent, SimpleCardHeader as CardHeader, SimpleCardTitle as CardTitle } from '@/components/ui/simple-card';
 
 const StaffCard: React.FC<{ 
   staff: StaffMember; 

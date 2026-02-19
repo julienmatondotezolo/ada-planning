@@ -10,8 +10,8 @@ import { Plus, ChevronLeft, ChevronRight, Clock, User } from 'lucide-react';
 import { usePlanningStore, usePlanningHelpers } from '@/stores/planning-store';
 import { adaPlanningAPI } from '@/lib/api';
 import { Shift, StaffMember, DraggedShift } from '@/types/planning';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { SimpleButton as Button } from '@/components/ui/simple-button';
+import { SimpleCard as Card, SimpleCardContent as CardContent, SimpleCardHeader as CardHeader, SimpleCardTitle as CardTitle } from '@/components/ui/simple-card';
 import { formatTime } from '@/lib/utils';
 
 // Sortable Shift Component

@@ -1,7 +1,7 @@
 'use client';
 
 import { AppLayout } from '@/components/layout/AppLayout';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { SimpleCard as Card, SimpleCardContent as CardContent, SimpleCardHeader as CardHeader, SimpleCardTitle as CardTitle } from '@/components/ui/simple-card';
 import { BarChart3, Clock, Users, TrendingUp } from 'lucide-react';
 
 const StatCard = ({ title, value, icon: Icon, change }: {
