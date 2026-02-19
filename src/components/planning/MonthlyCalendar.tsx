@@ -181,8 +181,8 @@ export const MonthlyCalendar: React.FC = () => {
     try {
       dispatch({ type: 'SET_LOADING', payload: true });
       
-      const startDate = new Date(currentYear, currentMonth, 1).toISOString().split('T')[0];
-      const shiftsResponse = await adaPlanningAPI.getShifts({ date: startDate });
+      // Get all shifts (don't filter by date in API call)
+      const shiftsResponse = await adaPlanningAPI.getShifts();
       
       // Filter shifts for the current month view (including adjacent days)  
       const monthShifts = shiftsResponse.data.filter(shift => {
