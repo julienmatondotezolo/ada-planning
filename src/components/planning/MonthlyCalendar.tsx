@@ -146,11 +146,13 @@ const CalendarDay: React.FC<{
     return aFirstTime.localeCompare(bFirstTime);
   });
   
-  // Debug log for days with multiple employees
-  if (shiftEntries.length > 1) {
-    console.log(`📅 ${date.toISOString().split('T')[0]}: ${shiftEntries.length} employees working:`, 
-      shiftEntries.map(e => `${e.staff.first_name} ${e.staff.last_name}`).join(', '));
-  }
+  // Debug log for days with multiple employees (only log once, not on every render)
+  React.useEffect(() => {
+    if (shiftEntries.length > 1) {
+      console.log(`📅 ${date.toISOString().split('T')[0]}: ${shiftEntries.length} employees working:`, 
+        shiftEntries.map(e => `${e.staff.first_name} ${e.staff.last_name}`).join(', '));
+    }
+  }, [shiftEntries.length]);
 
   return (
     <div 
@@ -167,22 +169,38 @@ const CalendarDay: React.FC<{
         e.dataTransfer.dropEffect = 'move';
         onDragOver(date); // Only visual feedback - no database updates!
       }}
-      onDragLeave={() => {
-        onDragOver(null); // Clear visual feedback
+      onDragLeave={(e) => {
+        // Only clear if we're actually leaving this specific element
+        if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+          onDragOver(null); // Clear visual feedback
+        }
       }}
       onDrop={(e) => {
         e.preventDefault();
-        console.log(`📅 Drop detected on ${date.toISOString().split('T')[0]}`);
-        onDrop(date); // 🎯 THIS triggers the actual database update with this date!
+        e.stopPropagation(); // Prevent event bubbling
+        
+        // Make sure we're getting the date from THIS specific calendar day
+        const dropDate = new Date(date);
+        const dropDateString = dropDate.toISOString().split('T')[0];
+        
+        console.log(`🎯 DROP CONFIRMED on calendar day: ${dropDateString}`);
+        console.log(`📅 Exact date object:`, dropDate);
+        
+        onDrop(dropDate); // Pass the EXACT date from this calendar cell
         onDragOver(null);
       }}
     >
       {/* Date number */}
       <div className={`
-        text-sm font-medium mb-2
+        text-sm font-medium mb-2 relative
         ${isToday ? 'text-blue-600 font-bold' : isCurrentMonth ? 'text-gray-700' : 'text-gray-400'}
       `}>
         {date.getDate()}
+        {isDragOver && (
+          <div className="absolute -top-1 -right-1 bg-green-500 text-white text-xs px-1 rounded-full font-mono text-[10px] whitespace-nowrap">
+            {date.toISOString().split('T')[0]}
+          </div>
+        )}
       </div>
 
       {/* Shift entries */}
@@ -335,7 +353,10 @@ export const MonthlyCalendar: React.FC = () => {
 
   const handleDragOver = (date: Date | null) => {
     // Only visual feedback - NO database updates here!
-    setDragOverDate(date);
+    // Only update if the date actually changed to reduce re-renders
+    if (dragOverDate?.toDateString() !== date?.toDateString()) {
+      setDragOverDate(date);
+    }
   };
 
   const handleDrop = async (targetDate: Date) => {
@@ -344,10 +365,17 @@ export const MonthlyCalendar: React.FC = () => {
       return;
     }
     
-    const targetDateString = targetDate.toISOString().split('T')[0];
+    // Ensure we're working with a clean date (no time component)
+    const cleanTargetDate = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate());
+    const targetDateString = cleanTargetDate.toISOString().split('T')[0];
     const originalDateString = draggedShift.scheduled_date;
     
-    console.log(`📍 DROPPED on ${targetDateString} (from ${originalDateString})`);
+    console.log(`🎯 DROP PROCESSED:`);
+    console.log(`   From: ${originalDateString}`);
+    console.log(`   To: ${targetDateString}`); 
+    console.log(`   Target Date Object:`, cleanTargetDate);
+    console.log(`   Employee: ${draggedShift.staff?.first_name || 'Unknown'}`);
+    console.log(`   Shift Time: ${draggedShift.start_time} - ${draggedShift.end_time}`);
     
     // Don't do anything if dropped on same date
     if (targetDateString === originalDateString) {
@@ -357,12 +385,12 @@ export const MonthlyCalendar: React.FC = () => {
     }
     
     // ✅ THIS IS WHERE THE UPDATE HAPPENS - ONLY ON DROP!
-    console.log(`🚀 UPDATING SHIFT: Moving ${draggedShift.staff?.first_name || 'Employee'} from ${originalDateString} → ${targetDateString}`);
+    console.log(`🚀 EXECUTING UPDATE: ${draggedShift.staff?.first_name} → ${targetDateString}`);
     
     // Create the optimistic update immediately
     const optimisticShift = {
       ...draggedShift,
-      scheduled_date: targetDateString  // 🎯 Update to DROP DATE
+      scheduled_date: targetDateString  // 🎯 Update to EXACT DROP DATE
     };
     
     // Immediately update the UI state (optimistic update)
@@ -372,13 +400,14 @@ export const MonthlyCalendar: React.FC = () => {
     try {
       // Update the shift's date in the background
       const updatedShift = await adaPlanningAPI.updateShift(draggedShift.id, {
-        scheduled_date: targetDateString  // 🎯 API call with DROP DATE
+        scheduled_date: targetDateString  // 🎯 API call with EXACT DROP DATE
       });
       
       // Update with the real response from API (in case server changed anything)
       dispatch({ type: 'UPDATE_SHIFT', payload: updatedShift });
       
-      console.log(`✅ Database updated: ${draggedShift.staff?.first_name || 'Employee'} now scheduled for ${targetDateString}`);
+      console.log(`✅ SUCCESS: ${draggedShift.staff?.first_name} moved to ${targetDateString}`);
+      console.log(`   Database response:`, updatedShift.scheduled_date);
       
     } catch (error) {
       // Revert the optimistic update on error
@@ -594,10 +623,14 @@ export const MonthlyCalendar: React.FC = () => {
             <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
           </div>
           <div className="text-blue-200 text-xs text-center mt-1">
-            📍 Relâchez pour planifier à cette date
+            {dragOverDate 
+              ? `📍 Relâchez pour planifier le ${dragOverDate.toISOString().split('T')[0]}`
+              : '📍 Glissez vers une date pour planifier'
+            }
           </div>
           <div className="text-blue-100 text-xs text-center mt-0.5 font-mono">
-            Date actuelle: {draggedShift.scheduled_date}
+            Actuellement: {draggedShift.scheduled_date}
+            {dragOverDate && ` → ${dragOverDate.toISOString().split('T')[0]}`}
           </div>
         </div>
       )}
