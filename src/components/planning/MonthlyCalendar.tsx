@@ -9,6 +9,14 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { ShiftModal } from './ShiftModal';
 
+// Utility function to convert Date to local YYYY-MM-DD string (fixes timezone issues)
+const formatLocalDate = (date: Date): string => {
+  const year = date.getFullYear();
+  const month = (date.getMonth() + 1).toString().padStart(2, '0');
+  const day = date.getDate().toString().padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
 const MONTHS_FR = [
   'JANVIER', 'FÉVRIER', 'MARS', 'AVRIL', 'MAI', 'JUIN',
   'JUILLET', 'AOÛT', 'SEPTEMBRE', 'OCTOBRE', 'NOVEMBRE', 'DÉCEMBRE'
@@ -146,11 +154,13 @@ const CalendarDay: React.FC<{
     return aFirstTime.localeCompare(bFirstTime);
   });
   
-  // Debug log for days with multiple employees
-  if (shiftEntries.length > 1) {
-    console.log(`📅 ${date.toISOString().split('T')[0]}: ${shiftEntries.length} employees working:`, 
-      shiftEntries.map(e => `${e.staff.first_name} ${e.staff.last_name}`).join(', '));
-  }
+  // Reduced debug logging (only once per day, not on every render)
+  React.useEffect(() => {
+    if (shiftEntries.length > 1) {
+      console.log(`📅 ${formatLocalDate(date)}: ${shiftEntries.length} employees working:`, 
+        shiftEntries.map(e => `${e.staff.first_name} ${e.staff.last_name}`).join(', '));
+    }
+  }, [shiftEntries.length, date.toDateString()]);
 
   return (
     <div 
@@ -173,7 +183,8 @@ const CalendarDay: React.FC<{
       onDrop={(e) => {
         e.preventDefault();
         e.stopPropagation();
-        console.log(`📅 DROP DETECTED on calendar cell: ${date.toISOString().split('T')[0]}`);
+        // FIX: Use local date formatting
+        console.log(`📅 DROP DETECTED on calendar cell: ${formatLocalDate(date)}`);
         onDrop(date);
         onDragOver(null);
       }}
@@ -186,7 +197,7 @@ const CalendarDay: React.FC<{
         {date.getDate()}
         {isDragOver && (
           <div className="absolute -top-1 -right-1 bg-green-500 text-white text-xs px-1 rounded-full font-mono text-[10px] whitespace-nowrap z-10">
-            {date.toISOString().split('T')[0]}
+            {formatLocalDate(date)}
           </div>
         )}
       </div>
@@ -342,7 +353,8 @@ export const MonthlyCalendar: React.FC = () => {
   const handleDragOver = (date: Date | null) => {
     // Only log when date changes to reduce spam
     if (date && (!dragOverDate || dragOverDate.toDateString() !== date.toDateString())) {
-      console.log(`📍 HOVERING OVER: ${date.toISOString().split('T')[0]}`);
+      // FIX: Use local date formatting
+      console.log(`📍 HOVERING OVER: ${formatLocalDate(date)}`);
     }
     setDragOverDate(date);
   };
@@ -353,13 +365,14 @@ export const MonthlyCalendar: React.FC = () => {
       return;
     }
     
-    const targetDateString = targetDate.toISOString().split('T')[0];
+    // FIX: Use local date formatting to avoid timezone issues
+    const targetDateString = formatLocalDate(targetDate);
     const originalDateString = draggedShift.scheduled_date;
     
-    console.log(`🎯 DROP EVENT:`);
+    console.log(`🎯 DROP EVENT (TIMEZONE-FIXED):`);
     console.log(`   Employee: ${draggedShift.staff?.first_name || 'Unknown'}`);
     console.log(`   From: ${originalDateString}`);
-    console.log(`   To: ${targetDateString}`);
+    console.log(`   To: ${targetDateString} ✅ (Local date, no UTC conversion)`);
     console.log(`   Target Date Object:`, targetDate);
     
     // Don't do anything if dropped on same date
