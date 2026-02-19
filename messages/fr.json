@@ -1,0 +1,84 @@
+{
+  "nav": {
+    "planning": "Planning",
+    "staff": "Personnel",
+    "shifts": "Postes",
+    "reports": "Rapports",
+    "settings": "Paramètres"
+  },
+  "planning": {
+    "weeklySchedule": "Planning Hebdomadaire",
+    "weekOf": "Semaine du",
+    "publishSchedule": "Publier le planning",
+    "addShift": "Ajouter un poste",
+    "editShift": "Modifier le poste",
+    "newShift": "Nouveau poste",
+    "loading": "Chargement...",
+    "save": "Enregistrer",
+    "cancel": "Annuler",
+    "delete": "Supprimer",
+    "monday": "Lundi",
+    "tuesday": "Mardi", 
+    "wednesday": "Mercredi",
+    "thursday": "Jeudi",
+    "friday": "Vendredi",
+    "saturday": "Samedi",
+    "sunday": "Dimanche"
+  },
+  "staff": {
+    "title": "Personnel",
+    "addMember": "Ajouter un membre",
+    "editMember": "Modifier le membre",
+    "newMember": "Nouveau membre",
+    "active": "Actifs",
+    "inactive": "Inactifs",
+    "all": "Tous",
+    "firstName": "Prénom",
+    "lastName": "Nom",
+    "email": "Email",
+    "phone": "Téléphone",
+    "position": "Poste",
+    "hourlyRate": "Taux horaire",
+    "hoursPerWeek": "Heures/semaine",
+    "availability": "Disponibilités",
+    "status": "Statut",
+    "deleteConfirm": "Êtes-vous sûr de vouloir supprimer ce membre du personnel ?",
+    "positions": {
+      "manager": "Manager",
+      "server": "Serveur",
+      "kitchen": "Cuisine",
+      "bar": "Bar",
+      "host": "Accueil"
+    },
+    "statuses": {
+      "active": "Actif",
+      "inactive": "Inactif",
+      "on_leave": "Congé"
+    }
+  },
+  "reports": {
+    "title": "Rapports",
+    "hoursThisWeek": "Heures cette semaine",
+    "activeStaff": "Personnel actif",
+    "coverageRate": "Taux de couverture",
+    "laborCost": "Coût de la main-d'œuvre",
+    "hoursByDay": "Heures par jour",
+    "distributionByPosition": "Répartition par poste",
+    "weeklySummary": "Résumé hebdomadaire",
+    "scheduled": "Planifiées",
+    "actual": "Réelles",
+    "coverage": "Couverture"
+  },
+  "common": {
+    "save": "Enregistrer",
+    "cancel": "Annuler",
+    "delete": "Supprimer",
+    "edit": "Modifier",
+    "add": "Ajouter",
+    "loading": "Chargement...",
+    "error": "Erreur",
+    "success": "Succès",
+    "confirm": "Confirmer",
+    "close": "Fermer"
+  }
+}

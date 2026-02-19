@@ -1,0 +1,11 @@
+# AdaPlanning PWA Icon Placeholder
+
+This is a placeholder for the 192x192 PWA icon.
+
+For production, create a proper PNG icon with:
+- 192x192 pixels
+- Ada brand green (#064e3b) background
+- White calendar icon
+- Rounded corners
+
+The icon should match the ada ecosystem branding and be optimized for tablet display.

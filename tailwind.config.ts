@@ -19,6 +19,22 @@ const config: Config = {
           secondary: '#a3e635',
           accent: '#0f766e',
         },
+        primary: {
+          DEFAULT: '#064e3b', // ada primary
+          foreground: '#ffffff',
+        },
+        secondary: {
+          DEFAULT: '#64748b', // slate-500
+          foreground: '#ffffff',
+        },
+        muted: {
+          DEFAULT: '#f1f5f9', // slate-100
+          foreground: '#64748b', // slate-500
+        },
+        card: {
+          DEFAULT: '#ffffff',
+          foreground: '#0f172a', // slate-900
+        },
       },
     },
   },

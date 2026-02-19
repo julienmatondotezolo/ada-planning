@@ -1,0 +1,84 @@
+{
+  "nav": {
+    "planning": "Planning",
+    "staff": "Staff",
+    "shifts": "Shifts",
+    "reports": "Reports",
+    "settings": "Settings"
+  },
+  "planning": {
+    "weeklySchedule": "Weekly Schedule",
+    "weekOf": "Week of",
+    "publishSchedule": "Publish Schedule",
+    "addShift": "Add Shift",
+    "editShift": "Edit Shift",
+    "newShift": "New Shift",
+    "loading": "Loading...",
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "monday": "Monday",
+    "tuesday": "Tuesday", 
+    "wednesday": "Wednesday",
+    "thursday": "Thursday",
+    "friday": "Friday",
+    "saturday": "Saturday",
+    "sunday": "Sunday"
+  },
+  "staff": {
+    "title": "Staff",
+    "addMember": "Add Member",
+    "editMember": "Edit Member",
+    "newMember": "New Member",
+    "active": "Active",
+    "inactive": "Inactive",
+    "all": "All",
+    "firstName": "First Name",
+    "lastName": "Last Name",
+    "email": "Email",
+    "phone": "Phone",
+    "position": "Position",
+    "hourlyRate": "Hourly Rate",
+    "hoursPerWeek": "Hours/week",
+    "availability": "Availability",
+    "status": "Status",
+    "deleteConfirm": "Are you sure you want to delete this staff member?",
+    "positions": {
+      "manager": "Manager",
+      "server": "Server",
+      "kitchen": "Kitchen",
+      "bar": "Bar",
+      "host": "Host"
+    },
+    "statuses": {
+      "active": "Active",
+      "inactive": "Inactive",
+      "on_leave": "On Leave"
+    }
+  },
+  "reports": {
+    "title": "Reports",
+    "hoursThisWeek": "Hours this week",
+    "activeStaff": "Active staff",
+    "coverageRate": "Coverage rate",
+    "laborCost": "Labor cost",
+    "hoursByDay": "Hours by day",
+    "distributionByPosition": "Distribution by position",
+    "weeklySummary": "Weekly summary",
+    "scheduled": "Scheduled",
+    "actual": "Actual",
+    "coverage": "Coverage"
+  },
+  "common": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "add": "Add",
+    "loading": "Loading...",
+    "error": "Error",
+    "success": "Success",
+    "confirm": "Confirm",
+    "close": "Close"
+  }
+}

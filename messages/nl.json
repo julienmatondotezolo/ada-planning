@@ -1,0 +1,84 @@
+{
+  "nav": {
+    "planning": "Planning",
+    "staff": "Personeel",
+    "shifts": "Diensten",
+    "reports": "Rapporten",
+    "settings": "Instellingen"
+  },
+  "planning": {
+    "weeklySchedule": "Weekplanning",
+    "weekOf": "Week van",
+    "publishSchedule": "Planning publiceren",
+    "addShift": "Dienst toevoegen",
+    "editShift": "Dienst bewerken",
+    "newShift": "Nieuwe dienst",
+    "loading": "Laden...",
+    "save": "Opslaan",
+    "cancel": "Annuleren",
+    "delete": "Verwijderen",
+    "monday": "Maandag",
+    "tuesday": "Dinsdag", 
+    "wednesday": "Woensdag",
+    "thursday": "Donderdag",
+    "friday": "Vrijdag",
+    "saturday": "Zaterdag",
+    "sunday": "Zondag"
+  },
+  "staff": {
+    "title": "Personeel",
+    "addMember": "Medewerker toevoegen",
+    "editMember": "Medewerker bewerken",
+    "newMember": "Nieuwe medewerker",
+    "active": "Actief",
+    "inactive": "Inactief",
+    "all": "Alle",
+    "firstName": "Voornaam",
+    "lastName": "Achternaam",
+    "email": "E-mail",
+    "phone": "Telefoon",
+    "position": "Functie",
+    "hourlyRate": "Uurtarief",
+    "hoursPerWeek": "Uren/week",
+    "availability": "Beschikbaarheid",
+    "status": "Status",
+    "deleteConfirm": "Weet je zeker dat je deze medewerker wilt verwijderen?",
+    "positions": {
+      "manager": "Manager",
+      "server": "Ober",
+      "kitchen": "Keuken",
+      "bar": "Bar",
+      "host": "Gastheer"
+    },
+    "statuses": {
+      "active": "Actief",
+      "inactive": "Inactief",
+      "on_leave": "Met verlof"
+    }
+  },
+  "reports": {
+    "title": "Rapporten",
+    "hoursThisWeek": "Uren deze week",
+    "activeStaff": "Actief personeel",
+    "coverageRate": "Dekkingsgraad",
+    "laborCost": "Arbeidskosten",
+    "hoursByDay": "Uren per dag",
+    "distributionByPosition": "Verdeling per functie",
+    "weeklySummary": "Weeksamenvatting",
+    "scheduled": "Gepland",
+    "actual": "Werkelijk",
+    "coverage": "Dekking"
+  },
+  "common": {
+    "save": "Opslaan",
+    "cancel": "Annuleren",
+    "delete": "Verwijderen",
+    "edit": "Bewerken",
+    "add": "Toevoegen",
+    "loading": "Laden...",
+    "error": "Fout",
+    "success": "Succes",
+    "confirm": "Bevestigen",
+    "close": "Sluiten"
+  }
+}

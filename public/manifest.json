@@ -1,0 +1,35 @@
+{
+  "name": "AdaPlanning - Staff Scheduling",
+  "short_name": "AdaPlanning",
+  "description": "Staff scheduling system for L'Osteria Deerlijk",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#064e3b",
+  "orientation": "landscape-primary",
+  "categories": ["business", "productivity"],
+  "lang": "fr-FR",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable any"
+    },
+    {
+      "src": "/icon-512.png", 
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable any"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/screenshot-tablet.png",
+      "sizes": "1280x800",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "Weekly schedule view on tablet"
+    }
+  ]
+}
