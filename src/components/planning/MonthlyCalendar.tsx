@@ -26,7 +26,8 @@ interface DayShiftEntry {
 const ShiftEntry: React.FC<{ 
   entry: DayShiftEntry; 
   onEdit: (shift: Shift) => void;
-}> = ({ entry, onEdit }) => {
+  onDragStart: (shift: Shift) => void;
+}> = ({ entry, onEdit, onDragStart }) => {
   const { staff, shifts } = entry;
   
   return (
@@ -34,8 +35,28 @@ const ShiftEntry: React.FC<{
       {shifts.map((shift, index) => (
         <div 
           key={shift.id}
-          className="group hover:bg-blue-50 p-1 rounded text-xs cursor-pointer border border-transparent hover:border-blue-200 transition-all"
-          onClick={() => onEdit(shift)}
+          draggable
+          onDragStart={(e) => {
+            onDragStart(shift);
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', shift.id);
+            e.currentTarget.style.opacity = '0.4';
+            e.currentTarget.style.transform = 'rotate(2deg)';
+            document.body.style.userSelect = 'none';
+          }}
+          onDragEnd={(e) => {
+            e.currentTarget.style.opacity = '1';
+            e.currentTarget.style.transform = 'none';
+            document.body.style.userSelect = '';
+          }}
+          className="group hover:bg-blue-50 p-1 rounded text-xs cursor-grab active:cursor-grabbing border border-transparent hover:border-blue-200 transition-all select-none"
+          onClick={(e) => {
+            // Prevent edit when dragging
+            if (e.detail === 1) {
+              setTimeout(() => onEdit(shift), 100);
+            }
+          }}
+          title="Cliquer pour modifier, glisser pour déplacer"
         >
           <div className="flex items-center justify-between">
             <div className="min-w-0 flex-1">
@@ -62,7 +83,11 @@ const CalendarDay: React.FC<{
   isToday: boolean;
   onAddShift: (date: Date) => void;
   onEditShift: (shift: Shift) => void;
-}> = ({ date, shifts, staff, isCurrentMonth, isToday, onAddShift, onEditShift }) => {
+  onDragStart: (shift: Shift) => void;
+  onDrop: (date: Date) => void;
+  isDragOver: boolean;
+  onDragOver: (date: Date | null) => void;
+}> = ({ date, shifts, staff, isCurrentMonth, isToday, onAddShift, onEditShift, onDragStart, onDrop, isDragOver, onDragOver }) => {
   // Group shifts by staff member
   const shiftEntries: DayShiftEntry[] = [];
   const shiftsByStaff = new Map<string, Shift[]>();
@@ -124,8 +149,22 @@ const CalendarDay: React.FC<{
         ${shiftEntries.length === 0 ? 'min-h-[120px]' : 'min-h-[140px]'}
         ${!isCurrentMonth ? 'bg-gray-50 text-gray-400' : 'bg-white'}
         ${isToday ? 'ring-2 ring-blue-500/20 bg-blue-50/50' : ''}
-        hover:bg-gray-50 transition-colors
+        ${isDragOver ? 'ring-2 ring-green-500 bg-green-50' : 'hover:bg-gray-50'}
+        transition-all
       `}
+      onDragOver={(e) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        onDragOver(date);
+      }}
+      onDragLeave={() => {
+        onDragOver(null);
+      }}
+      onDrop={(e) => {
+        e.preventDefault();
+        onDrop(date);
+        onDragOver(null);
+      }}
     >
       {/* Date number */}
       <div className={`
@@ -142,6 +181,7 @@ const CalendarDay: React.FC<{
             key={`${entry.staff.id}-${index}`}
             entry={entry}
             onEdit={onEditShift}
+            onDragStart={onDragStart}
           />
         ))}
       </div>
@@ -169,6 +209,8 @@ export const MonthlyCalendar: React.FC = () => {
   const [isShiftModalOpen, setIsShiftModalOpen] = useState(false);
   const [selectedShift, setSelectedShift] = useState<Shift | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [draggedShift, setDraggedShift] = useState<Shift | null>(null);
+  const [dragOverDate, setDragOverDate] = useState<Date | null>(null);
 
   const currentYear = currentDate.getFullYear();
   const currentMonth = currentDate.getMonth();
@@ -271,6 +313,47 @@ export const MonthlyCalendar: React.FC = () => {
     setSelectedShift(shift);
     setSelectedDate(new Date(shift.scheduled_date));
     setIsShiftModalOpen(true);
+  };
+
+  const handleDragStart = (shift: Shift) => {
+    setDraggedShift(shift);
+  };
+
+  const handleDragOver = (date: Date | null) => {
+    setDragOverDate(date);
+  };
+
+  const handleDrop = async (targetDate: Date) => {
+    if (!draggedShift) return;
+    
+    const targetDateString = targetDate.toISOString().split('T')[0];
+    const originalDateString = draggedShift.scheduled_date;
+    
+    // Don't do anything if dropped on same date
+    if (targetDateString === originalDateString) {
+      setDraggedShift(null);
+      return;
+    }
+    
+    try {
+      dispatch({ type: 'SET_LOADING', payload: true });
+      
+      // Update the shift's date
+      const updatedShift = await adaPlanningAPI.updateShift(draggedShift.id, {
+        scheduled_date: targetDateString
+      });
+      
+      dispatch({ type: 'UPDATE_SHIFT', payload: updatedShift });
+      
+      console.log(`🔄 Moved ${draggedShift.staff?.first_name || 'Employee'} from ${originalDateString} to ${targetDateString}`);
+      
+    } catch (error) {
+      dispatch({ type: 'SET_ERROR', payload: 'Erreur lors du déplacement de l\'affectation' });
+      console.error('Error moving shift:', error);
+    } finally {
+      dispatch({ type: 'SET_LOADING', payload: false });
+      setDraggedShift(null);
+    }
   };
 
   const handleSaveShift = async (shiftData: Partial<Shift>) => {
@@ -380,9 +463,9 @@ export const MonthlyCalendar: React.FC = () => {
   }
 
   return (
-    <div className="h-full flex flex-col bg-white">
-      {/* Header */}
-      <div className="flex items-center justify-between p-6 border-b bg-white">
+    <div className="h-screen flex flex-col bg-white overflow-hidden">
+      {/* Header - Fixed */}
+      <div className="flex items-center justify-between p-6 border-b bg-white flex-shrink-0">
         <div className="flex items-center space-x-6">
           <Button 
             variant="outline" 
@@ -423,7 +506,7 @@ export const MonthlyCalendar: React.FC = () => {
 
       {/* Error Message */}
       {state.error && (
-        <div className="mx-6 mt-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
+        <div className="mx-6 mt-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded flex-shrink-0">
           {state.error}
           <button 
             onClick={() => dispatch({ type: 'SET_ERROR', payload: null })}
@@ -434,10 +517,17 @@ export const MonthlyCalendar: React.FC = () => {
         </div>
       )}
 
-      {/* Calendar */}
-      <div className="flex-1 p-6">
+      {/* Drag feedback */}
+      {draggedShift && (
+        <div className="fixed top-4 left-1/2 transform -translate-x-1/2 bg-blue-600 text-white px-4 py-2 rounded-lg shadow-lg z-50 pointer-events-none">
+          Déplacement de {draggedShift.staff?.first_name || 'Employé'} - Glissez vers une nouvelle date
+        </div>
+      )}
+
+      {/* Calendar - Scrollable */}
+      <div className="flex-1 overflow-auto p-6">
         {/* Day headers */}
-        <div className="grid grid-cols-7 gap-0 mb-2">
+        <div className="grid grid-cols-7 gap-0 mb-2 sticky top-0 z-10">
           {DAYS_FR.map((day) => (
             <div key={day} className="p-3 text-center font-semibold text-sm text-gray-700 bg-gray-100 border border-gray-200">
               {day}
@@ -457,6 +547,10 @@ export const MonthlyCalendar: React.FC = () => {
               isToday={isToday(date)}
               onAddShift={handleAddShift}
               onEditShift={handleEditShift}
+              onDragStart={handleDragStart}
+              onDrop={handleDrop}
+              isDragOver={dragOverDate?.toDateString() === date.toDateString()}
+              onDragOver={handleDragOver}
             />
           ))}
         </div>
