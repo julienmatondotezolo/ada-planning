@@ -172,16 +172,23 @@ const CalendarDay: React.FC<{
       }}
       onDrop={(e) => {
         e.preventDefault();
+        e.stopPropagation();
+        console.log(`📅 DROP DETECTED on calendar cell: ${date.toISOString().split('T')[0]}`);
         onDrop(date);
         onDragOver(null);
       }}
     >
       {/* Date number */}
       <div className={`
-        text-sm font-medium mb-2
+        text-sm font-medium mb-2 relative
         ${isToday ? 'text-blue-600 font-bold' : isCurrentMonth ? 'text-gray-700' : 'text-gray-400'}
       `}>
         {date.getDate()}
+        {isDragOver && (
+          <div className="absolute -top-1 -right-1 bg-green-500 text-white text-xs px-1 rounded-full font-mono text-[10px] whitespace-nowrap z-10">
+            {date.toISOString().split('T')[0]}
+          </div>
+        )}
       </div>
 
       {/* Shift entries */}
@@ -328,21 +335,36 @@ export const MonthlyCalendar: React.FC = () => {
   };
 
   const handleDragStart = (shift: Shift) => {
+    console.log(`🎯 DRAG STARTED: ${shift.staff?.first_name || 'Employee'} from ${shift.scheduled_date}`);
     setDraggedShift(shift);
   };
 
   const handleDragOver = (date: Date | null) => {
+    // Only log when date changes to reduce spam
+    if (date && (!dragOverDate || dragOverDate.toDateString() !== date.toDateString())) {
+      console.log(`📍 HOVERING OVER: ${date.toISOString().split('T')[0]}`);
+    }
     setDragOverDate(date);
   };
 
   const handleDrop = async (targetDate: Date) => {
-    if (!draggedShift) return;
+    if (!draggedShift) {
+      console.log('❌ No dragged shift found');
+      return;
+    }
     
     const targetDateString = targetDate.toISOString().split('T')[0];
     const originalDateString = draggedShift.scheduled_date;
     
+    console.log(`🎯 DROP EVENT:`);
+    console.log(`   Employee: ${draggedShift.staff?.first_name || 'Unknown'}`);
+    console.log(`   From: ${originalDateString}`);
+    console.log(`   To: ${targetDateString}`);
+    console.log(`   Target Date Object:`, targetDate);
+    
     // Don't do anything if dropped on same date
     if (targetDateString === originalDateString) {
+      console.log('⚪ Same date - no update needed');
       setDraggedShift(null);
       return;
     }
@@ -357,10 +379,11 @@ export const MonthlyCalendar: React.FC = () => {
     dispatch({ type: 'UPDATE_SHIFT', payload: optimisticShift });
     setDraggedShift(null);
     
-    console.log(`🔄 Moving ${draggedShift.staff?.first_name || 'Employee'} from ${originalDateString} to ${targetDateString}`);
+    console.log(`🚀 EXECUTING UPDATE: Moving ${draggedShift.staff?.first_name || 'Employee'} → ${targetDateString}`);
     
     try {
       // Update the shift's date in the background
+      console.log(`📡 API call: PATCH /shifts/${draggedShift.id} with date ${targetDateString}`);
       const updatedShift = await adaPlanningAPI.updateShift(draggedShift.id, {
         scheduled_date: targetDateString
       });
@@ -368,13 +391,15 @@ export const MonthlyCalendar: React.FC = () => {
       // Update with the real response from API (in case server changed anything)
       dispatch({ type: 'UPDATE_SHIFT', payload: updatedShift });
       
-      console.log(`✅ Successfully moved ${draggedShift.staff?.first_name || 'Employee'} to ${targetDateString}`);
+      console.log(`✅ SUCCESS: ${draggedShift.staff?.first_name} moved to ${targetDateString}`);
+      console.log(`   Database response:`, updatedShift.scheduled_date);
       
     } catch (error) {
       // Revert the optimistic update on error
       dispatch({ type: 'UPDATE_SHIFT', payload: draggedShift });
       dispatch({ type: 'SET_ERROR', payload: 'Erreur lors du déplacement de l\'affectation' });
-      console.error('❌ Error moving shift, reverting:', error);
+      console.error('❌ DATABASE UPDATE FAILED - REVERTED:', error);
+      console.log(`   Shift restored to original date: ${originalDateString}`);
     }
   };
 
