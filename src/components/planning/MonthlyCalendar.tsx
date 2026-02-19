@@ -77,7 +77,24 @@ const CalendarDay: React.FC<{
   });
   
   shiftsByStaff.forEach((staffShifts, staffId) => {
-    const staffMember = staff.find(s => s.id === staffId);
+    let staffMember = staff.find(s => s.id === staffId);
+    
+    // If staff member not found in loaded staff list, try to get it from shift data
+    if (!staffMember && staffShifts.length > 0 && staffShifts[0].staff) {
+      staffMember = {
+        id: staffId,
+        first_name: staffShifts[0].staff.first_name,
+        last_name: staffShifts[0].staff.last_name,
+        position: staffShifts[0].staff.position,
+        email: '',
+        hourly_rate: 15,
+        hire_date: '',
+        status: 'active' as const,
+        default_hours_per_week: 30,
+        availability: []
+      };
+    }
+    
     if (staffMember) {
       staffShifts.sort((a, b) => a.start_time.localeCompare(b.start_time));
       shiftEntries.push({
@@ -86,11 +103,25 @@ const CalendarDay: React.FC<{
       });
     }
   });
+  
+  // Sort entries by earliest shift time for consistent display order
+  shiftEntries.sort((a, b) => {
+    const aFirstTime = a.shifts[0]?.start_time || '';
+    const bFirstTime = b.shifts[0]?.start_time || '';
+    return aFirstTime.localeCompare(bFirstTime);
+  });
+  
+  // Debug log for days with multiple employees
+  if (shiftEntries.length > 1) {
+    console.log(`📅 ${date.toISOString().split('T')[0]}: ${shiftEntries.length} employees working:`, 
+      shiftEntries.map(e => `${e.staff.first_name} ${e.staff.last_name}`).join(', '));
+  }
 
   return (
     <div 
       className={`
-        border border-gray-200 min-h-[120px] p-2 relative group
+        border border-gray-200 p-2 relative group
+        ${shiftEntries.length === 0 ? 'min-h-[120px]' : 'min-h-[140px]'}
         ${!isCurrentMonth ? 'bg-gray-50 text-gray-400' : 'bg-white'}
         ${isToday ? 'ring-2 ring-blue-500/20 bg-blue-50/50' : ''}
         hover:bg-gray-50 transition-colors
