@@ -20,6 +20,7 @@ type PlanningAction =
   | { type: 'SET_STAFF'; payload: StaffMember[] }
   | { type: 'ADD_STAFF'; payload: StaffMember }
   | { type: 'UPDATE_STAFF'; payload: StaffMember }
+  | { type: 'DELETE_STAFF'; payload: string }
   | { type: 'SET_SHIFTS'; payload: Shift[] }
   | { type: 'ADD_SHIFT'; payload: Shift }
   | { type: 'UPDATE_SHIFT'; payload: Shift }
@@ -52,6 +53,11 @@ function planningReducer(state: PlanningState, action: PlanningAction): Planning
       return {
         ...state,
         staff: state.staff.map(s => s.id === action.payload.id ? action.payload : s)
+      };
+    case 'DELETE_STAFF':
+      return {
+        ...state,
+        staff: state.staff.filter(s => s.id !== action.payload)
       };
     case 'SET_SHIFTS':
       return { ...state, shifts: action.payload };

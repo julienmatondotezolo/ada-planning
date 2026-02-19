@@ -15,12 +15,13 @@ const config: Config = {
       },
       colors: {
         ada: {
-          primary: '#064e3b',
-          secondary: '#a3e635',
-          accent: '#0f766e',
+          primary: '#2563eb', // blue-600
+          secondary: '#3b82f6', // blue-500
+          accent: '#dbeafe', // blue-100
+          dark: '#1e40af', // blue-800
         },
         primary: {
-          DEFAULT: '#064e3b', // ada primary
+          DEFAULT: '#2563eb', // ADA blue primary
           foreground: '#ffffff',
         },
         secondary: {
@@ -35,6 +36,8 @@ const config: Config = {
           DEFAULT: '#ffffff',
           foreground: '#0f172a', // slate-900
         },
+        background: '#ffffff',
+        foreground: '#000000',
       },
     },
   },

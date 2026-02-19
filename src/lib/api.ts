@@ -42,6 +42,12 @@ class AdaPlanningAPI {
     });
   }
 
+  async deleteStaffMember(id: string): Promise<void> {
+    return this.request(`/staff/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
   // Schedule Management
   async getSchedules(params?: { period?: string; date?: string }): Promise<{ data: Schedule[] }> {
     const query = params ? '?' + new URLSearchParams(Object.entries(params).map(([k, v]) => [k, String(v)])).toString() : '';

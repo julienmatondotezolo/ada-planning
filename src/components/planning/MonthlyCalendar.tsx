@@ -7,6 +7,7 @@ import { adaPlanningAPI } from '@/lib/api';
 import { Shift, StaffMember } from '@/types/planning';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { ShiftModal } from './ShiftModal';
 
 const MONTHS_FR = [
   'JANVIER', 'FÉVRIER', 'MARS', 'AVRIL', 'MAI', 'JUIN',
@@ -99,7 +100,7 @@ const CalendarDay: React.FC<{
       {/* Date number */}
       <div className={`
         text-sm font-medium mb-2
-        ${isToday ? 'text-primary font-bold' : isCurrentMonth ? 'text-gray-700' : 'text-gray-400'}
+        ${isToday ? 'text-blue-600 font-bold' : isCurrentMonth ? 'text-gray-700' : 'text-gray-400'}
       `}>
         {date.getDate()}
       </div>
@@ -125,7 +126,7 @@ const CalendarDay: React.FC<{
           ${shiftEntries.length === 0 ? 'opacity-30' : ''}
         `}
       >
-        <Plus className="w-3 h-3 text-primary" />
+        <Plus className="w-3 h-3 text-blue-600" />
       </button>
     </div>
   );
@@ -252,8 +253,98 @@ export const MonthlyCalendar: React.FC = () => {
 
   const handleEditShift = (shift: Shift) => {
     setSelectedShift(shift);
-    setSelectedDate(null);
+    setSelectedDate(new Date(shift.scheduled_date));
     setIsShiftModalOpen(true);
+  };
+
+  const handleSaveShift = async (shiftData: Partial<Shift>) => {
+    try {
+      dispatch({ type: 'SET_LOADING', payload: true });
+      
+      if (selectedShift) {
+        // Update existing shift
+        const updatedShift = await adaPlanningAPI.updateShift(selectedShift.id, shiftData);
+        dispatch({ type: 'UPDATE_SHIFT', payload: updatedShift });
+      } else {
+        // Create new shift
+        const newShift = await adaPlanningAPI.createShift(shiftData);
+        dispatch({ type: 'ADD_SHIFT', payload: newShift });
+      }
+      
+      setIsShiftModalOpen(false);
+      setSelectedShift(null);
+      setSelectedDate(null);
+      
+    } catch (error) {
+      dispatch({ 
+        type: 'SET_ERROR', 
+        payload: selectedShift ? 'Erreur lors de la mise à jour de l\'affectation' : 'Erreur lors de la création de l\'affectation' 
+      });
+      console.error('Error saving shift:', error);
+    } finally {
+      dispatch({ type: 'SET_LOADING', payload: false });
+    }
+  };
+
+  const handleDeleteShift = async (shiftId: string) => {
+    try {
+      dispatch({ type: 'SET_LOADING', payload: true });
+      
+      await adaPlanningAPI.deleteShift(shiftId);
+      dispatch({ type: 'DELETE_SHIFT', payload: shiftId });
+      
+      setIsShiftModalOpen(false);
+      setSelectedShift(null);
+      setSelectedDate(null);
+      
+    } catch (error) {
+      dispatch({ type: 'SET_ERROR', payload: 'Erreur lors de la suppression de l\'affectation' });
+      console.error('Error deleting shift:', error);
+    } finally {
+      dispatch({ type: 'SET_LOADING', payload: false });
+    }
+  };
+
+  const handlePublishSchedule = async () => {
+    try {
+      if (!confirm('Êtes-vous sûr de vouloir publier le planning ? Les membres du personnel recevront une notification.')) {
+        return;
+      }
+
+      dispatch({ type: 'SET_LOADING', payload: true });
+
+      // Create a schedule for the current month
+      const startDate = new Date(currentYear, currentMonth, 1).toISOString().split('T')[0];
+      const endDate = new Date(currentYear, currentMonth + 1, 0).toISOString().split('T')[0];
+      
+      const scheduleData = {
+        restaurant_id: 'losteria-deerlijk',
+        start_date: startDate,
+        end_date: endDate,
+        name: `Planning ${MONTHS_FR[currentMonth]} ${currentYear}`,
+        status: 'draft' as const,
+      };
+
+      // Create the schedule first
+      const newSchedule = await adaPlanningAPI.createSchedule(scheduleData);
+      
+      // Then publish it
+      const publishedSchedule = await adaPlanningAPI.publishSchedule(newSchedule.id, {
+        notify_staff: true,
+        notification_message: `Planning pour ${MONTHS_FR[currentMonth]} ${currentYear} publié`
+      });
+
+      dispatch({ type: 'SET_SCHEDULES', payload: [publishedSchedule] });
+      
+      alert('Planning publié avec succès ! Le personnel a été notifié.');
+      
+    } catch (error) {
+      dispatch({ type: 'SET_ERROR', payload: 'Erreur lors de la publication du planning' });
+      console.error('Error publishing schedule:', error);
+      alert('Erreur lors de la publication du planning. Veuillez réessayer.');
+    } finally {
+      dispatch({ type: 'SET_LOADING', payload: false });
+    }
   };
 
   const isCurrentMonth = (date: Date) => {
@@ -277,7 +368,12 @@ export const MonthlyCalendar: React.FC = () => {
       {/* Header */}
       <div className="flex items-center justify-between p-6 border-b bg-white">
         <div className="flex items-center space-x-6">
-          <Button variant="outline" size="sm" onClick={() => navigateMonth('prev')}>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={() => navigateMonth('prev')}
+            className="border-gray-300 text-black hover:bg-gray-50"
+          >
             <ChevronLeft className="w-4 h-4" />
           </Button>
           
@@ -285,7 +381,12 @@ export const MonthlyCalendar: React.FC = () => {
             {MONTHS_FR[currentMonth]} {currentYear}
           </h1>
           
-          <Button variant="outline" size="sm" onClick={() => navigateMonth('next')}>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={() => navigateMonth('next')}
+            className="border-gray-300 text-black hover:bg-gray-50"
+          >
             <ChevronRight className="w-4 h-4" />
           </Button>
         </div>
@@ -294,11 +395,28 @@ export const MonthlyCalendar: React.FC = () => {
           <div className="text-sm text-gray-600">
             L'Osteria Deerlijk
           </div>
-          <Button variant="primary">
-            Publier le planning
+          <Button 
+            onClick={handlePublishSchedule}
+            className="bg-blue-600 hover:bg-blue-700 text-white"
+            disabled={state.isLoading}
+          >
+            {state.isLoading ? 'Publication...' : 'Publier le planning'}
           </Button>
         </div>
       </div>
+
+      {/* Error Message */}
+      {state.error && (
+        <div className="mx-6 mt-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
+          {state.error}
+          <button 
+            onClick={() => dispatch({ type: 'SET_ERROR', payload: null })}
+            className="float-right text-red-500 hover:text-red-700 font-bold ml-4"
+          >
+            ×
+          </button>
+        </div>
+      )}
 
       {/* Calendar */}
       <div className="flex-1 p-6">
@@ -329,93 +447,20 @@ export const MonthlyCalendar: React.FC = () => {
       </div>
 
       {/* Shift Modal */}
-      {isShiftModalOpen && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <Card className="w-full max-w-md">
-            <div className="p-6">
-              <h3 className="text-lg font-semibold mb-4">
-                {selectedShift ? 'Modifier le poste' : 'Nouveau poste'}
-                {selectedDate && (
-                  <div className="text-sm text-gray-600 font-normal mt-1">
-                    {selectedDate.toLocaleDateString('fr-FR', { 
-                      weekday: 'long', 
-                      year: 'numeric', 
-                      month: 'long', 
-                      day: 'numeric' 
-                    })}
-                  </div>
-                )}
-              </h3>
-              
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Personnel
-                  </label>
-                  <select className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary">
-                    <option value="">Sélectionner un membre</option>
-                    {state.staff.map(staff => (
-                      <option key={staff.id} value={staff.id}>
-                        {staff.first_name} {staff.last_name} - {staff.position}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Début
-                    </label>
-                    <input
-                      type="time"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-                      defaultValue={selectedShift?.start_time || '09:00'}
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Fin
-                    </label>
-                    <input
-                      type="time"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-                      defaultValue={selectedShift?.end_time || '17:00'}
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Poste
-                  </label>
-                  <select className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary">
-                    <option value="server">Serveur</option>
-                    <option value="kitchen">Cuisine</option>
-                    <option value="bar">Bar</option>
-                    <option value="host">Accueil</option>
-                    <option value="manager">Manager</option>
-                  </select>
-                </div>
-              </div>
-              
-              <div className="flex justify-end space-x-3 mt-6">
-                <Button variant="outline" onClick={() => setIsShiftModalOpen(false)}>
-                  Annuler
-                </Button>
-                {selectedShift && (
-                  <Button variant="destructive" size="sm">
-                    Supprimer
-                  </Button>
-                )}
-                <Button variant="primary">
-                  {selectedShift ? 'Mettre à jour' : 'Ajouter'}
-                </Button>
-              </div>
-            </div>
-          </Card>
-        </div>
-      )}
+      <ShiftModal
+        isOpen={isShiftModalOpen}
+        shift={selectedShift}
+        date={selectedDate}
+        staff={state.staff}
+        onClose={() => {
+          setIsShiftModalOpen(false);
+          setSelectedShift(null);
+          setSelectedDate(null);
+        }}
+        onSave={handleSaveShift}
+        onDelete={selectedShift ? handleDeleteShift : undefined}
+        saving={state.isLoading}
+      />
     </div>
   );
 };
