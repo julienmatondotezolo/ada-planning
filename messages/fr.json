@@ -1,0 +1,144 @@
+{
+  "navigation": {
+    "dashboard": "Tableau de bord",
+    "calendar": "Calendrier",
+    "staff": "Personnel",
+    "schedules": "Horaires",
+    "settings": "Paramètres",
+    "all_staff": "Tout le Personnel",
+    "add_staff": "Ajouter Personnel",
+    "positions": "Postes",
+    "current_schedule": "Planning Actuel",
+    "templates": "Modèles",
+    "history": "Historique"
+  },
+  "calendar": {
+    "title": "Planning du Personnel",
+    "subtitle": "Gestion des horaires de travail pour L'Osteria Deerlijk",
+    "months": {
+      "january": "Janvier",
+      "february": "Février", 
+      "march": "Mars",
+      "april": "Avril",
+      "may": "Mai",
+      "june": "Juin",
+      "july": "Juillet",
+      "august": "Août",
+      "september": "Septembre",
+      "october": "Octobre",
+      "november": "Novembre",
+      "december": "Décembre"
+    },
+    "days": {
+      "sunday": "Dimanche",
+      "monday": "Lundi",
+      "tuesday": "Mardi",
+      "wednesday": "Mercredi",
+      "thursday": "Jeudi",
+      "friday": "Vendredi",
+      "saturday": "Samedi"
+    },
+    "empty_cell": "Cliquez pour ajouter",
+    "overflow_text": "autres"
+  },
+  "staff": {
+    "title": "Gestion du Personnel",
+    "active_staff": "Personnel Actif",
+    "add_staff": "Ajouter un employé",
+    "first_name": "Prénom",
+    "last_name": "Nom",
+    "nickname": "Surnom",
+    "position": "Poste",
+    "email": "Email",
+    "phone": "Téléphone",
+    "hire_date": "Date d'embauche",
+    "hourly_rate": "Taux horaire",
+    "color": "Couleur",
+    "positions": {
+      "server": "Serveur/Serveuse",
+      "cook": "Cuisinier/Cuisinière",
+      "assistant": "Aide",
+      "manager": "Responsable",
+      "student": "Étudiant"
+    }
+  },
+  "assignments": {
+    "title": "Affectations",
+    "new_assignment": "Nouvelle Affectation",
+    "edit_assignment": "Modifier l'Affectation",
+    "assign_staff": "Assigner Personnel",
+    "date": "Date",
+    "shift_start": "Début de service",
+    "shift_end": "Fin de service",
+    "notes": "Notes",
+    "conflicts": "Conflits détectés",
+    "no_conflicts": "Aucun conflit"
+  },
+  "actions": {
+    "save": "Enregistrer",
+    "cancel": "Annuler",
+    "delete": "Supprimer",
+    "edit": "Modifier",
+    "add": "Ajouter",
+    "export": "Exporter",
+    "filter": "Filtrer",
+    "view": "Voir",
+    "close": "Fermer",
+    "confirm": "Confirmer"
+  },
+  "time": {
+    "today": "Aujourd'hui",
+    "yesterday": "Hier",
+    "tomorrow": "Demain",
+    "this_week": "Cette semaine",
+    "last_week": "Semaine dernière",
+    "next_week": "Semaine prochaine",
+    "this_month": "Ce mois",
+    "last_month": "Mois dernier",
+    "next_month": "Mois prochain"
+  },
+  "messages": {
+    "success": {
+      "assignment_created": "Affectation créée avec succès",
+      "assignment_updated": "Affectation mise à jour",
+      "assignment_deleted": "Affectation supprimée",
+      "staff_added": "Personnel ajouté",
+      "staff_updated": "Personnel mis à jour",
+      "export_complete": "Export terminé"
+    },
+    "errors": {
+      "general": "Une erreur est survenue",
+      "network": "Erreur de connexion",
+      "validation": "Données invalides",
+      "conflict": "Conflit d'horaire détecté",
+      "not_found": "Élément non trouvé",
+      "permissions": "Permissions insuffisantes"
+    },
+    "confirmations": {
+      "delete_assignment": "Êtes-vous sûr de vouloir supprimer cette affectation ?",
+      "delete_staff": "Êtes-vous sûr de vouloir supprimer ce membre du personnel ?",
+      "unsaved_changes": "Des modifications non sauvegardées seront perdues. Continuer ?"
+    }
+  },
+  "restaurant": {
+    "name": "L'Osteria Deerlijk",
+    "address": "Kortrijkstraat 123, 8540 Deerlijk",
+    "phone": "+32 56 25 63 83",
+    "hours": {
+      "monday": "Fermé",
+      "tuesday": "18h30 - 22h00",
+      "wednesday": "12h00 - 14h00, 18h30 - 22h00",
+      "thursday": "12h00 - 14h00, 18h30 - 22h00",
+      "friday": "12h00 - 14h00, 18h30 - 22h00",
+      "saturday": "12h00 - 14h00, 18h30 - 22h00",
+      "sunday": "18h30 - 22h00"
+    }
+  },
+  "footer": {
+    "copyright": "© 2026 Ada Systems. Tous droits réservés.",
+    "version": "Version 1.0.0",
+    "support": "Support",
+    "privacy": "Confidentialité",
+    "terms": "Conditions d'utilisation"
+  }
+}
