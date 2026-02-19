@@ -274,35 +274,28 @@ export const DragDropMonthlyCalendar: React.FC = () => {
       
       console.log('🔄 Loading shifts data...');
       
-      // FORCE demo data for now to ensure shifts show up
-      const { generateDemoShifts } = await import('@/lib/demo-data');
-      const demoShifts = generateDemoShifts(currentYear, currentMonth);
-      console.log('✅ Forced demo shifts for testing:', demoShifts.length, 'shifts');
-      dispatch({ type: 'SET_SHIFTS', payload: demoShifts });
-      
-      // Also try API in background but don't wait for it
-      setTimeout(async () => {
-        try {
-          console.log('📡 Background shifts API call...');
-          const startDate = new Date(currentYear, currentMonth, 1).toISOString().split('T')[0];
-          const shiftsResponse = await adaPlanningAPI.getShifts({ date: startDate });
-          
-          // Filter shifts for the current month view (including adjacent days)
-          const monthShifts = shiftsResponse.data.filter(shift => {
-            const shiftDate = new Date(shift.scheduled_date);
-            const firstCalendarDay = calendarDays[0];
-            const lastCalendarDay = calendarDays[calendarDays.length - 1];
-            return shiftDate >= firstCalendarDay && shiftDate <= lastCalendarDay;
-          });
-          
-          console.log('✅ Background API shifts loaded:', monthShifts.length, 'shifts');
-          if (monthShifts.length > 0) {
-            dispatch({ type: 'SET_SHIFTS', payload: monthShifts });
-          }
-        } catch (error) {
-          console.warn('❌ Background shifts API failed - keeping demo data');
-        }
-      }, 1000);
+      // Try API first for shifts
+      try {
+        console.log('📡 API shifts call...');
+        const startDate = new Date(currentYear, currentMonth, 1).toISOString().split('T')[0];
+        const shiftsResponse = await adaPlanningAPI.getShifts({ date: startDate });
+        
+        // Filter shifts for the current month view (including adjacent days)
+        const monthShifts = shiftsResponse.data.filter(shift => {
+          const shiftDate = new Date(shift.scheduled_date);
+          const firstCalendarDay = calendarDays[0];
+          const lastCalendarDay = calendarDays[calendarDays.length - 1];
+          return shiftDate >= firstCalendarDay && shiftDate <= lastCalendarDay;
+        });
+        
+        console.log('✅ API shifts loaded:', monthShifts.length, 'shifts');
+        dispatch({ type: 'SET_SHIFTS', payload: monthShifts });
+        
+      } catch (error) {
+        console.warn('❌ Shifts API failed - demo shifts will be generated with staff');
+        // Initialize empty shifts - staff loading will populate with demo data if needed
+        dispatch({ type: 'SET_SHIFTS', payload: [] });
+      }
       
     } catch (error) {
       dispatch({ type: 'SET_ERROR', payload: 'Erreur lors du chargement des données' });
@@ -316,24 +309,32 @@ export const DragDropMonthlyCalendar: React.FC = () => {
     try {
       console.log('🔄 Loading staff data...');
       
-      // FORCE demo data for now to ensure employees show up
-      const { demoStaff } = await import('@/lib/demo-data');
-      console.log('✅ Forced demo staff loaded for testing:', demoStaff);
-      dispatch({ type: 'SET_STAFF', payload: demoStaff });
-      
-      // Also try API in background but don't wait for it
-      setTimeout(async () => {
-        try {
-          console.log('📡 Background API call...');
-          const staffResponse = await adaPlanningAPI.getStaff({ active_only: true });
-          console.log('✅ Background API staff data loaded:', staffResponse.data);
-          if (staffResponse.data.length > 0) {
-            dispatch({ type: 'SET_STAFF', payload: staffResponse.data });
-          }
-        } catch (error) {
-          console.warn('❌ Background API failed - keeping demo data');
-        }
-      }, 1000);
+      // Try API first - we know it works!
+      try {
+        console.log('📡 Loading API staff data...');
+        const staffResponse = await adaPlanningAPI.getStaff({ active_only: true });
+        console.log('✅ API staff data loaded:', staffResponse.data);
+        dispatch({ type: 'SET_STAFF', payload: staffResponse.data });
+        
+        // Now generate shifts for these REAL staff members
+        console.log('🔄 Generating shifts for API staff...');
+        const { generateShiftsForStaff } = await import('@/lib/demo-data');
+        const realShifts = generateShiftsForStaff(staffResponse.data, currentYear, currentMonth);
+        console.log('✅ Generated shifts for real staff:', realShifts.length, 'shifts');
+        dispatch({ type: 'SET_SHIFTS', payload: realShifts });
+        
+      } catch (apiError) {
+        console.warn('❌ API failed, using demo data:', apiError);
+        // Fallback to demo data
+        const { demoStaff, generateShiftsForStaff } = await import('@/lib/demo-data');
+        console.log('✅ Demo staff loaded:', demoStaff);
+        dispatch({ type: 'SET_STAFF', payload: demoStaff });
+        
+        // Generate shifts for demo staff too
+        const demoShifts = generateShiftsForStaff(demoStaff, currentYear, currentMonth);
+        console.log('✅ Generated demo shifts:', demoShifts.length);
+        dispatch({ type: 'SET_SHIFTS', payload: demoShifts });
+      }
       
     } catch (error) {
       console.error('❌ Complete staff loading failure:', error);
@@ -341,11 +342,16 @@ export const DragDropMonthlyCalendar: React.FC = () => {
       const fallbackStaff = [
         { id: 'staff-1', first_name: 'Jessica', last_name: 'Bombini', email: 'jessica@losteria.be', position: 'manager', hourly_rate: 18.50, hire_date: '2023-01-15', status: 'active', default_hours_per_week: 40, availability: [] },
         { id: 'staff-2', first_name: 'Marco', last_name: 'Ferrari', email: 'marco@losteria.be', position: 'server', hourly_rate: 15.00, hire_date: '2023-03-01', status: 'active', default_hours_per_week: 32, availability: [] },
-        { id: 'staff-3', first_name: 'Sofia', last_name: 'Rossi', email: 'sofia@losteria.be', position: 'kitchen', hourly_rate: 16.50, hire_date: '2023-02-15', status: 'active', default_hours_per_week: 35, availability: [] },
-        { id: 'staff-4', first_name: 'Giuseppe', last_name: 'Luna', email: 'giuseppe@losteria.be', position: 'bar', hourly_rate: 15.50, hire_date: '2023-04-01', status: 'active', default_hours_per_week: 28, availability: [] }
+        { id: 'staff-3', first_name: 'Sofia', last_name: 'Rossi', email: 'sofia@losteria.be', position: 'kitchen', hourly_rate: 16.50, hire_date: '2023-02-15', status: 'active', default_hours_per_week: 35, availability: [] }
       ];
       console.log('🚨 Using fallback staff:', fallbackStaff);
       dispatch({ type: 'SET_STAFF', payload: fallbackStaff });
+      
+      // Generate shifts for fallback staff too
+      const { generateShiftsForStaff } = await import('@/lib/demo-data');
+      const fallbackShifts = generateShiftsForStaff(fallbackStaff, currentYear, currentMonth);
+      console.log('✅ Generated fallback shifts:', fallbackShifts.length);
+      dispatch({ type: 'SET_SHIFTS', payload: fallbackShifts });
     }
   };
 
