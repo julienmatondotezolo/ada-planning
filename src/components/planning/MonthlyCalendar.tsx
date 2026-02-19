@@ -27,50 +27,59 @@ const ShiftEntry: React.FC<{
   entry: DayShiftEntry; 
   onEdit: (shift: Shift) => void;
   onDragStart: (shift: Shift) => void;
-}> = ({ entry, onEdit, onDragStart }) => {
+  draggedShiftId?: string;
+}> = ({ entry, onEdit, onDragStart, draggedShiftId }) => {
   const { staff, shifts } = entry;
   
   return (
     <div className="mb-1 last:mb-0">
-      {shifts.map((shift, index) => (
-        <div 
-          key={shift.id}
-          draggable
-          onDragStart={(e) => {
-            onDragStart(shift);
-            e.dataTransfer.effectAllowed = 'move';
-            e.dataTransfer.setData('text/plain', shift.id);
-            e.currentTarget.style.opacity = '0.4';
-            e.currentTarget.style.transform = 'rotate(2deg)';
-            document.body.style.userSelect = 'none';
-          }}
-          onDragEnd={(e) => {
-            e.currentTarget.style.opacity = '1';
-            e.currentTarget.style.transform = 'none';
-            document.body.style.userSelect = '';
-          }}
-          className="group hover:bg-blue-50 p-1 rounded text-xs cursor-grab active:cursor-grabbing border border-transparent hover:border-blue-200 transition-all select-none"
-          onClick={(e) => {
-            // Prevent edit when dragging
-            if (e.detail === 1) {
-              setTimeout(() => onEdit(shift), 100);
-            }
-          }}
-          title="Cliquer pour modifier, glisser pour déplacer"
-        >
-          <div className="flex items-center justify-between">
-            <div className="min-w-0 flex-1">
-              <div className="font-semibold text-gray-900 truncate">
-                {staff.first_name} {staff.last_name}
+      {shifts.map((shift, index) => {
+        const isBeingDragged = draggedShiftId === shift.id;
+        
+        return (
+          <div 
+            key={shift.id}
+            draggable
+            onDragStart={(e) => {
+              onDragStart(shift);
+              e.dataTransfer.effectAllowed = 'move';
+              e.dataTransfer.setData('text/plain', shift.id);
+              e.currentTarget.style.opacity = '0.4';
+              e.currentTarget.style.transform = 'rotate(2deg)';
+              document.body.style.userSelect = 'none';
+            }}
+            onDragEnd={(e) => {
+              e.currentTarget.style.opacity = '1';
+              e.currentTarget.style.transform = 'none';
+              document.body.style.userSelect = '';
+            }}
+            className={`
+              group hover:bg-blue-50 p-1 rounded text-xs cursor-grab active:cursor-grabbing 
+              border border-transparent hover:border-blue-200 transition-all select-none
+              ${isBeingDragged ? 'animate-pulse bg-blue-100 border-blue-300' : ''}
+            `}
+            onClick={(e) => {
+              // Prevent edit when dragging
+              if (e.detail === 1) {
+                setTimeout(() => onEdit(shift), 100);
+              }
+            }}
+            title="Cliquer pour modifier, glisser pour déplacer"
+          >
+            <div className="flex items-center justify-between">
+              <div className="min-w-0 flex-1">
+                <div className="font-semibold text-gray-900 truncate">
+                  {staff.first_name} {staff.last_name}
+                </div>
+                <div className="text-gray-600 text-xs">
+                  {shift.start_time.slice(0, 5)} - {shift.end_time.slice(0, 5)}
+                </div>
               </div>
-              <div className="text-gray-600 text-xs">
-                {shift.start_time.slice(0, 5)} - {shift.end_time.slice(0, 5)}
-              </div>
+              <Edit2 className="w-3 h-3 text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
             </div>
-            <Edit2 className="w-3 h-3 text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
           </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 };
@@ -87,7 +96,8 @@ const CalendarDay: React.FC<{
   onDrop: (date: Date) => void;
   isDragOver: boolean;
   onDragOver: (date: Date | null) => void;
-}> = ({ date, shifts, staff, isCurrentMonth, isToday, onAddShift, onEditShift, onDragStart, onDrop, isDragOver, onDragOver }) => {
+  draggedShiftId?: string;
+}> = ({ date, shifts, staff, isCurrentMonth, isToday, onAddShift, onEditShift, onDragStart, onDrop, isDragOver, onDragOver, draggedShiftId }) => {
   // Group shifts by staff member
   const shiftEntries: DayShiftEntry[] = [];
   const shiftsByStaff = new Map<string, Shift[]>();
@@ -182,6 +192,7 @@ const CalendarDay: React.FC<{
             entry={entry}
             onEdit={onEditShift}
             onDragStart={onDragStart}
+            draggedShiftId={draggedShiftId}
           />
         ))}
       </div>
@@ -211,6 +222,7 @@ export const MonthlyCalendar: React.FC = () => {
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [draggedShift, setDraggedShift] = useState<Shift | null>(null);
   const [dragOverDate, setDragOverDate] = useState<Date | null>(null);
+  const [isOperationInProgress, setIsOperationInProgress] = useState(false);
 
   const currentYear = currentDate.getFullYear();
   const currentMonth = currentDate.getMonth();
@@ -335,72 +347,115 @@ export const MonthlyCalendar: React.FC = () => {
       return;
     }
     
+    // Create the optimistic update immediately
+    const optimisticShift = {
+      ...draggedShift,
+      scheduled_date: targetDateString
+    };
+    
+    // Immediately update the UI state (optimistic update)
+    dispatch({ type: 'UPDATE_SHIFT', payload: optimisticShift });
+    setDraggedShift(null);
+    
+    console.log(`🔄 Moving ${draggedShift.staff?.first_name || 'Employee'} from ${originalDateString} to ${targetDateString}`);
+    
     try {
-      dispatch({ type: 'SET_LOADING', payload: true });
-      
-      // Update the shift's date
+      // Update the shift's date in the background
       const updatedShift = await adaPlanningAPI.updateShift(draggedShift.id, {
         scheduled_date: targetDateString
       });
       
+      // Update with the real response from API (in case server changed anything)
       dispatch({ type: 'UPDATE_SHIFT', payload: updatedShift });
       
-      console.log(`🔄 Moved ${draggedShift.staff?.first_name || 'Employee'} from ${originalDateString} to ${targetDateString}`);
+      console.log(`✅ Successfully moved ${draggedShift.staff?.first_name || 'Employee'} to ${targetDateString}`);
       
     } catch (error) {
+      // Revert the optimistic update on error
+      dispatch({ type: 'UPDATE_SHIFT', payload: draggedShift });
       dispatch({ type: 'SET_ERROR', payload: 'Erreur lors du déplacement de l\'affectation' });
-      console.error('Error moving shift:', error);
-    } finally {
-      dispatch({ type: 'SET_LOADING', payload: false });
-      setDraggedShift(null);
+      console.error('❌ Error moving shift, reverting:', error);
     }
   };
 
   const handleSaveShift = async (shiftData: Partial<Shift>) => {
+    if (isOperationInProgress) return;
+    
     try {
-      dispatch({ type: 'SET_LOADING', payload: true });
+      setIsOperationInProgress(true);
       
       if (selectedShift) {
-        // Update existing shift
+        // Create optimistic update
+        const optimisticShift = { ...selectedShift, ...shiftData };
+        dispatch({ type: 'UPDATE_SHIFT', payload: optimisticShift });
+        
+        // Close modal immediately for better UX
+        setIsShiftModalOpen(false);
+        setSelectedShift(null);
+        setSelectedDate(null);
+        
+        // Update existing shift in background
         const updatedShift = await adaPlanningAPI.updateShift(selectedShift.id, shiftData);
         dispatch({ type: 'UPDATE_SHIFT', payload: updatedShift });
+        
+        console.log('✅ Shift updated successfully');
       } else {
-        // Create new shift
+        // For new shifts, we need to wait for the API to generate the ID
         const newShift = await adaPlanningAPI.createShift(shiftData);
         dispatch({ type: 'ADD_SHIFT', payload: newShift });
+        
+        setIsShiftModalOpen(false);
+        setSelectedShift(null);
+        setSelectedDate(null);
+        
+        console.log('✅ New shift created successfully');
       }
       
-      setIsShiftModalOpen(false);
-      setSelectedShift(null);
-      setSelectedDate(null);
-      
     } catch (error) {
+      // Revert optimistic update on error
+      if (selectedShift) {
+        dispatch({ type: 'UPDATE_SHIFT', payload: selectedShift });
+        // Reopen modal so user can try again
+        setIsShiftModalOpen(true);
+      }
+      
       dispatch({ 
         type: 'SET_ERROR', 
         payload: selectedShift ? 'Erreur lors de la mise à jour de l\'affectation' : 'Erreur lors de la création de l\'affectation' 
       });
-      console.error('Error saving shift:', error);
+      console.error('❌ Error saving shift:', error);
     } finally {
-      dispatch({ type: 'SET_LOADING', payload: false });
+      setIsOperationInProgress(false);
     }
   };
 
   const handleDeleteShift = async (shiftId: string) => {
+    if (!selectedShift) return;
+    
+    // Confirm deletion
+    if (!confirm('Êtes-vous sûr de vouloir supprimer cette affectation ?')) {
+      return;
+    }
+    
     try {
-      dispatch({ type: 'SET_LOADING', payload: true });
-      
-      await adaPlanningAPI.deleteShift(shiftId);
+      // Optimistically remove from UI
       dispatch({ type: 'DELETE_SHIFT', payload: shiftId });
       
+      // Close modal immediately
       setIsShiftModalOpen(false);
       setSelectedShift(null);
       setSelectedDate(null);
       
+      // Delete from API in background
+      await adaPlanningAPI.deleteShift(shiftId);
+      
+      console.log('✅ Shift deleted successfully');
+      
     } catch (error) {
+      // Revert optimistic deletion on error
+      dispatch({ type: 'ADD_SHIFT', payload: selectedShift });
       dispatch({ type: 'SET_ERROR', payload: 'Erreur lors de la suppression de l\'affectation' });
-      console.error('Error deleting shift:', error);
-    } finally {
-      dispatch({ type: 'SET_LOADING', payload: false });
+      console.error('❌ Error deleting shift, restored:', error);
     }
   };
 
@@ -519,8 +574,18 @@ export const MonthlyCalendar: React.FC = () => {
 
       {/* Drag feedback */}
       {draggedShift && (
-        <div className="fixed top-4 left-1/2 transform -translate-x-1/2 bg-blue-600 text-white px-4 py-2 rounded-lg shadow-lg z-50 pointer-events-none">
-          Déplacement de {draggedShift.staff?.first_name || 'Employé'} - Glissez vers une nouvelle date
+        <div className="fixed top-4 left-1/2 transform -translate-x-1/2 bg-gradient-to-r from-blue-600 to-blue-700 text-white px-6 py-3 rounded-xl shadow-2xl z-50 pointer-events-none border border-blue-400">
+          <div className="flex items-center space-x-2">
+            <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
+            <span className="font-medium">
+              Déplacement de {draggedShift.staff?.first_name || 'Employé'} 
+              ({draggedShift.start_time.slice(0, 5)} - {draggedShift.end_time.slice(0, 5)})
+            </span>
+            <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
+          </div>
+          <div className="text-blue-200 text-xs text-center mt-1">
+            Glissez vers une nouvelle date
+          </div>
         </div>
       )}
 
@@ -551,6 +616,7 @@ export const MonthlyCalendar: React.FC = () => {
               onDrop={handleDrop}
               isDragOver={dragOverDate?.toDateString() === date.toDateString()}
               onDragOver={handleDragOver}
+              draggedShiftId={draggedShift?.id}
             />
           ))}
         </div>
@@ -569,7 +635,7 @@ export const MonthlyCalendar: React.FC = () => {
         }}
         onSave={handleSaveShift}
         onDelete={selectedShift ? handleDeleteShift : undefined}
-        saving={state.isLoading}
+        saving={isOperationInProgress}
       />
     </div>
   );
