@@ -134,7 +134,12 @@ export function generateDemoShifts(year: number = 2026, month: number = 1): Shif
       const shift: Shift = {
         id: `shift-${year}-${month}-${day}-${i}`,
         staff_member_id: staff.id,
-        staff_member: staff,
+        staff: {  // Add staff data for drag & drop display
+          id: staff.id,
+          first_name: staff.first_name,
+          last_name: staff.last_name,
+          position: staff.position
+        },
         scheduled_date: dateString,
         start_time: pattern.start,
         end_time: pattern.end,
