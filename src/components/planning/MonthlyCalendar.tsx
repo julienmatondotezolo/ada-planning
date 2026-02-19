@@ -34,21 +34,20 @@ const ShiftEntry: React.FC<{
       {shifts.map((shift, index) => (
         <div 
           key={shift.id}
-          className="flex items-center justify-between group hover:bg-gray-50 p-1 rounded text-xs cursor-pointer"
+          className="group hover:bg-blue-50 p-1 rounded text-xs cursor-pointer border border-transparent hover:border-blue-200 transition-all"
           onClick={() => onEdit(shift)}
         >
-          <div className="flex items-center space-x-1 min-w-0 flex-1">
-            {index === 0 && (
-              <span className="font-medium text-gray-700 truncate">
-                {staff.first_name}
-              </span>
-            )}
-            {index > 0 && <span className="w-8"></span>}
-            <span className="text-gray-600 ml-auto">
-              {shift.start_time}-{shift.end_time}
-            </span>
+          <div className="flex items-center justify-between">
+            <div className="min-w-0 flex-1">
+              <div className="font-semibold text-gray-900 truncate">
+                {staff.first_name} {staff.last_name}
+              </div>
+              <div className="text-gray-600 text-xs">
+                {shift.start_time.slice(0, 5)} - {shift.end_time.slice(0, 5)}
+              </div>
+            </div>
+            <Edit2 className="w-3 h-3 text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
           </div>
-          <Edit2 className="w-3 h-3 text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity" />
         </div>
       ))}
     </div>
@@ -91,9 +90,9 @@ const CalendarDay: React.FC<{
   return (
     <div 
       className={`
-        border border-gray-200 min-h-[100px] p-2 relative group
+        border border-gray-200 min-h-[120px] p-2 relative group
         ${!isCurrentMonth ? 'bg-gray-50 text-gray-400' : 'bg-white'}
-        ${isToday ? 'ring-2 ring-primary/20 bg-primary/5' : ''}
+        ${isToday ? 'ring-2 ring-blue-500/20 bg-blue-50/50' : ''}
         hover:bg-gray-50 transition-colors
       `}
     >
@@ -106,7 +105,7 @@ const CalendarDay: React.FC<{
       </div>
 
       {/* Shift entries */}
-      <div className="space-y-0.5">
+      <div className="space-y-1">
         {shiftEntries.map((entry, index) => (
           <ShiftEntry
             key={`${entry.staff.id}-${index}`}
