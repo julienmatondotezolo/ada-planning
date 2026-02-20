@@ -3,7 +3,6 @@ const withPWA = require('@ducanh2912/next-pwa').default({
   cacheOnFrontEndNav: true,
   aggressiveFrontEndNavCaching: true,
   reloadOnOnline: true,
-  swcMinify: true,
   disable: process.env.NODE_ENV === 'development',
   workboxOptions: {
     disableDevLogs: true,
@@ -12,20 +11,29 @@ const withPWA = require('@ducanh2912/next-pwa').default({
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  experimental: {
-    serverComponentsExternalPackages: [],
-  },
+  // Use empty turbopack config to silence Turbopack warnings
+  turbopack: {},
+  
+  // Updated from experimental.serverComponentsExternalPackages
+  serverExternalPackages: [],
+  
   images: {
     domains: [],
     formats: ['image/webp', 'image/avif'],
   },
+  
   // Optimize for tablet devices
   compiler: {
     removeConsole: process.env.NODE_ENV === 'production',
   },
+  
   // PWA and offline support
   reactStrictMode: true,
-  swcMinify: true,
+  
+  // Force webpack mode to avoid Turbopack issues
+  webpack: (config) => {
+    return config;
+  },
 };
 
 module.exports = withPWA(nextConfig);
