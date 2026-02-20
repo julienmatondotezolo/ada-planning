@@ -100,25 +100,44 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Check if user is authenticated
   const checkAuth = async () => {
+    console.log('🔍 Starting auth check...');
+    
     try {
       const token = getAccessToken();
+      console.log('🔑 Token exists:', !!token);
+      
       if (!token) {
+        console.log('❌ No token found, setting loading to false');
         setLoading(false);
         return;
       }
 
-      const response = await apiCall('/auth/me');
+      console.log('📡 Making API call to /auth/me');
+      const response = await fetch(`${API_BASE_URL}/api/v1/auth/me`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+      
+      console.log('📡 Auth response status:', response.status);
       
       if (response.ok) {
         const data = await response.json();
+        console.log('✅ Auth successful, user:', data.user?.email);
         setUser(data.user);
       } else {
+        console.log('❌ Auth failed, clearing tokens');
         clearTokens();
+        setUser(null);
       }
     } catch (error) {
-      console.error('Auth check failed:', error);
+      console.error('💥 Auth check error:', error);
       clearTokens();
+      setUser(null);
     } finally {
+      console.log('🏁 Auth check complete, setting loading to false');
       setLoading(false);
     }
   };
@@ -203,9 +222,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  // Check authentication on mount
+  // Check authentication on mount with timeout
   useEffect(() => {
-    checkAuth();
+    console.log('🚀 AuthProvider mounted, starting auth check...');
+    
+    const timeoutId = setTimeout(() => {
+      console.log('⏰ Auth check timeout - setting loading to false');
+      setLoading(false);
+    }, 10000); // 10 second timeout
+    
+    checkAuth().finally(() => {
+      clearTimeout(timeoutId);
+    });
   }, []);
 
   const value: AuthContextType = {
