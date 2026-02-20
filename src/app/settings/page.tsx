@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react';
 import { Metadata } from 'next';
 import { Header } from '@/components/layout/Header';
 import { Sidebar } from '@/components/layout/Sidebar';
+import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
+import { staffApi } from '@/lib/api';
 import { 
   Users, 
   Plus, 
@@ -46,13 +48,12 @@ export default function SettingsPage() {
   const fetchStaff = async () => {
     try {
       setLoading(true);
-      const response = await fetch('https://ada.mindgen.app/api/v1/staff?active_only=false');
-      const result = await response.json();
+      const result = await staffApi.getAll({ active_only: false });
       
-      if (result.success) {
+      if (result.success && result.data) {
         setStaff(result.data);
       } else {
-        console.error('Failed to fetch staff:', result.message);
+        console.error('Failed to fetch staff:', result.error);
       }
     } catch (error) {
       console.error('Error fetching staff:', error);
@@ -63,22 +64,14 @@ export default function SettingsPage() {
 
   const handleAddStaff = async (staffData: Omit<Staff, 'id'>) => {
     try {
-      const response = await fetch('https://ada.mindgen.app/api/v1/staff', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(staffData),
-      });
-
-      const result = await response.json();
+      const result = await staffApi.create(staffData);
       
-      if (result.success) {
+      if (result.success && result.data) {
         setStaff([...staff, result.data]);
         setShowAddForm(false);
       } else {
-        console.error('Failed to add staff:', result.message);
-        alert('Erreur lors de l\'ajout du personnel');
+        console.error('Failed to add staff:', result.error);
+        alert('Erreur lors de l\'ajout du personnel: ' + (result.error || 'Unknown error'));
       }
     } catch (error) {
       console.error('Error adding staff:', error);
@@ -88,22 +81,14 @@ export default function SettingsPage() {
 
   const handleUpdateStaff = async (staffData: Staff) => {
     try {
-      const response = await fetch(`https://ada.mindgen.app/api/v1/staff/${staffData.id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(staffData),
-      });
-
-      const result = await response.json();
+      const result = await staffApi.update(staffData.id, staffData);
       
-      if (result.success) {
+      if (result.success && result.data) {
         setStaff(staff.map(s => s.id === staffData.id ? result.data : s));
         setEditingStaff(null);
       } else {
-        console.error('Failed to update staff:', result.message);
-        alert('Erreur lors de la mise à jour');
+        console.error('Failed to update staff:', result.error);
+        alert('Erreur lors de la mise à jour: ' + (result.error || 'Unknown error'));
       }
     } catch (error) {
       console.error('Error updating staff:', error);
@@ -117,17 +102,13 @@ export default function SettingsPage() {
     }
 
     try {
-      const response = await fetch(`https://ada.mindgen.app/api/v1/staff/${staffId}`, {
-        method: 'DELETE',
-      });
-
-      const result = await response.json();
+      const result = await staffApi.delete(staffId);
       
       if (result.success) {
         setStaff(staff.filter(s => s.id !== staffId));
       } else {
-        console.error('Failed to delete staff:', result.message);
-        alert('Erreur lors de la suppression');
+        console.error('Failed to delete staff:', result.error);
+        alert('Erreur lors de la suppression: ' + (result.error || 'Unknown error'));
       }
     } catch (error) {
       console.error('Error deleting staff:', error);
@@ -136,7 +117,8 @@ export default function SettingsPage() {
   };
 
   return (
-    <div className="flex h-screen bg-background">
+    <ProtectedRoute requiredRole="manager">
+      <div className="flex h-screen bg-background">
       {/* Sidebar */}
       <aside className="w-80 bg-card border-r border-border">
         <Sidebar />
@@ -285,5 +267,6 @@ export default function SettingsPage() {
         </main>
       </div>
     </div>
+    </ProtectedRoute>
   );
 }
