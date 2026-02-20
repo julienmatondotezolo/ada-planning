@@ -23,10 +23,26 @@ export async function apiCall<T = any>(
 ): Promise<{ data: T; success: boolean; error?: string }> {
   const { requireAuth = true, ...fetchOptions } = options;
 
-  const headers: HeadersInit = {
+  const headers: Record<string, string> = {
     'Content-Type': 'application/json',
-    ...fetchOptions.headers,
   };
+
+  // Merge headers from options if they exist
+  if (fetchOptions.headers) {
+    if (Array.isArray(fetchOptions.headers)) {
+      // Handle array format: [['key', 'value'], ...]
+      fetchOptions.headers.forEach(([key, value]) => {
+        headers[key] = value;
+      });
+    } else if (typeof fetchOptions.headers === 'object') {
+      // Handle object format: { key: value }
+      Object.entries(fetchOptions.headers).forEach(([key, value]) => {
+        if (typeof value === 'string') {
+          headers[key] = value;
+        }
+      });
+    }
+  }
 
   // Add auth header if required and token available
   if (requireAuth) {

@@ -27,7 +27,7 @@ const MOCK_STAFF = [
 ];
 
 // Mock assignments based on the February 2026 paper calendar
-const MOCK_ASSIGNMENTS = {
+const MOCK_ASSIGNMENTS: Record<string, { staffId: string; name: string; color: string; }[]> = {
   '2026-02-01': [{ staffId: '1', name: 'José', color: '#ef4444' }],
   '2026-02-02': [
     { staffId: '1', name: 'José', color: '#ef4444' },

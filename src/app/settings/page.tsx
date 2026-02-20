@@ -5,7 +5,7 @@ import { Metadata } from 'next';
 import { Header } from '@/components/layout/Header';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
-import { staffApi } from '@/lib/api';
+import { staffApi, type Staff } from '@/lib/api';
 import { 
   Users, 
   Plus, 
@@ -20,19 +20,6 @@ import {
   User
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-
-interface Staff {
-  id: string;
-  first_name: string;
-  last_name: string;
-  email: string;
-  phone: string;
-  position: string;
-  hourly_rate: number;
-  hire_date: string;
-  status: 'active' | 'inactive';
-  default_hours_per_week: number;
-}
 
 export default function SettingsPage() {
   const [staff, setStaff] = useState<Staff[]>([]);
