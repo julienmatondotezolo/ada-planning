@@ -148,14 +148,8 @@ export default function LoginPage() {
             <p>Demo Credentials:</p>
             <div className="mt-1 space-y-1 text-xs">
               <p><strong>Email:</strong> admin@losteria.be</p>
-              <p><strong>Password:</strong> (Create via signup first)</p>
+              <p><strong>Password:</strong> AdaPlanning2026!</p>
             </div>
-          </div>
-
-          <div className="mt-4 text-center text-xs text-gray-500">
-            Need to create the first admin account?
-            <br />
-            Use the <code className="bg-gray-100 px-1 rounded">/api/v1/auth/signup</code> endpoint
           </div>
         </CardContent>
       </Card>

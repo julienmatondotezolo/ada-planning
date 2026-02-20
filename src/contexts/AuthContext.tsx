@@ -33,11 +33,6 @@ export const useAuth = () => {
 // Production API URL - hardcoded for reliability
 const API_BASE_URL = 'https://ada.mindgen.app';
 
-// Debug logging
-if (typeof window !== 'undefined') {
-  console.log('AuthContext API_BASE_URL:', API_BASE_URL);
-}
-
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
@@ -100,19 +95,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Check if user is authenticated
   const checkAuth = async () => {
-    console.log('🔍 Starting auth check...');
-    
     try {
       const token = getAccessToken();
-      console.log('🔑 Token exists:', !!token);
       
       if (!token) {
-        console.log('❌ No token found, setting loading to false');
         setLoading(false);
         return;
       }
 
-      console.log('📡 Making API call to /auth/me');
       const response = await fetch(`${API_BASE_URL}/api/v1/auth/me`, {
         method: 'GET',
         headers: {
@@ -121,25 +111,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         },
       });
       
-      console.log('📡 Auth response status:', response.status);
-      
       if (response.ok) {
         const data = await response.json();
-        console.log('✅ Auth successful, user:', data.user?.email);
         setUser(data.user);
       } else {
-        console.log('❌ Auth failed, clearing tokens');
         clearTokens();
         setUser(null);
       }
     } catch (error) {
-      console.error('💥 Auth check error:', error);
       clearTokens();
       setUser(null);
-    } finally {
-      console.log('🏁 Auth check complete, setting loading to false');
-      setLoading(false);
     }
+    
+    // Always ensure loading is set to false
+    setLoading(false);
   };
 
   // Login function
@@ -222,18 +207,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  // Check authentication on mount with timeout
+  // Check authentication on mount
   useEffect(() => {
-    console.log('🚀 AuthProvider mounted, starting auth check...');
-    
-    const timeoutId = setTimeout(() => {
-      console.log('⏰ Auth check timeout - setting loading to false');
-      setLoading(false);
-    }, 10000); // 10 second timeout
-    
-    checkAuth().finally(() => {
-      clearTimeout(timeoutId);
-    });
+    checkAuth();
   }, []);
 
   const value: AuthContextType = {
