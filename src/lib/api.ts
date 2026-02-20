@@ -1,6 +1,12 @@
 // API utility functions with authentication support
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://ada.mindgen.app';
+// Production API URL - hardcoded for reliability
+const API_BASE_URL = 'https://ada.mindgen.app';
+
+// Debug logging for API URL
+if (typeof window !== 'undefined') {
+  console.log('API lib - API_BASE_URL:', API_BASE_URL);
+}
 
 // Get auth token from localStorage
 const getAuthToken = (): string | null => {

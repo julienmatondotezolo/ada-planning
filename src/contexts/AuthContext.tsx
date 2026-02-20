@@ -30,7 +30,13 @@ export const useAuth = () => {
   return context;
 };
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://ada.mindgen.app';
+// Production API URL - hardcoded for reliability
+const API_BASE_URL = 'https://ada.mindgen.app';
+
+// Debug logging
+if (typeof window !== 'undefined') {
+  console.log('AuthContext API_BASE_URL:', API_BASE_URL);
+}
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
