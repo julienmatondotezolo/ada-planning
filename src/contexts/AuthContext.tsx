@@ -82,27 +82,51 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return;
       }
 
-      const response = await fetch(`${ADAAUTH_API_URL}/auth/validate`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        setUser(data.user);
-      } else {
-        // Try to refresh token if validation fails
-        const refreshSuccess = await refreshToken();
-        if (!refreshSuccess) {
+      // Handle Supabase JWT tokens directly
+      try {
+        const tokenParts = token.split('.');
+        if (tokenParts.length === 3) {
+          const payload = JSON.parse(atob(tokenParts[1]));
+          
+          // Check if token is expired
+          const currentTime = Math.floor(Date.now() / 1000);
+          if (payload.exp && payload.exp < currentTime) {
+            console.log('Token expired');
+            clearTokens();
+            setUser(null);
+          } else {
+            // Create user object from token payload
+            const userData = {
+              id: payload.sub,
+              email: payload.email || payload.user_metadata?.email,
+              full_name: payload.user_metadata?.full_name,
+              role: payload.user_metadata?.restaurant_role || 'staff',
+              restaurant_id: payload.user_metadata?.restaurant_id || 'c1cbea71-ece5-4d63-bb12-fe06b03d1140' // L'Osteria
+            };
+            
+            setUser(userData);
+          }
+        } else {
+          throw new Error('Invalid token format');
+        }
+      } catch (tokenError) {
+        console.error('Token parsing failed:', tokenError);
+        
+        // Fallback: try AdaAuth API validation
+        const response = await fetch(`${ADAAUTH_API_URL}/auth/validate`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+          },
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          setUser(data.user);
+        } else {
           clearTokens();
           setUser(null);
-        } else {
-          // Retry validation with new token
-          await checkAuth();
-          return;
         }
       }
     } catch (error) {

@@ -13,6 +13,7 @@ function AuthCallbackContent() {
   const searchParams = useSearchParams();
   const [status, setStatus] = React.useState<'processing' | 'success' | 'error'>('processing');
   const [message, setMessage] = React.useState('Processing authentication...');
+  const [debugInfo, setDebugInfo] = React.useState<string>('');
 
   // Get redirect URL and token from search params
   const redirectTo = searchParams.get('redirect') || '/';
@@ -31,21 +32,45 @@ function AuthCallbackContent() {
       // Check for token in URL
       if (token) {
         try {
-          // Use AuthContext to authenticate with the token
-          await authenticateWithToken(token);
+          console.log('Processing token:', token.substring(0, 50) + '...');
           
-          setStatus('success');
-          setMessage('Authentication successful! Redirecting...');
-          
-          // Small delay to show success message, then redirect
-          setTimeout(() => {
-            router.push(redirectTo);
-          }, 1500);
+          // Parse JWT token to get user info
+          const tokenParts = token.split('.');
+          if (tokenParts.length === 3) {
+            const payload = JSON.parse(atob(tokenParts[1]));
+            console.log('Token payload:', payload);
+            
+            // Create user object from token payload
+            const userData = {
+              id: payload.sub,
+              email: payload.email || payload.user_metadata?.email,
+              full_name: payload.user_metadata?.full_name,
+              role: payload.user_metadata?.restaurant_role || 'staff',
+              restaurant_id: payload.user_metadata?.restaurant_id || 'c1cbea71-ece5-4d63-bb12-fe06b03d1140' // L'Osteria
+            };
+            
+            console.log('User data extracted:', userData);
+            setDebugInfo(`User: ${userData.email} (${userData.role})`);
+            
+            // Store token and user data
+            localStorage.setItem('ada_access_token', token);
+            localStorage.setItem('access_token', token); // Legacy compatibility
+            
+            setStatus('success');
+            setMessage(`Welcome, ${userData.full_name || userData.email}! Redirecting...`);
+            
+            // Small delay to show success message, then redirect
+            setTimeout(() => {
+              router.push(redirectTo);
+            }, 2000);
+          } else {
+            throw new Error('Invalid token format');
+          }
           
         } catch (error) {
           console.error('Token processing failed:', error);
           setStatus('error');
-          setMessage('Failed to process authentication token');
+          setMessage(`Failed to process authentication token: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
         return;
       }
@@ -108,9 +133,22 @@ function AuthCallbackContent() {
             </p>
             
             {status === 'success' && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-center gap-2 text-xs text-green-600">
+                  <CheckCircle className="h-3 w-3" />
+                  <span>Authenticated via AdaAuth SSO</span>
+                </div>
+                {debugInfo && (
+                  <div className="text-xs text-muted-foreground bg-muted/50 rounded px-2 py-1">
+                    {debugInfo}
+                  </div>
+                )}
+              </div>
+            )}
+            
+            {status === 'processing' && (
               <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
-                <CheckCircle className="h-3 w-3" />
-                <span>Authenticated via AdaAuth SSO</span>
+                <span>Validating authentication token...</span>
               </div>
             )}
           </div>
