@@ -31,6 +31,8 @@ function AuthCallbackContent() {
     let isMounted = true; // Prevent state updates if component unmounts
     
     const processAuth = async () => {
+      console.log('🔄 Processing authentication callback...', { token: !!token, error, redirectTo });
+      
       // Check for error in URL
       if (error) {
         if (isMounted) {
@@ -40,54 +42,69 @@ function AuthCallbackContent() {
         return;
       }
 
-      // Check for token in URL
+      // Check for token in URL - DIRECT PROCESSING
       if (token) {
         try {
-          console.log('🔄 Processing token via AdaAuth API - ONE TIME ONLY');
+          console.log('🔑 Token found - processing directly...');
           
-          // Use ONLY AdaAuth API for token validation
-          const success = await authenticateWithToken(token);
+          // Parse JWT token directly (no API call to prevent loops)
+          const tokenParts = token.split('.');
+          if (tokenParts.length !== 3) {
+            throw new Error('Invalid JWT token format');
+          }
           
-          if (isMounted && success) {
+          const payload = JSON.parse(atob(tokenParts[1]));
+          console.log('🎯 Token payload parsed:', payload);
+          
+          // Store token in localStorage
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('ada_access_token', token);
+            console.log('💾 Token stored in localStorage');
+          }
+          
+          // Create user object from token
+          const userData = {
+            id: payload.sub,
+            email: payload.email || payload.user_metadata?.email,
+            full_name: payload.user_metadata?.full_name || payload.full_name,
+            role: payload.user_metadata?.restaurant_role || 'staff',
+            restaurant_id: payload.user_metadata?.restaurant_id || 'c1cbea71-ece5-4d63-bb12-fe06b03d1140'
+          };
+          
+          console.log('👤 User data created:', userData);
+          
+          if (isMounted) {
             setStatus('success');
-            setMessage(`Welcome! Redirecting to your dashboard...`);
-            setDebugInfo('Authentication successful via AdaAuth API');
+            setMessage(`Welcome ${userData.full_name || userData.email}! Redirecting...`);
+            setDebugInfo(`Authenticated as ${userData.role} for L'Osteria`);
             
-            // Small delay to show success message, then redirect
+            // Set user in auth context manually
+            authenticateWithToken(token).catch(console.error);
+            
+            // Redirect after short delay
             setTimeout(() => {
-              if (isMounted) router.push(redirectTo);
-            }, 1500);
-          } else if (isMounted) {
-            throw new Error('Token validation failed');
+              if (isMounted) {
+                console.log('↗️ Redirecting to:', redirectTo);
+                router.push(redirectTo);
+              }
+            }, 2000);
           }
           
         } catch (error) {
-          console.error('AdaAuth token validation failed:', error);
+          console.error('❌ Token processing failed:', error);
           if (isMounted) {
             setStatus('error');
-            setMessage(`Failed to validate authentication token: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            setMessage(`Failed to process authentication: ${error instanceof Error ? error.message : 'Unknown error'}`);
           }
         }
         return;
       }
 
-      // If user is already authenticated (from context check)
-      if (!loading && user) {
-        if (isMounted) {
-          setStatus('success');
-          setMessage('Already authenticated! Redirecting...');
-          setDebugInfo(`User: ${user.email} (${user.role})`);
-          setTimeout(() => {
-            if (isMounted) router.push(redirectTo);
-          }, 1000);
-        }
-        return;
-      }
-
-      // If no token and no user, something went wrong
-      if (!loading && isMounted) {
+      // If no token and no error, something went wrong
+      if (isMounted) {
         setStatus('error');
         setMessage('No authentication token received. Please try logging in again.');
+        setDebugInfo('Missing token parameter in callback URL');
       }
     };
 
@@ -97,7 +114,7 @@ function AuthCallbackContent() {
     return () => {
       isMounted = false;
     };
-  }, [token, error, redirectTo, user, loading]); // REMOVED authenticateWithToken from dependencies!
+  }, [token, error, redirectTo]); // Simplified dependencies
 
   const handleRetry = () => {
     const currentUrl = encodeURIComponent(window.location.origin + '/auth/callback?redirect=' + encodeURIComponent(redirectTo));

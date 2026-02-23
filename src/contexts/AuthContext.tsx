@@ -115,54 +115,44 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   // Authenticate with existing token (for SSO flow) - ONLY when explicitly called
-  const authenticateWithToken = useCallback(async (token: string) => {
+  const authenticateWithToken = useCallback(async (token: string): Promise<boolean> => {
     try {
-      setLoading(true);
       console.log('🔑 Authenticating with provided token...');
       
       // Store the token first
       storeTokens(token, '');
       
-      // Create user from token if possible, otherwise use mock
-      let userData: User;
-      
-      try {
-        const tokenParts = token.split('.');
-        if (tokenParts.length === 3) {
-          const payload = JSON.parse(atob(tokenParts[1]));
-          userData = {
-            id: payload.sub,
-            email: payload.email || payload.user_metadata?.email || 'user@losteria.be',
-            full_name: payload.user_metadata?.full_name || 'L\'Osteria User',
-            role: payload.user_metadata?.restaurant_role || 'staff',
-            restaurant_id: payload.user_metadata?.restaurant_id || 'c1cbea71-ece5-4d63-bb12-fe06b03d1140'
-          };
-        } else {
-          throw new Error('Invalid token format');
-        }
-      } catch (parseError) {
-        console.warn('Token parsing failed, using mock user:', parseError);
-        userData = {
-          id: 'token-user',
-          email: 'user@losteria.be',
-          full_name: 'L\'Osteria User',
-          role: 'staff',
-          restaurant_id: 'c1cbea71-ece5-4d63-bb12-fe06b03d1140'
-        };
+      // Parse JWT token directly
+      const tokenParts = token.split('.');
+      if (tokenParts.length !== 3) {
+        throw new Error('Invalid JWT token format');
       }
       
+      const payload = JSON.parse(atob(tokenParts[1]));
+      
+      // Create user from token payload
+      const userData: User = {
+        id: payload.sub,
+        email: payload.email || payload.user_metadata?.email,
+        full_name: payload.user_metadata?.full_name || payload.full_name,
+        role: payload.user_metadata?.restaurant_role || 'staff',
+        restaurant_id: payload.user_metadata?.restaurant_id || 'c1cbea71-ece5-4d63-bb12-fe06b03d1140'
+      };
+      
+      // Set user state
       setUser(userData);
       setHasCheckedAuth(true);
-      console.log('✅ Token authentication successful (no API call)');
+      setLoading(false);
+      
+      console.log('✅ Token authentication successful:', userData);
       return true;
       
     } catch (error) {
       console.error('❌ Token authentication failed:', error);
       clearTokens();
       setUser(null);
-      throw error;
-    } finally {
       setLoading(false);
+      return false;
     }
   }, []); // useCallback with empty dependencies
 
