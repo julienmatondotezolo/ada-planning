@@ -5,7 +5,7 @@ import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { useAuth } from '@/contexts/AuthContext';
 import { useState, useEffect, useRef } from 'react';
-import { AdaLogo, Button, Avatar, AvatarFallback } from '@/components/ui';
+import { AdaLogo, Button, Avatar, AvatarFallback } from 'ada-design-system';
 
 export function Header() {
   const currentDate = new Date();

@@ -3,8 +3,15 @@
 import React, { useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { AdaLogo, Spinner } from '@/components/ui';
+import { 
+  Card, 
+  CardContent, 
+  CardDescription, 
+  CardHeader, 
+  CardTitle,
+  AdaLogo,
+  Spinner
+} from 'ada-design-system';
 import { CheckCircle, AlertCircle, ExternalLink } from 'lucide-react';
 
 function AuthCallbackContent() {
