@@ -28,8 +28,9 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
       }
 
       if (requiredRole && user.role !== requiredRole) {
-        // Check role hierarchy: admin > manager > supervisor > staff
+        // Check role hierarchy: owner > admin > manager > supervisor > staff
         const roleHierarchy = {
+          owner: 5,    // Restaurant owner - highest access
           admin: 4,
           manager: 3,
           supervisor: 2,

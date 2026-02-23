@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import { Inter } from 'next/font/google';
 import { AuthProvider } from '@/contexts/AuthContext';
+import 'ada-design-system/styles.css';
 import './globals.css';
 
 const inter = Inter({
