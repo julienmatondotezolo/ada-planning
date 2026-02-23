@@ -95,38 +95,50 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             console.log('Token expired');
             clearTokens();
             setUser(null);
-          } else {
-            // Create user object from token payload
-            const userData = {
-              id: payload.sub,
-              email: payload.email || payload.user_metadata?.email,
-              full_name: payload.user_metadata?.full_name,
-              role: payload.user_metadata?.restaurant_role || 'staff',
-              restaurant_id: payload.user_metadata?.restaurant_id || 'c1cbea71-ece5-4d63-bb12-fe06b03d1140' // L'Osteria
-            };
-            
-            setUser(userData);
+            setLoading(false);
+            return;
           }
+          
+          // Token is valid - create user object from token payload
+          const userData = {
+            id: payload.sub,
+            email: payload.email || payload.user_metadata?.email,
+            full_name: payload.user_metadata?.full_name,
+            role: payload.user_metadata?.restaurant_role || 'staff',
+            restaurant_id: payload.user_metadata?.restaurant_id || 'c1cbea71-ece5-4d63-bb12-fe06b03d1140' // L'Osteria
+          };
+          
+          console.log('✅ Token valid, user authenticated:', userData);
+          setUser(userData);
+          setLoading(false);
+          return; // SKIP API validation - token is sufficient
         } else {
           throw new Error('Invalid token format');
         }
       } catch (tokenError) {
         console.error('Token parsing failed:', tokenError);
         
-        // Fallback: try AdaAuth API validation
-        const response = await fetch(`${ADAAUTH_API_URL}/auth/validate`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`,
-          },
-        });
-        
-        if (response.ok) {
-          const data = await response.json();
-          setUser(data.user);
-        } else {
-          clearTokens();
+        // Fallback: try AdaAuth API validation (only for parsing errors)
+        try {
+          const response = await fetch(`${ADAAUTH_API_URL}/auth/validate`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`,
+            },
+          });
+          
+          if (response.ok) {
+            const data = await response.json();
+            setUser(data.user);
+          } else {
+            console.error('API validation failed:', response.status);
+            clearTokens();
+            setUser(null);
+          }
+        } catch (apiError) {
+          console.error('API validation error (CORS?):', apiError);
+          // Don't clear tokens on network errors - token might still be valid
           setUser(null);
         }
       }
