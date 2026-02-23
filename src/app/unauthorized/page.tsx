@@ -38,7 +38,7 @@ export default function UnauthorizedPage() {
           <div className="space-y-4">
             <div className="bg-gray-50 p-4 rounded-lg">
               <div className="text-sm text-gray-600">
-                <p><strong>Utilisateur:</strong> {user?.first_name} {user?.last_name}</p>
+                <p><strong>Utilisateur:</strong> {user?.full_name || 'N/A'}</p>
                 <p><strong>Email:</strong> {user?.email}</p>
                 <p><strong>Rôle:</strong> <span className="capitalize">{user?.role || 'Non défini'}</span></p>
               </div>

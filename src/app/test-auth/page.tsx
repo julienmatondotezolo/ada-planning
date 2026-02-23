@@ -35,7 +35,7 @@ export default function TestAuthPage() {
             <h3 className="font-semibold text-green-800">User Details:</h3>
             <p>ID: {user.id}</p>
             <p>Email: {user.email}</p>
-            <p>Name: {user.first_name} {user.last_name}</p>
+            <p>Name: {user.full_name || 'N/A'}</p>
             <p>Role: {user.role}</p>
             <button 
               onClick={logout}

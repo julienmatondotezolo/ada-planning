@@ -1,20 +1,24 @@
-// API utility functions with authentication support
+// API utility functions with authentication support for AdaStaff API
 
-// Production API URL - hardcoded for reliability
-const API_BASE_URL = 'https://ada.mindgen.app';
+// AdaStaff API URL - working staff management service
+const ADASTAFF_API_URL = 'https://adastaff.mindgen.app';
 
-// Debug logging for API URL
+// L'Osteria Restaurant ID - hardcoded for demo
+const RESTAURANT_ID = 'c1cbea71-ece5-4d63-bb12-fe06b03d1140';
+
+// Debug logging
 if (typeof window !== 'undefined') {
-  console.log('API lib - API_BASE_URL:', API_BASE_URL);
+  console.log('API lib - AdaStaff URL:', ADASTAFF_API_URL);
+  console.log('API lib - Restaurant ID:', RESTAURANT_ID);
 }
 
 // Get auth token from localStorage
 const getAuthToken = (): string | null => {
   if (typeof window === 'undefined') return null;
-  return localStorage.getItem('access_token');
+  return localStorage.getItem('ada_access_token') || localStorage.getItem('access_token');
 };
 
-// Base API call function with authentication
+// Base API call function with authentication for AdaStaff API
 export async function apiCall<T = any>(
   endpoint: string,
   options: RequestInit & {
@@ -27,50 +31,60 @@ export async function apiCall<T = any>(
     'Content-Type': 'application/json',
   };
 
-  // Merge headers from options if they exist
-  if (fetchOptions.headers) {
-    if (Array.isArray(fetchOptions.headers)) {
-      // Handle array format: [['key', 'value'], ...]
-      fetchOptions.headers.forEach(([key, value]) => {
-        headers[key] = value;
-      });
-    } else if (typeof fetchOptions.headers === 'object') {
-      // Handle object format: { key: value }
-      Object.entries(fetchOptions.headers).forEach(([key, value]) => {
-        if (typeof value === 'string') {
-          headers[key] = value;
-        }
-      });
-    }
-  }
-
   // Add auth header if required and token available
   if (requireAuth) {
     const token = getAuthToken();
     if (token) {
       headers.Authorization = `Bearer ${token}`;
+    } else {
+      return {
+        data: null as T,
+        success: false,
+        error: 'Authentication token required',
+      };
     }
   }
 
+  // Merge headers from options if they exist
+  if (fetchOptions.headers) {
+    Object.entries(fetchOptions.headers).forEach(([key, value]) => {
+      if (typeof value === 'string') {
+        headers[key] = value;
+      }
+    });
+  }
+
   try {
-    const response = await fetch(`${API_BASE_URL}/api/v1${endpoint}`, {
+    // Construct full URL - endpoint should start with /api/v1
+    const fullUrl = endpoint.startsWith('/api/v1') 
+      ? `${ADASTAFF_API_URL}${endpoint}`
+      : `${ADASTAFF_API_URL}/api/v1/restaurants/${RESTAURANT_ID}${endpoint}`;
+
+    const response = await fetch(fullUrl, {
       ...fetchOptions,
       headers,
     });
 
-    const result = await response.json();
+    // Handle different response types
+    let result;
+    const contentType = response.headers.get('content-type');
+    if (contentType?.includes('application/json')) {
+      result = await response.json();
+    } else {
+      result = await response.text();
+    }
 
     if (!response.ok) {
       return {
         data: null as T,
         success: false,
-        error: result.error || result.message || `HTTP ${response.status}`,
+        error: result.message || result.error || result || `HTTP ${response.status}`,
       };
     }
 
     return {
-      data: result.data || result,
-      success: result.success !== false,
+      data: result,
+      success: true,
       error: undefined,
     };
   } catch (error) {
@@ -83,123 +97,241 @@ export async function apiCall<T = any>(
   }
 }
 
-// Staff API functions
-export interface Staff {
+// Employee interface matching AdaStaff API response
+export interface Employee {
   id: string;
+  restaurant_id: string;
+  name: string;
   first_name: string;
   last_name: string;
+  role: string;
+  position: string;
   email?: string;
   phone?: string;
-  position: string;
+  availability: Record<string, any>;
   hourly_rate: number;
-  status: 'active' | 'inactive';
-  hire_date?: string;
-  default_hours_per_week?: number;
+  hire_date: string;
+  active: boolean;
+  notes?: string;
+  emergency_contact: {
+    name?: string;
+    phone?: string;
+  };
 }
 
+// Legacy Staff interface for backward compatibility
+export interface Staff extends Employee {}
+
 export const staffApi = {
-  // Get all staff
+  // Get all employees
   getAll: (params?: { active_only?: boolean; position?: string }) => {
     const queryParams = new URLSearchParams();
     if (params?.active_only) queryParams.set('active_only', 'true');
     if (params?.position) queryParams.set('position', params.position);
     
     const query = queryParams.toString();
-    return apiCall<Staff[]>(`/staff${query ? `?${query}` : ''}`);
+    return apiCall<Employee[]>(`/employees${query ? `?${query}` : ''}`);
   },
 
-  // Get staff by ID
+  // Get employee by ID
   getById: (id: string) => 
-    apiCall<Staff>(`/staff/${id}`),
+    apiCall<Employee>(`/employees/${id}`),
 
-  // Create staff
-  create: (data: Omit<Staff, 'id'>) =>
-    apiCall<Staff>('/staff', {
+  // Create employee
+  create: (data: {
+    first_name: string;
+    last_name: string;
+    email?: string;
+    phone?: string;
+    position: string;
+    hourly_rate: number;
+    availability?: Record<string, any>;
+    notes?: string;
+    emergency_contact_name?: string;
+    emergency_contact_phone?: string;
+  }) =>
+    apiCall<Employee>('/employees', {
       method: 'POST',
       body: JSON.stringify(data),
     }),
 
-  // Update staff
-  update: (id: string, data: Partial<Staff>) =>
-    apiCall<Staff>(`/staff/${id}`, {
+  // Update employee
+  update: (id: string, data: Partial<{
+    first_name: string;
+    last_name: string;
+    email?: string;
+    phone?: string;
+    position: string;
+    hourly_rate: number;
+    active: boolean;
+    availability?: Record<string, any>;
+    notes?: string;
+    emergency_contact_name?: string;
+    emergency_contact_phone?: string;
+  }>) =>
+    apiCall<Employee>(`/employees/${id}`, {
       method: 'PUT',
       body: JSON.stringify(data),
     }),
 
-  // Delete staff
+  // Delete employee (deactivate)
   delete: (id: string) =>
-    apiCall(`/staff/${id}`, {
+    apiCall(`/employees/${id}`, {
       method: 'DELETE',
     }),
 };
 
-// Shift API functions
+// Shift interface matching AdaStaff API response
 export interface Shift {
   id: string;
-  staff_member_id: string;
-  scheduled_date: string;
+  restaurant_id: string;
+  employee_id: string;
+  employee_name: string;
+  role: string;
+  position: string;
+  date: string;
   start_time: string;
   end_time: string;
-  position: string;
-  break_duration: number;
-  status: 'scheduled' | 'assigned' | 'confirmed' | 'completed' | 'cancelled';
-  is_overtime: boolean;
+  duration_hours: number;
+  break_duration_minutes: number;
+  status: 'draft' | 'scheduled' | 'confirmed' | 'completed' | 'cancelled';
   notes?: string;
-  staff?: Staff;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+  // Legacy compatibility
+  staff_member_id?: string;
+  scheduled_date?: string;
+  break_duration?: number;
+  is_overtime?: boolean;
+  staff?: Employee;
 }
 
 export const shiftsApi = {
   // Get shifts with filters
   getAll: (params?: { 
-    date?: string; 
-    staff_id?: string; 
-    week?: string; 
+    start_date?: string;
+    end_date?: string;
+    employee_id?: string; 
+    status?: string;
   }) => {
     const queryParams = new URLSearchParams();
-    if (params?.date) queryParams.set('date', params.date);
-    if (params?.staff_id) queryParams.set('staff_id', params.staff_id);
-    if (params?.week) queryParams.set('week', params.week);
+    if (params?.start_date) queryParams.set('start_date', params.start_date);
+    if (params?.end_date) queryParams.set('end_date', params.end_date);
+    if (params?.employee_id) queryParams.set('employee_id', params.employee_id);
+    if (params?.status) queryParams.set('status', params.status);
     
     const query = queryParams.toString();
-    return apiCall<Shift[]>(`/shifts${query ? `?${query}` : ''}`);
+    return apiCall<Shift[]>(`/planning/shifts${query ? `?${query}` : ''}`);
   },
 
   // Create shift
-  create: (data: Omit<Shift, 'id' | 'staff'>) =>
-    apiCall<Shift>('/shifts', {
+  create: (data: {
+    employee_id: string;
+    scheduled_date: string; // YYYY-MM-DD format
+    start_time: string; // HH:MM format
+    end_time: string; // HH:MM format
+    position: string;
+    break_duration_minutes?: number;
+    notes?: string;
+  }) =>
+    apiCall<Shift>('/planning/shifts', {
       method: 'POST',
       body: JSON.stringify(data),
     }),
 
   // Update shift
-  update: (id: string, data: Partial<Shift>) =>
-    apiCall<Shift>(`/shifts/${id}`, {
+  update: (id: string, data: Partial<{
+    employee_id: string;
+    scheduled_date: string;
+    start_time: string;
+    end_time: string;
+    position: string;
+    break_duration_minutes?: number;
+    status: 'draft' | 'scheduled' | 'confirmed' | 'completed' | 'cancelled';
+    notes?: string;
+  }>) =>
+    apiCall<Shift>(`/planning/shifts/${id}`, {
       method: 'PUT',
       body: JSON.stringify(data),
     }),
 
   // Delete shift
   delete: (id: string) =>
-    apiCall(`/shifts/${id}`, {
+    apiCall(`/planning/shifts/${id}`, {
       method: 'DELETE',
     }),
 
   // Bulk create shifts
-  createBulk: (shifts: Array<Omit<Shift, 'id' | 'staff'>>) =>
-    apiCall<Shift[]>('/shifts/bulk', {
+  createBulk: (shifts: Array<{
+    employee_id: string;
+    scheduled_date: string;
+    start_time: string;
+    end_time: string;
+    position: string;
+    break_duration_minutes?: number;
+    notes?: string;
+  }>) =>
+    apiCall<Shift[]>('/planning/shifts/bulk', {
       method: 'POST',
       body: JSON.stringify({ shifts }),
     }),
+};
 
-  // Assign shift to staff
-  assign: (id: string, staff_member_id: string, notify_staff = false) =>
-    apiCall<Shift>(`/shifts/${id}/assign`, {
+// Schedule Templates interface matching AdaStaff API
+export interface ScheduleTemplate {
+  id: string;
+  restaurant_id: string;
+  name: string;
+  description?: string;
+  template_data: Record<string, any>;
+  active: boolean;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export const templatesApi = {
+  // Get schedule templates
+  getAll: (params?: { active_only?: boolean }) => {
+    const queryParams = new URLSearchParams();
+    if (params?.active_only) queryParams.set('active_only', 'true');
+    
+    const query = queryParams.toString();
+    return apiCall<ScheduleTemplate[]>(`/planning/templates${query ? `?${query}` : ''}`);
+  },
+
+  // Create template
+  create: (data: {
+    name: string;
+    description?: string;
+    template_data: Record<string, any>;
+  }) =>
+    apiCall<ScheduleTemplate>('/planning/templates', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  // Update template
+  update: (id: string, data: Partial<{
+    name: string;
+    description?: string;
+    template_data: Record<string, any>;
+    active: boolean;
+  }>) =>
+    apiCall<ScheduleTemplate>(`/planning/templates/${id}`, {
       method: 'PUT',
-      body: JSON.stringify({ staff_member_id, notify_staff }),
+      body: JSON.stringify(data),
+    }),
+
+  // Delete template
+  delete: (id: string) =>
+    apiCall(`/planning/templates/${id}`, {
+      method: 'DELETE',
     }),
 };
 
-// Schedule API functions
+// Legacy Schedule API (keeping for compatibility)
 export interface Schedule {
   id: string;
   restaurant_id: string;
@@ -209,53 +341,35 @@ export interface Schedule {
   status: 'draft' | 'published' | 'archived';
   total_shifts: number;
   total_hours: number;
-  notification_sent: boolean;
-  published_at?: string;
   created_at: string;
   updated_at: string;
 }
 
 export const schedulesApi = {
-  // Get schedules
+  // Get schedules (placeholder - not implemented in AdaStaff API yet)
   getAll: (params?: { year?: number; month?: number }) => {
-    const queryParams = new URLSearchParams();
-    if (params?.year) queryParams.set('year', params.year.toString());
-    if (params?.month) queryParams.set('month', params.month.toString());
-    
-    const query = queryParams.toString();
-    return apiCall<Schedule[]>(`/schedules${query ? `?${query}` : ''}`);
+    console.warn('Schedules API not yet implemented in AdaStaff API');
+    return Promise.resolve({ data: [], success: true });
   },
 
-  // Create schedule
-  create: (data: { name: string; year: number; month: number }) =>
-    apiCall<Schedule>('/schedules', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    }),
-
-  // Publish schedule
-  publish: (id: string, options?: { 
-    notify_staff?: boolean; 
-    notification_message?: string; 
-  }) =>
-    apiCall<Schedule>(`/schedules/${id}/publish`, {
-      method: 'PUT',
-      body: JSON.stringify(options || {}),
-    }),
+  // Create schedule (placeholder)
+  create: (data: { name: string; year: number; month: number }) => {
+    console.warn('Schedules API not yet implemented in AdaStaff API');
+    return Promise.resolve({ data: null, success: false, error: 'Not implemented' });
+  },
 };
 
-// Health check
+// Health check for AdaStaff API
 export const healthApi = {
   check: () => 
-    apiCall('/health', { requireAuth: false }),
-  
-  testDb: () => 
-    apiCall('/test-db', { requireAuth: false }),
+    apiCall('/api/v1/health', { requireAuth: false }),
 };
 
 export default {
   staff: staffApi,
+  employees: staffApi, // Alias for new name
   shifts: shiftsApi,
+  templates: templatesApi,
   schedules: schedulesApi,
   health: healthApi,
 };

@@ -1,16 +1,16 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import React, { useState, useEffect, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { AdaLogo, Spinner } from '@/components/ui';
-import { AlertCircle, Eye, EyeOff } from 'lucide-react';
+import { AlertCircle, Eye, EyeOff, ExternalLink } from 'lucide-react';
 
-export default function LoginPage() {
+function LoginPageContent() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -19,13 +19,17 @@ export default function LoginPage() {
   
   const { login, user, loading } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
+
+  // Get redirect URL from search params
+  const redirectTo = searchParams.get('redirect') || '/';
 
   // Redirect if already authenticated
   useEffect(() => {
     if (!loading && user) {
-      router.push('/');
+      router.push(redirectTo);
     }
-  }, [user, loading, router]);
+  }, [user, loading, router, redirectTo]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -40,12 +44,18 @@ export default function LoginPage() {
 
     try {
       await login(email, password);
-      router.push('/');
+      router.push(redirectTo);
     } catch (error) {
       setError(error instanceof Error ? error.message : 'Login failed');
     } finally {
       setIsLoading(false);
     }
+  };
+
+  // Handle redirect to AdaAuth registration
+  const handleRegister = () => {
+    const currentUrl = encodeURIComponent(window.location.origin + '/login');
+    window.location.href = `https://adaauth.mindgen.app/register?redirect=${currentUrl}`;
   };
 
   if (loading) {
@@ -75,7 +85,7 @@ export default function LoginPage() {
               AdaPlanning
             </CardTitle>
             <CardDescription className="mt-2">
-              Sign in to your account to manage employee schedules
+              Sign in to manage employee schedules for L'Osteria
             </CardDescription>
           </div>
         </CardHeader>
@@ -97,7 +107,7 @@ export default function LoginPage() {
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="admin@losteria.be"
+                placeholder="your.email@example.com"
                 required
                 disabled={isLoading}
               />
@@ -149,15 +159,58 @@ export default function LoginPage() {
             </Button>
           </form>
 
-          <div className="mt-6 text-center text-sm text-muted-foreground">
-            <p>Demo Credentials:</p>
-            <div className="mt-1 space-y-1 text-xs">
-              <p><strong>Email:</strong> admin@losteria.be</p>
-              <p><strong>Password:</strong> AdaPlanning2026!</p>
+          <div className="mt-6 space-y-4">
+            {/* Demo Credentials */}
+            <div className="text-center text-sm text-muted-foreground border-t pt-4">
+              <p className="font-medium">Demo Access:</p>
+              <div className="mt-2 space-y-1 text-xs">
+                <p><strong>Email:</strong> emjiada@yopmail.com</p>
+                <p><strong>Password:</strong> Emjiada@yopmail.com123</p>
+              </div>
+            </div>
+
+            {/* Register Link */}
+            <div className="text-center">
+              <button
+                type="button"
+                onClick={handleRegister}
+                className="inline-flex items-center gap-1 text-sm text-primary hover:text-primary/80 font-medium"
+              >
+                <span>Need an account? Register here</span>
+                <ExternalLink className="h-3 w-3" />
+              </button>
+            </div>
+
+            {/* AdaAuth Link */}
+            <div className="text-center">
+              <a
+                href="https://adaauth.mindgen.app"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+              >
+                <span>Powered by AdaAuth</span>
+                <ExternalLink className="h-3 w-3" />
+              </a>
             </div>
           </div>
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="text-center">
+          <Spinner size="lg" variant="primary" />
+          <p className="mt-2 text-muted-foreground">Loading...</p>
+        </div>
+      </div>
+    }>
+      <LoginPageContent />
+    </Suspense>
   );
 }

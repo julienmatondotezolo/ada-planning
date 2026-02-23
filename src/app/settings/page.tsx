@@ -218,11 +218,11 @@ export default function SettingsPage() {
                               <td className="py-3 px-4">
                                 <span className={cn(
                                   "inline-flex px-2 py-1 text-xs rounded-full",
-                                  member.status === 'active' 
+                                  member.active 
                                     ? "bg-green-100 text-green-800" 
                                     : "bg-red-100 text-red-800"
                                 )}>
-                                  {member.status === 'active' ? 'Actif' : 'Inactif'}
+                                  {member.active ? 'Actif' : 'Inactif'}
                                 </span>
                               </td>
                               <td className="py-3 px-4">
