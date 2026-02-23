@@ -28,6 +28,7 @@ interface AuthContextType {
   refreshToken: () => Promise<boolean>;
   authenticateWithToken: (token: string) => Promise<boolean>;
   setUserManually: (userData: User) => void;
+  clearAuthState: () => void; // Emergency function to clear everything
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -69,8 +70,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  // Prevent multiple simultaneous auth checks
+  const [isCheckingAuth, setIsCheckingAuth] = useState(false);
+
   // Check if user is authenticated using ONLY AdaAuth API
   const checkAuth = async () => {
+    // Prevent multiple simultaneous calls
+    if (isCheckingAuth) {
+      console.log('Auth check already in progress, skipping...');
+      return;
+    }
+
+    setIsCheckingAuth(true);
+    
     try {
       const token = getAccessToken();
       
@@ -96,6 +108,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const data = await response.json();
         console.log('✅ AdaAuth validation successful:', data.user);
         setUser(data.user);
+      } else if (response.status === 429) {
+        // Rate limited - clear tokens and stop trying
+        console.error('🚨 Rate limited (429) - clearing tokens to prevent loop');
+        clearTokens();
+        setUser(null);
       } else {
         console.error('❌ AdaAuth validation failed:', response.status);
         clearTokens();
@@ -103,11 +120,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     } catch (error) {
       console.error('❌ Auth check failed:', error);
-      clearTokens();
+      // Don't clear tokens on network errors - might be temporary
       setUser(null);
+    } finally {
+      setLoading(false);
+      setIsCheckingAuth(false);
     }
-    
-    setLoading(false);
   };
 
   // Authenticate with existing token (for SSO flow) - ONLY AdaAuth API
@@ -238,16 +256,30 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  // Check authentication on mount
+  // Check authentication on mount - run only once
   useEffect(() => {
-    checkAuth();
-  }, []);
+    console.log('🔄 AuthProvider mounted - checking authentication...');
+    
+    // Only check auth if we don't already have a user and aren't loading
+    if (!user && !isCheckingAuth) {
+      checkAuth();
+    }
+  }, []); // Empty dependency array ensures this runs only once
 
   // Manual user state setter for callback page
   const setUserManually = (userData: User) => {
     console.log('✅ Setting user manually:', userData);
     setUser(userData);
     setLoading(false);
+  };
+
+  // Emergency function to clear all authentication state (for rate limiting issues)
+  const clearAuthState = () => {
+    console.log('🧹 Emergency: Clearing all authentication state');
+    clearTokens();
+    setUser(null);
+    setLoading(false);
+    setIsCheckingAuth(false);
   };
 
   const value: AuthContextType = {
@@ -258,6 +290,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     refreshToken,
     authenticateWithToken,
     setUserManually,
+    clearAuthState,
   };
 
   return (

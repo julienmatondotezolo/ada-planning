@@ -1,8 +1,10 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function DebugAuthPage() {
+  const { user, loading, clearAuthState } = useAuth();
   const [debugInfo, setDebugInfo] = useState<any>({});
 
   useEffect(() => {
@@ -49,6 +51,8 @@ export default function DebugAuthPage() {
         tokenParts: token ? token.split('.').length : 0,
         tokenData,
         tokenError,
+        contextUser: user,
+        contextLoading: loading,
         url: window.location.href,
         userAgent: navigator.userAgent,
         timestamp: new Date().toISOString()
@@ -56,7 +60,7 @@ export default function DebugAuthPage() {
     };
 
     checkAuth();
-  }, []);
+  }, [user, loading]);
 
   const testAdaAuthAPI = async () => {
     const token = localStorage.getItem('ada_access_token');
@@ -66,6 +70,7 @@ export default function DebugAuthPage() {
     }
 
     try {
+      console.log('🔍 Testing AdaAuth API...');
       const response = await fetch('https://adaauth.mindgen.app/auth/validate', {
         method: 'POST',
         headers: {
@@ -75,7 +80,12 @@ export default function DebugAuthPage() {
       });
       
       const result = await response.json();
-      alert(`API Response: ${response.status}\n${JSON.stringify(result, null, 2)}`);
+      
+      if (response.status === 429) {
+        alert(`⚠️ RATE LIMITED (429)\n\nThe API is rejecting requests due to too many calls.\nThis is likely causing the infinite loop issue.\n\nClick "Emergency Clear" to fix this.`);
+      } else {
+        alert(`API Response: ${response.status}\n${JSON.stringify(result, null, 2)}`);
+      }
     } catch (error) {
       alert(`API Error: ${error instanceof Error ? error.message : String(error)}`);
     }
@@ -86,8 +96,17 @@ export default function DebugAuthPage() {
     localStorage.removeItem('ada_refresh_token');
     localStorage.removeItem('access_token');
     localStorage.removeItem('refresh_token');
-    alert('Auth data cleared');
+    alert('Auth data cleared from localStorage');
     window.location.reload();
+  };
+
+  const emergencyClear = () => {
+    console.log('🚨 Emergency clear activated');
+    clearAuthState();
+    alert('Emergency clear completed!\n\nAll authentication state has been cleared.\nThis should fix rate limiting loops.');
+    setTimeout(() => {
+      window.location.href = '/';
+    }, 1000);
   };
 
   const redirectToAuth = () => {
@@ -99,12 +118,20 @@ export default function DebugAuthPage() {
     <div style={{ padding: '2rem', fontFamily: 'monospace', maxWidth: '800px', margin: '0 auto' }}>
       <h1 style={{ color: '#4d6aff' }}>🔍 AdaPlanning Auth Debug</h1>
       
+      <div style={{ marginBottom: '1rem', padding: '1rem', backgroundColor: '#fef2f2', border: '1px solid #fecaca', borderRadius: '4px' }}>
+        <h3 style={{ color: '#dc2626', margin: '0 0 0.5rem 0' }}>🚨 Rate Limiting Fix</h3>
+        <p style={{ margin: '0 0 0.5rem 0', fontSize: '14px' }}>If you're seeing endless 429 errors, use Emergency Clear:</p>
+        <button onClick={emergencyClear} style={{ padding: '0.5rem 1rem', backgroundColor: '#dc2626', color: 'white', border: 'none', borderRadius: '4px', fontWeight: 'bold' }}>
+          🚨 Emergency Clear (Fix Rate Limiting)
+        </button>
+      </div>
+      
       <div style={{ marginBottom: '2rem' }}>
         <button onClick={testAdaAuthAPI} style={{ marginRight: '1rem', padding: '0.5rem', backgroundColor: '#4d6aff', color: 'white', border: 'none', borderRadius: '4px' }}>
           Test AdaAuth API
         </button>
         <button onClick={clearAuth} style={{ marginRight: '1rem', padding: '0.5rem', backgroundColor: '#ef4444', color: 'white', border: 'none', borderRadius: '4px' }}>
-          Clear Auth
+          Clear LocalStorage
         </button>
         <button onClick={redirectToAuth} style={{ padding: '0.5rem', backgroundColor: '#10b981', color: 'white', border: 'none', borderRadius: '4px' }}>
           Re-authenticate
@@ -125,12 +152,22 @@ export default function DebugAuthPage() {
       <div style={{ marginTop: '2rem', fontSize: '14px' }}>
         <h3>Common Issues:</h3>
         <ul>
+          <li><strong>🔥 429 Rate Limited:</strong> Infinite API loop - use Emergency Clear</li>
           <li><strong>No token:</strong> Need to authenticate via AdaAuth</li>
           <li><strong>Token expired:</strong> Token exp &lt; current time</li>
           <li><strong>Invalid token format:</strong> Not 3 parts separated by dots</li>
           <li><strong>API validation failing:</strong> CORS or network issues</li>
           <li><strong>Component rendering errors:</strong> Check browser console</li>
         </ul>
+        
+        <h3 style={{ marginTop: '1rem' }}>Rate Limiting Troubleshooting:</h3>
+        <ol>
+          <li>Check browser console for repeated API calls</li>
+          <li>Look for 429 (Too Many Requests) errors</li>
+          <li>If found, use the Emergency Clear button above</li>
+          <li>This will break the authentication loop and reset state</li>
+          <li>Then re-authenticate normally</li>
+        </ol>
       </div>
     </div>
   );
