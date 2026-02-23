@@ -156,7 +156,7 @@ export function CalendarView() {
       </div>
 
       {/* Calendar Grid */}
-      <div className="calendar-grid grid-cols-7">
+      <div className="grid grid-cols-7">
         {calendarDays.map((date, index) => {
           const isCurrentMonth = date.getMonth() === currentDate.getMonth();
           const assignments = getAssignmentsForDate(date);

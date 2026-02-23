@@ -118,3 +118,26 @@
     background: hsl(var(--muted-foreground) / 0.5);
   }
 }
+
+/* Calendar specific styles */
+@layer components {
+  .calendar-cell {
+    @apply relative;
+  }
+  
+  .calendar-cell:hover .opacity-0 {
+    @apply opacity-100;
+  }
+  
+  .staff-badge {
+    @apply block;
+  }
+  
+  .touch-feedback {
+    @apply transition-all duration-150;
+  }
+  
+  .touch-feedback:active {
+    @apply scale-95;
+  }
+}

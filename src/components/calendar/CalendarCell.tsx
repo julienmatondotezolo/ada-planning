@@ -35,7 +35,7 @@ export function CalendarCell({
   return (
     <div
       className={cn(
-        'calendar-cell p-2 cursor-pointer transition-colors',
+        'calendar-cell group p-2 cursor-pointer transition-colors',
         'min-h-[120px] flex flex-col border-r border-b border-gray-100 last:border-r-0',
         {
           'bg-gray-50 text-gray-400': !isCurrentMonth,
