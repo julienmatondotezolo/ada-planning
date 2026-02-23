@@ -26,33 +26,41 @@ function MinimalAuthCallbackContent() {
       // Check for token in URL
       if (token) {
         try {
-          console.log('Processing token:', token.substring(0, 50) + '...');
+          console.log('Validating token with AdaAuth API...');
           
-          // Parse JWT token to get user info
-          const tokenParts = token.split('.');
-          if (tokenParts.length === 3) {
-            const payload = JSON.parse(atob(tokenParts[1]));
-            console.log('Token payload:', payload);
+          // Use ONLY AdaAuth API for token validation
+          const response = await fetch('https://adaauth.mindgen.app/auth/validate', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`,
+            },
+          });
+          
+          if (response.ok) {
+            const data = await response.json();
+            console.log('✅ AdaAuth validation successful:', data.user);
             
             // Store token
             localStorage.setItem('ada_access_token', token);
             localStorage.setItem('access_token', token); // Legacy compatibility
             
             setStatus('success');
-            setMessage(`Authentication successful! Redirecting...`);
+            setMessage(`Welcome, ${data.user.email}! Redirecting...`);
             
             // Small delay to show success message, then redirect
             setTimeout(() => {
               window.location.href = redirectTo; // Force navigation to ensure clean state
             }, 1500);
           } else {
-            throw new Error('Invalid token format');
+            console.error('❌ AdaAuth validation failed:', response.status);
+            throw new Error('Token validation failed');
           }
           
         } catch (error) {
-          console.error('Token processing failed:', error);
+          console.error('AdaAuth token validation failed:', error);
           setStatus('error');
-          setMessage(`Failed to process authentication token: ${error instanceof Error ? error.message : 'Unknown error'}`);
+          setMessage(`Failed to validate authentication token: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
         return;
       }
@@ -97,13 +105,13 @@ function MinimalAuthCallbackContent() {
         
         <div style={{ marginBottom: '1rem' }}>
           {status === 'processing' && (
-            <div style={{ color: '#4d6aff' }}>🔄 Processing...</div>
+            <div style={{ color: '#4d6aff' }}>🔄 Validating via AdaAuth API...</div>
           )}
           {status === 'success' && (
-            <div style={{ color: '#10b981' }}>✅ Success!</div>
+            <div style={{ color: '#10b981' }}>✅ AdaAuth validation successful!</div>
           )}
           {status === 'error' && (
-            <div style={{ color: '#ef4444' }}>❌ Error</div>
+            <div style={{ color: '#ef4444' }}>❌ AdaAuth validation failed</div>
           )}
         </div>
         

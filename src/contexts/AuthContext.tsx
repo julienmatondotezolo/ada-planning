@@ -56,9 +56,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (typeof window !== 'undefined') {
       localStorage.setItem('ada_access_token', accessToken);
       localStorage.setItem('ada_refresh_token', refreshToken);
-      // Also store in legacy keys for compatibility
-      localStorage.setItem('access_token', accessToken);
-      localStorage.setItem('refresh_token', refreshToken);
     }
   };
 
@@ -67,83 +64,45 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (typeof window !== 'undefined') {
       localStorage.removeItem('ada_access_token');
       localStorage.removeItem('ada_refresh_token');
-      // Also clear legacy keys
       localStorage.removeItem('access_token');
       localStorage.removeItem('refresh_token');
     }
   };
 
-  // Check if user is authenticated
+  // Check if user is authenticated using ONLY AdaAuth API
   const checkAuth = async () => {
     try {
       const token = getAccessToken();
       
       if (!token) {
+        console.log('No token found');
+        setUser(null);
         setLoading(false);
         return;
       }
 
-      // Handle Supabase JWT tokens directly
-      try {
-        const tokenParts = token.split('.');
-        if (tokenParts.length === 3) {
-          const payload = JSON.parse(atob(tokenParts[1]));
-          
-          // Check if token is expired
-          const currentTime = Math.floor(Date.now() / 1000);
-          if (payload.exp && payload.exp < currentTime) {
-            console.log('Token expired');
-            clearTokens();
-            setUser(null);
-            setLoading(false);
-            return;
-          }
-          
-          // Token is valid - create user object from token payload
-          const userData = {
-            id: payload.sub,
-            email: payload.email || payload.user_metadata?.email,
-            full_name: payload.user_metadata?.full_name,
-            role: payload.user_metadata?.restaurant_role || 'staff',
-            restaurant_id: payload.user_metadata?.restaurant_id || 'c1cbea71-ece5-4d63-bb12-fe06b03d1140' // L'Osteria
-          };
-          
-          console.log('✅ Token valid, user authenticated:', userData);
-          setUser(userData);
-          setLoading(false);
-          return; // SKIP API validation - token is sufficient
-        } else {
-          throw new Error('Invalid token format');
-        }
-      } catch (tokenError) {
-        console.error('Token parsing failed:', tokenError);
-        
-        // Fallback: try AdaAuth API validation (only for parsing errors)
-        try {
-          const response = await fetch(`${ADAAUTH_API_URL}/auth/validate`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${token}`,
-            },
-          });
-          
-          if (response.ok) {
-            const data = await response.json();
-            setUser(data.user);
-          } else {
-            console.error('API validation failed:', response.status);
-            clearTokens();
-            setUser(null);
-          }
-        } catch (apiError) {
-          console.error('API validation error (CORS?):', apiError);
-          // Don't clear tokens on network errors - token might still be valid
-          setUser(null);
-        }
+      console.log('Validating token with AdaAuth API...');
+      
+      // Use ONLY AdaAuth API for validation
+      const response = await fetch(`${ADAAUTH_API_URL}/auth/validate`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        console.log('✅ AdaAuth validation successful:', data.user);
+        setUser(data.user);
+      } else {
+        console.error('❌ AdaAuth validation failed:', response.status);
+        clearTokens();
+        setUser(null);
       }
     } catch (error) {
-      console.error('Auth check failed:', error);
+      console.error('❌ Auth check failed:', error);
       clearTokens();
       setUser(null);
     }
@@ -151,10 +110,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setLoading(false);
   };
 
-  // Authenticate with existing token (for SSO flow)
+  // Authenticate with existing token (for SSO flow) - ONLY AdaAuth API
   const authenticateWithToken = async (token: string) => {
     try {
       setLoading(true);
+      console.log('Authenticating with token via AdaAuth API...');
       
       const response = await fetch(`${ADAAUTH_API_URL}/auth/validate`, {
         method: 'POST',
@@ -166,15 +126,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       if (response.ok) {
         const data = await response.json();
-        // Store the token (we don't have refresh token from URL redirect)
-        storeTokens(token, ''); // Store empty refresh token for now
+        console.log('✅ Token authentication successful:', data.user);
+        storeTokens(token, ''); // Store token, empty refresh for now
         setUser(data.user);
         return true;
       } else {
+        console.error('❌ Token validation failed:', response.status);
         throw new Error('Token validation failed');
       }
     } catch (error) {
-      console.error('Token authentication failed:', error);
+      console.error('❌ Token authentication failed:', error);
       clearTokens();
       setUser(null);
       throw error;
@@ -183,10 +144,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  // Login function using AdaAuth
+  // Login function using ONLY AdaAuth API
   const login = async (email: string, password: string) => {
     try {
       setLoading(true);
+      console.log('Logging in via AdaAuth API...');
+      
       const response = await fetch(`${ADAAUTH_API_URL}/auth/login`, {
         method: 'POST',
         headers: {
@@ -201,25 +164,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       const data = await response.json();
+      console.log('✅ Login successful:', data.user_profile);
       
       // Store tokens
-      storeTokens(data.access_token, data.session.refresh_token);
+      storeTokens(data.access_token, data.session?.refresh_token || '');
       
       // Set user from user_profile (AdaAuth format)
       setUser(data.user_profile);
     } catch (error) {
-      console.error('Login failed:', error);
+      console.error('❌ Login failed:', error);
       throw error;
     } finally {
       setLoading(false);
     }
   };
 
-  // Logout function
+  // Logout function using ONLY AdaAuth API
   const logout = async () => {
     try {
       const token = getAccessToken();
       if (token) {
+        console.log('Logging out via AdaAuth API...');
         await fetch(`${ADAAUTH_API_URL}/auth/logout`, {
           method: 'POST',
           headers: {
@@ -229,14 +194,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         });
       }
     } catch (error) {
-      console.error('Logout API call failed:', error);
+      console.error('❌ Logout API call failed:', error);
     } finally {
       clearTokens();
       setUser(null);
+      console.log('✅ Logged out');
     }
   };
 
-  // Refresh token function
+  // Refresh token function using ONLY AdaAuth API
   const refreshToken = async (): Promise<boolean> => {
     try {
       const refreshTokenValue = getRefreshToken();
@@ -244,6 +210,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return false;
       }
 
+      console.log('Refreshing token via AdaAuth API...');
+      
       const response = await fetch(`${ADAAUTH_API_URL}/auth/refresh`, {
         method: 'POST',
         headers: {
@@ -253,16 +221,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
 
       if (!response.ok) {
+        console.error('❌ Token refresh failed');
         clearTokens();
         return false;
       }
 
       const data = await response.json();
+      console.log('✅ Token refreshed successfully');
       storeTokens(data.access_token, data.refresh_token);
       
       return true;
     } catch (error) {
-      console.error('Token refresh failed:', error);
+      console.error('❌ Token refresh failed:', error);
       clearTokens();
       return false;
     }
@@ -275,6 +245,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Manual user state setter for callback page
   const setUserManually = (userData: User) => {
+    console.log('✅ Setting user manually:', userData);
     setUser(userData);
     setLoading(false);
   };

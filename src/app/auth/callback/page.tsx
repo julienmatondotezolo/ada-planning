@@ -15,7 +15,7 @@ import {
 import { CheckCircle, AlertCircle, ExternalLink } from 'lucide-react';
 
 function AuthCallbackContent() {
-  const { user, loading, authenticateWithToken, setUserManually } = useAuth();
+  const { user, loading, authenticateWithToken } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
   const [status, setStatus] = React.useState<'processing' | 'success' | 'error'>('processing');
@@ -39,50 +39,28 @@ function AuthCallbackContent() {
       // Check for token in URL
       if (token) {
         try {
-          console.log('Processing token:', token.substring(0, 50) + '...');
+          console.log('Processing token via AdaAuth API...');
           
-          // Parse JWT token to get user info
-          const tokenParts = token.split('.');
-          if (tokenParts.length === 3) {
-            const payload = JSON.parse(atob(tokenParts[1]));
-            console.log('Token payload:', payload);
-            
-            // Create user object from token payload
-            const userData = {
-              id: payload.sub,
-              email: payload.email || payload.user_metadata?.email,
-              full_name: payload.user_metadata?.full_name,
-              role: payload.user_metadata?.restaurant_role || 'staff',
-              restaurant_id: payload.user_metadata?.restaurant_id || 'c1cbea71-ece5-4d63-bb12-fe06b03d1140' // L'Osteria
-            };
-            
-            console.log('User data extracted:', userData);
-            setDebugInfo(`User: ${userData.email} (${userData.role})`);
-            
-            // Store token and user data
-            localStorage.setItem('ada_access_token', token);
-            localStorage.setItem('access_token', token); // Legacy compatibility
-            
-            // CRITICAL FIX: Update AuthContext user state immediately
-            // This prevents the redirect loop by ensuring AuthContext knows user is authenticated
-            setUserManually(userData);
-            console.log('AuthContext updated with user data:', userData);
-            
+          // Use ONLY AdaAuth API for token validation
+          const success = await authenticateWithToken(token);
+          
+          if (success) {
             setStatus('success');
-            setMessage(`Welcome, ${userData.full_name || userData.email}! Redirecting...`);
+            setMessage(`Welcome! Redirecting to your dashboard...`);
+            setDebugInfo('Authentication successful via AdaAuth API');
             
             // Small delay to show success message, then redirect
             setTimeout(() => {
-              window.location.href = redirectTo; // Force navigation to ensure clean state
+              router.push(redirectTo);
             }, 1500);
           } else {
-            throw new Error('Invalid token format');
+            throw new Error('Token validation failed');
           }
           
         } catch (error) {
-          console.error('Token processing failed:', error);
+          console.error('AdaAuth token validation failed:', error);
           setStatus('error');
-          setMessage(`Failed to process authentication token: ${error instanceof Error ? error.message : 'Unknown error'}`);
+          setMessage(`Failed to validate authentication token: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
         return;
       }
@@ -91,6 +69,7 @@ function AuthCallbackContent() {
       if (!loading && user) {
         setStatus('success');
         setMessage('Already authenticated! Redirecting...');
+        setDebugInfo(`User: ${user.email} (${user.role})`);
         setTimeout(() => {
           router.push(redirectTo);
         }, 1000);
@@ -105,7 +84,7 @@ function AuthCallbackContent() {
     };
 
     processAuth();
-  }, [token, error, redirectTo, user, loading, router, authenticateWithToken, setUserManually]);
+  }, [token, error, redirectTo, user, loading, router, authenticateWithToken]);
 
   const handleRetry = () => {
     const currentUrl = encodeURIComponent(window.location.origin + '/auth/callback?redirect=' + encodeURIComponent(redirectTo));
@@ -148,7 +127,7 @@ function AuthCallbackContent() {
               <div className="space-y-2">
                 <div className="flex items-center justify-center gap-2 text-xs text-green-600">
                   <CheckCircle className="h-3 w-3" />
-                  <span>Authenticated via AdaAuth SSO</span>
+                  <span>Authenticated via AdaAuth API</span>
                 </div>
                 {debugInfo && (
                   <div className="text-xs text-muted-foreground bg-muted/50 rounded px-2 py-1">
@@ -160,7 +139,7 @@ function AuthCallbackContent() {
             
             {status === 'processing' && (
               <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
-                <span>Validating authentication token...</span>
+                <span>Validating token via AdaAuth API...</span>
               </div>
             )}
           </div>
