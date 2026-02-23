@@ -21,8 +21,9 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   useEffect(() => {
     if (!loading) {
       if (!user) {
-        // Not authenticated, redirect to login
-        router.push(fallbackPath);
+        // Not authenticated, redirect directly to AdaAuth SSO
+        const currentUrl = encodeURIComponent(window.location.origin + '/auth/callback?redirect=' + encodeURIComponent(window.location.pathname));
+        window.location.href = `https://adaauth.mindgen.app/?redirect=${currentUrl}`;
         return;
       }
 

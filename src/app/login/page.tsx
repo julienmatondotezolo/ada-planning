@@ -30,7 +30,7 @@ function LoginPageContent() {
       
       // Redirect to AdaAuth centralized login
       setTimeout(() => {
-        window.location.href = `https://adaauth.mindgen.app/login?redirect=${currentUrl}`;
+        window.location.href = `https://adaauth.mindgen.app/?redirect=${currentUrl}`;
       }, 1500); // Short delay to show the redirect message
     }
   }, [loading, user, redirectTo]);
@@ -88,7 +88,7 @@ function LoginPageContent() {
               If you're not redirected automatically:
             </p>
             <a
-              href={`https://adaauth.mindgen.app/login?redirect=${encodeURIComponent(window.location.origin + '/auth/callback?redirect=' + encodeURIComponent(redirectTo))}`}
+              href={`https://adaauth.mindgen.app/?redirect=${encodeURIComponent(window.location.origin + '/auth/callback?redirect=' + encodeURIComponent(redirectTo))}`}
               className="inline-flex items-center gap-1 text-sm text-primary hover:text-primary/80 font-medium"
             >
               <span>Click here to login</span>

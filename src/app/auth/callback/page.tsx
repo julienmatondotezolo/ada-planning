@@ -72,7 +72,7 @@ function AuthCallbackContent() {
 
   const handleRetry = () => {
     const currentUrl = encodeURIComponent(window.location.origin + '/auth/callback?redirect=' + encodeURIComponent(redirectTo));
-    window.location.href = `https://adaauth.mindgen.app/login?redirect=${currentUrl}`;
+    window.location.href = `https://adaauth.mindgen.app/?redirect=${currentUrl}`;
   };
 
   return (
