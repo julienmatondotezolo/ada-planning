@@ -26,6 +26,7 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   refreshToken: () => Promise<boolean>;
+  authenticateWithToken: (token: string) => Promise<boolean>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -93,8 +94,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const data = await response.json();
         setUser(data.user);
       } else {
-        clearTokens();
-        setUser(null);
+        // Try to refresh token if validation fails
+        const refreshSuccess = await refreshToken();
+        if (!refreshSuccess) {
+          clearTokens();
+          setUser(null);
+        } else {
+          // Retry validation with new token
+          await checkAuth();
+          return;
+        }
       }
     } catch (error) {
       console.error('Auth check failed:', error);
@@ -103,6 +112,38 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
     
     setLoading(false);
+  };
+
+  // Authenticate with existing token (for SSO flow)
+  const authenticateWithToken = async (token: string) => {
+    try {
+      setLoading(true);
+      
+      const response = await fetch(`${ADAAUTH_API_URL}/auth/validate`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        // Store the token (we don't have refresh token from URL redirect)
+        storeTokens(token, ''); // Store empty refresh token for now
+        setUser(data.user);
+        return true;
+      } else {
+        throw new Error('Token validation failed');
+      }
+    } catch (error) {
+      console.error('Token authentication failed:', error);
+      clearTokens();
+      setUser(null);
+      throw error;
+    } finally {
+      setLoading(false);
+    }
   };
 
   // Login function using AdaAuth
@@ -201,6 +242,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     login,
     logout,
     refreshToken,
+    authenticateWithToken,
   };
 
   return (
