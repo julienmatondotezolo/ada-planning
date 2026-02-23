@@ -8,7 +8,7 @@ import { AdaLogo, Spinner } from '@/components/ui';
 import { CheckCircle, AlertCircle, ExternalLink } from 'lucide-react';
 
 function AuthCallbackContent() {
-  const { user, loading, authenticateWithToken } = useAuth();
+  const { user, loading, authenticateWithToken, setUserManually } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
   const [status, setStatus] = React.useState<'processing' | 'success' | 'error'>('processing');
@@ -56,13 +56,18 @@ function AuthCallbackContent() {
             localStorage.setItem('ada_access_token', token);
             localStorage.setItem('access_token', token); // Legacy compatibility
             
+            // CRITICAL FIX: Update AuthContext user state immediately
+            // This prevents the redirect loop by ensuring AuthContext knows user is authenticated
+            setUserManually(userData);
+            console.log('AuthContext updated with user data:', userData);
+            
             setStatus('success');
             setMessage(`Welcome, ${userData.full_name || userData.email}! Redirecting...`);
             
             // Small delay to show success message, then redirect
             setTimeout(() => {
-              router.push(redirectTo);
-            }, 2000);
+              window.location.href = redirectTo; // Force navigation to ensure clean state
+            }, 1500);
           } else {
             throw new Error('Invalid token format');
           }
@@ -93,7 +98,7 @@ function AuthCallbackContent() {
     };
 
     processAuth();
-  }, [token, error, redirectTo, user, loading, router, authenticateWithToken]);
+  }, [token, error, redirectTo, user, loading, router, authenticateWithToken, setUserManually]);
 
   const handleRetry = () => {
     const currentUrl = encodeURIComponent(window.location.origin + '/auth/callback?redirect=' + encodeURIComponent(redirectTo));

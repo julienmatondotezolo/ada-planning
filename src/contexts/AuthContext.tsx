@@ -27,6 +27,7 @@ interface AuthContextType {
   logout: () => Promise<void>;
   refreshToken: () => Promise<boolean>;
   authenticateWithToken: (token: string) => Promise<boolean>;
+  setUserManually: (userData: User) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -260,6 +261,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     checkAuth();
   }, []);
 
+  // Manual user state setter for callback page
+  const setUserManually = (userData: User) => {
+    setUser(userData);
+    setLoading(false);
+  };
+
   const value: AuthContextType = {
     user,
     loading,
@@ -267,6 +274,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     logout,
     refreshToken,
     authenticateWithToken,
+    setUserManually,
   };
 
   return (
