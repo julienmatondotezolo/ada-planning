@@ -5,6 +5,7 @@ import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { useAuth } from '@/contexts/AuthContext';
 import { useState, useEffect, useRef } from 'react';
+import { AdaLogo, Button, Avatar, AvatarFallback } from '@/components/ui';
 
 export function Header() {
   const currentDate = new Date();
@@ -55,86 +56,89 @@ export function Header() {
   };
 
   return (
-    <header className="bg-white border-b border-gray-200 px-6 py-4">
+    <header className="bg-background border-b border-border px-6 py-4">
       <div className="flex items-center justify-between">
         {/* Left section - Current date and navigation */}
         <div className="flex items-center space-x-4">
-          <div className="flex items-center space-x-2">
-            <Calendar className="w-5 h-5 text-primary" />
-            <span className="text-lg font-semibold text-gray-900">
-              AdaPlanning
-            </span>
+          <div className="flex items-center space-x-3">
+            <AdaLogo size="md" variant="primary" />
+            <div>
+              <span className="text-lg font-semibold text-foreground">AdaPlanning</span>
+              <div className="text-xs text-muted-foreground">Staff Scheduling</div>
+            </div>
           </div>
           
-          <div className="hidden md:block text-sm text-gray-500">
+          <div className="hidden md:block text-sm text-muted-foreground">
             {format(currentDate, 'EEEE d MMMM yyyy', { locale: fr })}
           </div>
         </div>
 
         {/* Center section - Quick actions */}
         <div className="flex items-center space-x-2">
-          <button className="ada-button-secondary flex items-center space-x-2">
-            <Filter className="w-4 h-4" />
-            <span>Filtrer</span>
-          </button>
+          <Button variant="outline" size="sm">
+            <Filter className="w-4 h-4 mr-2" />
+            Filtrer
+          </Button>
           
-          <button className="ada-button-secondary flex items-center space-x-2">
-            <Download className="w-4 h-4" />
-            <span>Exporter</span>
-          </button>
+          <Button variant="outline" size="sm">
+            <Download className="w-4 h-4 mr-2" />
+            Exporter
+          </Button>
         </div>
 
         {/* Right section - User actions */}
         <div className="flex items-center space-x-3">
           {/* Notifications */}
-          <button className="relative p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-md transition-colors touch-feedback">
+          <Button variant="ghost" size="icon" className="relative">
             <Bell className="w-5 h-5" />
-            <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
-          </button>
+            <span className="absolute top-1 right-1 w-2 h-2 bg-destructive rounded-full"></span>
+          </Button>
 
           {/* Settings */}
-          <button className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-md transition-colors touch-feedback">
+          <Button variant="ghost" size="icon">
             <Settings className="w-5 h-5" />
-          </button>
+          </Button>
 
           {/* User profile */}
-          <div ref={userMenuRef} className="relative flex items-center space-x-3 pl-3 border-l border-gray-200">
+          <div ref={userMenuRef} className="relative flex items-center space-x-3 pl-3 border-l border-border">
             <button 
-              className="flex items-center space-x-2 hover:bg-gray-100 rounded-md p-1 transition-colors"
+              className="flex items-center space-x-2 hover:bg-accent rounded-md p-1 transition-colors"
               onClick={() => setShowUserMenu(!showUserMenu)}
             >
-              <div className="w-8 h-8 bg-primary text-primary-foreground rounded-full flex items-center justify-center text-sm font-semibold">
-                {getUserInitials(user)}
-              </div>
+              <Avatar>
+                <AvatarFallback className="bg-primary text-primary-foreground text-sm font-semibold">
+                  {getUserInitials(user)}
+                </AvatarFallback>
+              </Avatar>
               <div className="hidden lg:block text-left">
-                <div className="text-sm font-medium text-gray-900">{getUserDisplayName(user)}</div>
-                <div className="text-xs text-gray-500 capitalize">{user?.role || 'Staff'} • L'Osteria Deerlijk</div>
+                <div className="text-sm font-medium text-foreground">{getUserDisplayName(user)}</div>
+                <div className="text-xs text-muted-foreground capitalize">{user?.role || 'Staff'} • L'Osteria Deerlijk</div>
               </div>
             </button>
 
             {/* User dropdown menu */}
             {showUserMenu && (
-              <div className="absolute top-full right-0 mt-2 w-48 bg-white rounded-md shadow-lg border border-gray-200 z-50">
+              <div className="absolute top-full right-0 mt-2 w-48 bg-popover rounded-md shadow-lg border border-border z-50">
                 <div className="py-1">
-                  <div className="px-4 py-2 border-b border-gray-100">
-                    <div className="text-sm font-medium text-gray-900">{getUserDisplayName(user)}</div>
-                    <div className="text-xs text-gray-500">{user?.email}</div>
+                  <div className="px-4 py-2 border-b border-border">
+                    <div className="text-sm font-medium text-popover-foreground">{getUserDisplayName(user)}</div>
+                    <div className="text-xs text-muted-foreground">{user?.email}</div>
                   </div>
                   
-                  <button className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center space-x-2">
+                  <button className="w-full text-left px-4 py-2 text-sm text-popover-foreground hover:bg-accent flex items-center space-x-2">
                     <User className="w-4 h-4" />
                     <span>Profile</span>
                   </button>
                   
-                  <button className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center space-x-2">
+                  <button className="w-full text-left px-4 py-2 text-sm text-popover-foreground hover:bg-accent flex items-center space-x-2">
                     <Settings className="w-4 h-4" />
                     <span>Settings</span>
                   </button>
                   
-                  <div className="border-t border-gray-100">
+                  <div className="border-t border-border">
                     <button 
                       onClick={handleLogout}
-                      className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center space-x-2"
+                      className="w-full text-left px-4 py-2 text-sm text-destructive hover:bg-destructive/10 flex items-center space-x-2"
                     >
                       <LogOut className="w-4 h-4" />
                       <span>Sign Out</span>
@@ -148,7 +152,7 @@ export function Header() {
       </div>
 
       {/* Mobile date display */}
-      <div className="md:hidden mt-2 text-sm text-gray-500">
+      <div className="md:hidden mt-2 text-sm text-muted-foreground">
         {format(currentDate, 'EEEE d MMMM yyyy', { locale: fr })}
       </div>
     </header>
