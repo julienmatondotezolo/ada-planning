@@ -5,14 +5,13 @@
   "private": true,
   "scripts": {
     "dev": "next dev -p 3001",
-    "build": "node fix-ada-design-system.js && next build",
+    "build": "next build",
     "start": "next start -p 3001",
     "lint": "next lint",
     "test": "jest",
     "test:watch": "jest --watch",
     "type-check": "tsc --noEmit",
-    "format": "prettier --write \"src/**/*.{ts,tsx,js,jsx,json,md}\"",
-    "postinstall": "node fix-ada-design-system.js"
+    "format": "prettier --write \"src/**/*.{ts,tsx,js,jsx,json,md}\""
   },
   "dependencies": {
     "@ducanh2912/next-pwa": "^10.2.8",
@@ -31,7 +30,7 @@
     "@radix-ui/react-tabs": "^1.0.4",
     "@radix-ui/react-toast": "^1.1.5",
     "@tanstack/react-query": "^5.62.0",
-    "ada-design-system": "^3.1.0",
+    "ada-design-system": "^3.1.2",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "country-flag-icons": "^1.6.14",
