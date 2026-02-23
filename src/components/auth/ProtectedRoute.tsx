@@ -19,14 +19,14 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   const router = useRouter();
 
   useEffect(() => {
-    // TEMPORARY: Be less aggressive about redirects to prevent loops
+    // Be less aggressive about redirects to prevent loops
     if (!loading) {
       if (!user) {
         // Only redirect after a delay to prevent immediate loops
-        console.log('🔄 No user found, will redirect to auth in 2 seconds...');
+        console.log('🔄 ProtectedRoute: No user found, will redirect to auth in 2 seconds...');
         const redirectTimer = setTimeout(() => {
           const currentUrl = encodeURIComponent(window.location.origin + '/auth/callback?redirect=' + encodeURIComponent(window.location.pathname));
-          console.log('🔗 Redirecting to AdaAuth SSO...');
+          console.log('🔗 ProtectedRoute: Redirecting to AdaAuth SSO...');
           window.location.href = `https://adaauth.mindgen.app/?redirect=${currentUrl}`;
         }, 2000); // 2 second delay to prevent immediate redirect loops
 
@@ -48,13 +48,13 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
 
         if (userLevel < requiredLevel) {
           // Insufficient permissions, redirect to dashboard
-          console.log('❌ Insufficient permissions, redirecting to unauthorized');
+          console.log('❌ ProtectedRoute: Insufficient permissions, redirecting to unauthorized');
           router.push('/unauthorized');
           return;
         }
       }
     }
-  }, [user, loading, requiredRole, router, fallbackPath]);
+  }, [user, loading, requiredRole]); // REMOVED router and fallbackPath from dependencies
 
   if (loading) {
     return (

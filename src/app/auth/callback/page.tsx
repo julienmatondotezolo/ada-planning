@@ -28,63 +28,76 @@ function AuthCallbackContent() {
   const error = searchParams.get('error');
 
   useEffect(() => {
+    let isMounted = true; // Prevent state updates if component unmounts
+    
     const processAuth = async () => {
       // Check for error in URL
       if (error) {
-        setStatus('error');
-        setMessage(`Authentication failed: ${error}`);
+        if (isMounted) {
+          setStatus('error');
+          setMessage(`Authentication failed: ${error}`);
+        }
         return;
       }
 
       // Check for token in URL
       if (token) {
         try {
-          console.log('Processing token via AdaAuth API...');
+          console.log('🔄 Processing token via AdaAuth API - ONE TIME ONLY');
           
           // Use ONLY AdaAuth API for token validation
           const success = await authenticateWithToken(token);
           
-          if (success) {
+          if (isMounted && success) {
             setStatus('success');
             setMessage(`Welcome! Redirecting to your dashboard...`);
             setDebugInfo('Authentication successful via AdaAuth API');
             
             // Small delay to show success message, then redirect
             setTimeout(() => {
-              router.push(redirectTo);
+              if (isMounted) router.push(redirectTo);
             }, 1500);
-          } else {
+          } else if (isMounted) {
             throw new Error('Token validation failed');
           }
           
         } catch (error) {
           console.error('AdaAuth token validation failed:', error);
-          setStatus('error');
-          setMessage(`Failed to validate authentication token: ${error instanceof Error ? error.message : 'Unknown error'}`);
+          if (isMounted) {
+            setStatus('error');
+            setMessage(`Failed to validate authentication token: ${error instanceof Error ? error.message : 'Unknown error'}`);
+          }
         }
         return;
       }
 
       // If user is already authenticated (from context check)
       if (!loading && user) {
-        setStatus('success');
-        setMessage('Already authenticated! Redirecting...');
-        setDebugInfo(`User: ${user.email} (${user.role})`);
-        setTimeout(() => {
-          router.push(redirectTo);
-        }, 1000);
+        if (isMounted) {
+          setStatus('success');
+          setMessage('Already authenticated! Redirecting...');
+          setDebugInfo(`User: ${user.email} (${user.role})`);
+          setTimeout(() => {
+            if (isMounted) router.push(redirectTo);
+          }, 1000);
+        }
         return;
       }
 
       // If no token and no user, something went wrong
-      if (!loading) {
+      if (!loading && isMounted) {
         setStatus('error');
         setMessage('No authentication token received. Please try logging in again.');
       }
     };
 
     processAuth();
-  }, [token, error, redirectTo, user, loading, router, authenticateWithToken]);
+    
+    // Cleanup function
+    return () => {
+      isMounted = false;
+    };
+  }, [token, error, redirectTo, user, loading]); // REMOVED authenticateWithToken from dependencies!
 
   const handleRetry = () => {
     const currentUrl = encodeURIComponent(window.location.origin + '/auth/callback?redirect=' + encodeURIComponent(redirectTo));

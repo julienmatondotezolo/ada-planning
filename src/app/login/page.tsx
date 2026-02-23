@@ -25,20 +25,25 @@ function LoginPageContent() {
   // Redirect if already authenticated
   useEffect(() => {
     if (!loading && user) {
+      console.log('✅ User already authenticated, redirecting...');
       router.push(redirectTo);
     }
-  }, [user, loading, router, redirectTo]);
+  }, [user, loading, redirectTo]); // REMOVED router from dependencies
 
   // Auto-redirect to AdaAuth for SSO
   useEffect(() => {
     if (!loading && !user) {
+      console.log('🔄 No user found, redirecting to AdaAuth in 1.5s...');
       // Build redirect URL to come back to ada-planning after auth
       const currentUrl = encodeURIComponent(window.location.origin + '/auth/callback?redirect=' + encodeURIComponent(redirectTo));
       
       // Redirect to AdaAuth centralized login
-      setTimeout(() => {
+      const redirectTimer = setTimeout(() => {
+        console.log('🔗 Redirecting to AdaAuth SSO now...');
         window.location.href = `https://adaauth.mindgen.app/?redirect=${currentUrl}`;
       }, 1500); // Short delay to show the redirect message
+      
+      return () => clearTimeout(redirectTimer);
     }
   }, [loading, user, redirectTo]);
 

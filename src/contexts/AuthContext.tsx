@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 
 interface User {
   id: string;
@@ -115,7 +115,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   // Authenticate with existing token (for SSO flow) - ONLY when explicitly called
-  const authenticateWithToken = async (token: string) => {
+  const authenticateWithToken = useCallback(async (token: string) => {
     try {
       setLoading(true);
       console.log('🔑 Authenticating with provided token...');
@@ -164,7 +164,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } finally {
       setLoading(false);
     }
-  };
+  }, []); // useCallback with empty dependencies
 
   // Login function using ONLY AdaAuth API - but only when explicitly called
   const login = async (email: string, password: string) => {
@@ -233,21 +233,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   // Manual user state setter for callback page
-  const setUserManually = (userData: User) => {
+  const setUserManually = useCallback((userData: User) => {
     console.log('✅ Setting user manually:', userData);
     setUser(userData);
     setLoading(false);
     setHasCheckedAuth(true);
-  };
+  }, []);
 
   // Emergency function to clear all authentication state
-  const clearAuthState = () => {
+  const clearAuthState = useCallback(() => {
     console.log('🧹 Emergency: Clearing all authentication state');
     clearTokens();
     setUser(null);
     setLoading(false);
     setHasCheckedAuth(false);
-  };
+  }, []);
 
   // CRITICAL: NO AUTOMATIC AUTH CHECK ON MOUNT
   // Only check auth when explicitly requested to prevent loops
