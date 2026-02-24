@@ -24,12 +24,12 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     
     // Only redirect if not loading and no user found
     if (!loading && !user) {
-      console.log('🔄 ProtectedRoute: No user found, will redirect to auth in 1 second...');
+      console.log('🔄 ProtectedRoute: No user found, will redirect to auth...');
       const redirectTimer = setTimeout(() => {
         const currentUrl = encodeURIComponent(window.location.origin + '/auth/callback?redirect=' + encodeURIComponent(window.location.pathname));
-        console.log('🔗 ProtectedRoute: Redirecting to AdaAuth SSO...');
+        console.log('🔗 ProtectedRoute: Redirecting to AdaAuth SSO...', currentUrl);
         window.location.href = `https://adaauth.mindgen.app/?redirect=${currentUrl}`;
-      }, 1000); // Reduced delay but still prevent immediate loops
+      }, 500); // Faster redirect for better UX
 
       return () => clearTimeout(redirectTimer);
     }

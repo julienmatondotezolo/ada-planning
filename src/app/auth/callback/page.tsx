@@ -78,17 +78,27 @@ function AuthCallbackContent() {
             setMessage(`Welcome ${userData.full_name || userData.email}! Redirecting...`);
             setDebugInfo(`Authenticated as ${userData.role} for L'Osteria`);
             
-            // Set user in auth context manually
-            authenticateWithToken(token).catch(console.error);
-            
-            // Redirect after short delay to ensure state is properly set
-            setTimeout(() => {
+            // Set user in auth context and wait for it to complete
+            try {
+              await authenticateWithToken(token);
+              console.log('✅ Auth context updated successfully');
+              
+              // Short delay for UI feedback, then smooth redirect
+              setTimeout(() => {
+                if (isMounted) {
+                  console.log('↗️ Redirecting to:', redirectTo);
+                  // Use Next.js router for smooth navigation (no white screen)
+                  router.push(redirectTo);
+                }
+              }, 800); // Reduced delay for faster UX
+              
+            } catch (authError) {
+              console.error('❌ Auth context update failed:', authError);
               if (isMounted) {
-                console.log('↗️ Redirecting to:', redirectTo);
-                // Use window.location for a hard redirect to ensure fresh state
-                window.location.href = redirectTo;
+                setStatus('error');
+                setMessage('Authentication context update failed. Please try again.');
               }
-            }, 1500);
+            }
           }
           
         } catch (error) {

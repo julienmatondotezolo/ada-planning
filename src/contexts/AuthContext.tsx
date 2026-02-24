@@ -142,14 +142,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         restaurant_id: payload.user_metadata?.restaurant_id || 'c1cbea71-ece5-4d63-bb12-fe06b03d1140'
       };
       
-      // Set user state with a small delay to ensure proper rendering
-      setTimeout(() => {
-        setUser(userData);
-        setHasCheckedAuth(true);
-        setLoading(false);
-        console.log('✅ Token authentication successful:', userData);
-      }, 100);
+      // Set user state immediately for smooth transition
+      setUser(userData);
+      setHasCheckedAuth(true);
+      setLoading(false);
       
+      console.log('✅ Token authentication successful:', userData);
       return true;
       
     } catch (error) {
