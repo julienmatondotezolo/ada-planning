@@ -15,61 +15,73 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   requiredRole,
   fallbackPath = '/login'
 }) => {
-  const { user, loading } = useAuth();
+  const { user, loading, isHydrated } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
-    // Be less aggressive about redirects to prevent loops
-    if (!loading) {
-      if (!user) {
-        // Only redirect after a delay to prevent immediate loops
-        console.log('🔄 ProtectedRoute: No user found, will redirect to auth in 2 seconds...');
-        const redirectTimer = setTimeout(() => {
-          const currentUrl = encodeURIComponent(window.location.origin + '/auth/callback?redirect=' + encodeURIComponent(window.location.pathname));
-          console.log('🔗 ProtectedRoute: Redirecting to AdaAuth SSO...');
-          window.location.href = `https://adaauth.mindgen.app/?redirect=${currentUrl}`;
-        }, 2000); // 2 second delay to prevent immediate redirect loops
+    // Only act after hydration is complete to prevent SSR mismatch
+    if (!isHydrated) return;
+    
+    // Only redirect if not loading and no user found
+    if (!loading && !user) {
+      console.log('🔄 ProtectedRoute: No user found, will redirect to auth in 1 second...');
+      const redirectTimer = setTimeout(() => {
+        const currentUrl = encodeURIComponent(window.location.origin + '/auth/callback?redirect=' + encodeURIComponent(window.location.pathname));
+        console.log('🔗 ProtectedRoute: Redirecting to AdaAuth SSO...');
+        window.location.href = `https://adaauth.mindgen.app/?redirect=${currentUrl}`;
+      }, 1000); // Reduced delay but still prevent immediate loops
 
-        return () => clearTimeout(redirectTimer);
-      }
+      return () => clearTimeout(redirectTimer);
+    }
 
-      if (requiredRole && user.role !== requiredRole) {
-        // Check role hierarchy: owner > admin > manager > supervisor > staff
-        const roleHierarchy = {
-          owner: 5,    // Restaurant owner - highest access
-          admin: 4,
-          manager: 3,
-          supervisor: 2,
-          staff: 1
-        };
+    // Check role permissions after user is loaded
+    if (!loading && user && requiredRole) {
+      // Check role hierarchy: owner > admin > manager > supervisor > staff
+      const roleHierarchy = {
+        owner: 5,    // Restaurant owner - highest access
+        admin: 4,
+        manager: 3,
+        supervisor: 2,
+        staff: 1
+      };
 
-        const userLevel = roleHierarchy[user.role as keyof typeof roleHierarchy] || 0;
-        const requiredLevel = roleHierarchy[requiredRole];
+      const userLevel = roleHierarchy[user.role as keyof typeof roleHierarchy] || 0;
+      const requiredLevel = roleHierarchy[requiredRole];
 
-        if (userLevel < requiredLevel) {
-          // Insufficient permissions, redirect to dashboard
-          console.log('❌ ProtectedRoute: Insufficient permissions, redirecting to unauthorized');
-          router.push('/unauthorized');
-          return;
-        }
+      if (userLevel < requiredLevel) {
+        console.log('❌ ProtectedRoute: Insufficient permissions, redirecting to unauthorized');
+        router.push('/unauthorized');
+        return;
       }
     }
-  }, [user, loading, requiredRole]); // REMOVED router and fallbackPath from dependencies
+  }, [user, loading, isHydrated, requiredRole]); // Added isHydrated to dependencies
 
-  if (loading) {
+  // Show loading until hydration is complete or while loading
+  if (!isHydrated || loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
           <p className="mt-4 text-lg font-medium text-gray-700">Loading Ada Planning...</p>
-          <p className="mt-1 text-sm text-gray-500">Verifying authentication</p>
+          <p className="mt-1 text-sm text-gray-500">
+            {!isHydrated ? 'Initializing application...' : 'Verifying authentication...'}
+          </p>
         </div>
       </div>
     );
   }
 
+  // Only check user after hydration is complete
   if (!user) {
-    return null; // Will redirect to login
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-lg font-medium text-gray-700">Redirecting to login...</p>
+          <p className="mt-1 text-sm text-gray-500">Please wait...</p>
+        </div>
+      </div>
+    );
   }
 
   if (requiredRole) {

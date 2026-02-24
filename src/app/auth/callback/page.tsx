@@ -81,13 +81,14 @@ function AuthCallbackContent() {
             // Set user in auth context manually
             authenticateWithToken(token).catch(console.error);
             
-            // Redirect after short delay
+            // Redirect after short delay to ensure state is properly set
             setTimeout(() => {
               if (isMounted) {
                 console.log('↗️ Redirecting to:', redirectTo);
-                router.push(redirectTo);
+                // Use window.location for a hard redirect to ensure fresh state
+                window.location.href = redirectTo;
               }
-            }, 2000);
+            }, 1500);
           }
           
         } catch (error) {

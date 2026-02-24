@@ -23,6 +23,7 @@ interface User {
 interface AuthContextType {
   user: User | null;
   loading: boolean;
+  isHydrated: boolean;
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   refreshToken: () => Promise<boolean>;
@@ -46,8 +47,9 @@ const ADAAUTH_API_URL = 'https://adaauth.mindgen.app';
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(false); // CHANGED: Start as false to prevent initial load issues
+  const [loading, setLoading] = useState(true); // Start as true until we check auth
   const [hasCheckedAuth, setHasCheckedAuth] = useState(false); // PREVENT any multiple checks
+  const [isHydrated, setIsHydrated] = useState(false); // Track client-side hydration
 
   // Get stored tokens
   const getAccessToken = () => typeof window !== 'undefined' ? localStorage.getItem('ada_access_token') : null;
@@ -118,6 +120,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const authenticateWithToken = useCallback(async (token: string): Promise<boolean> => {
     try {
       console.log('🔑 Authenticating with provided token...');
+      setLoading(true); // Show loading during authentication
       
       // Store the token first
       storeTokens(token, '');
@@ -139,12 +142,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         restaurant_id: payload.user_metadata?.restaurant_id || 'c1cbea71-ece5-4d63-bb12-fe06b03d1140'
       };
       
-      // Set user state
-      setUser(userData);
-      setHasCheckedAuth(true);
-      setLoading(false);
+      // Set user state with a small delay to ensure proper rendering
+      setTimeout(() => {
+        setUser(userData);
+        setHasCheckedAuth(true);
+        setLoading(false);
+        console.log('✅ Token authentication successful:', userData);
+      }, 100);
       
-      console.log('✅ Token authentication successful:', userData);
       return true;
       
     } catch (error) {
@@ -239,24 +244,69 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setHasCheckedAuth(false);
   }, []);
 
-  // CRITICAL: NO AUTOMATIC AUTH CHECK ON MOUNT
-  // Only check auth when explicitly requested to prevent loops
+  // Initial auth check on mount - handle hydration properly
   useEffect(() => {
-    console.log('🏁 AuthProvider mounted - NO automatic auth check to prevent loops');
+    console.log('🏁 AuthProvider mounted - checking initial auth state');
     
-    // Only do a simple token presence check - no API calls
-    const token = getAccessToken();
-    if (token && !hasCheckedAuth) {
-      console.log('📋 Token exists, will authenticate manually when needed');
-      checkAuthManually(); // This doesn't make API calls
-    } else {
-      setLoading(false);
-    }
+    // Mark as hydrated (client-side only)
+    setIsHydrated(true);
+    
+    const initializeAuth = async () => {
+      try {
+        // Check for existing token
+        const token = getAccessToken();
+        
+        if (token && !hasCheckedAuth) {
+          console.log('📋 Existing token found, validating...');
+          
+          // Parse token to check if it's still valid
+          try {
+            const tokenParts = token.split('.');
+            if (tokenParts.length === 3) {
+              const payload = JSON.parse(atob(tokenParts[1]));
+              
+              // Check if token is expired
+              const now = Math.floor(Date.now() / 1000);
+              if (payload.exp && payload.exp > now) {
+                // Token is valid, create user object
+                const userData: User = {
+                  id: payload.sub,
+                  email: payload.email || payload.user_metadata?.email,
+                  full_name: payload.user_metadata?.full_name || payload.full_name,
+                  role: payload.user_metadata?.restaurant_role || 'staff',
+                  restaurant_id: payload.user_metadata?.restaurant_id || 'c1cbea71-ece5-4d63-bb12-fe06b03d1140'
+                };
+                
+                setUser(userData);
+                setHasCheckedAuth(true);
+                console.log('✅ Restored user from valid token:', userData.email);
+              } else {
+                console.log('🔄 Token expired, clearing...');
+                clearTokens();
+              }
+            }
+          } catch (parseError) {
+            console.warn('❌ Token parse failed, clearing:', parseError);
+            clearTokens();
+          }
+        } else {
+          console.log('📭 No existing token found');
+        }
+      } catch (error) {
+        console.error('❌ Auth initialization failed:', error);
+      } finally {
+        setLoading(false);
+        console.log('🎯 Auth initialization complete');
+      }
+    };
+
+    initializeAuth();
   }, []); // Empty dependency array - runs only once
 
   const value: AuthContextType = {
     user,
     loading,
+    isHydrated,
     login,
     logout,
     refreshToken,
