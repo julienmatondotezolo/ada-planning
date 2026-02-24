@@ -47,8 +47,7 @@ const ADAAUTH_API_URL = 'https://adaauth.mindgen.app';
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true); // Start as true until we check auth
-  const [hasCheckedAuth, setHasCheckedAuth] = useState(false); // PREVENT any multiple checks
+  const [loading, setLoading] = useState(false); // Start as false to prevent initial loading flash
   const [isHydrated, setIsHydrated] = useState(false); // Track client-side hydration
 
   // Get stored tokens
@@ -73,54 +72,63 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  // SIMPLIFIED: Manual token check - NO AUTOMATIC API CALLS
-  const checkAuthManually = async () => {
-    if (hasCheckedAuth) {
-      console.log('⏭️ Auth already checked, skipping to prevent loops');
-      return;
-    }
-
-    console.log('🔄 Manual auth check starting...');
-    setHasCheckedAuth(true);
-    setLoading(true);
-    
+  // Initialize authentication state from stored token
+  const initializeAuth = useCallback(() => {
     try {
       const token = getAccessToken();
       
       if (!token) {
-        console.log('❌ No token found');
+        console.log('💭 No stored token found');
         setUser(null);
         return;
       }
 
-      console.log('✅ Token found in localStorage, setting as authenticated');
+      console.log('🔑 Found stored token, parsing...');
       
-      // TEMPORARY: Just assume token is valid to break the loop
-      // We'll validate via API only when explicitly requested
-      const mockUser: User = {
-        id: 'temp-user',
-        email: 'user@losteria.be',
-        full_name: 'L\'Osteria User',
-        role: 'staff',
-        restaurant_id: 'c1cbea71-ece5-4d63-bb12-fe06b03d1140'
+      // Parse and validate token
+      const tokenParts = token.split('.');
+      if (tokenParts.length !== 3) {
+        console.warn('❌ Invalid token format, clearing...');
+        clearTokens();
+        setUser(null);
+        return;
+      }
+      
+      const payload = JSON.parse(atob(tokenParts[1]));
+      
+      // Check if token is expired
+      const now = Math.floor(Date.now() / 1000);
+      if (payload.exp && payload.exp <= now) {
+        console.log('⏰ Token expired, clearing...');
+        clearTokens();
+        setUser(null);
+        return;
+      }
+
+      // Create user object from valid token
+      const userData: User = {
+        id: payload.sub,
+        email: payload.email || payload.user_metadata?.email,
+        full_name: payload.user_metadata?.full_name || payload.full_name,
+        role: payload.user_metadata?.restaurant_role || 'staff',
+        restaurant_id: payload.user_metadata?.restaurant_id || 'c1cbea71-ece5-4d63-bb12-fe06b03d1140'
       };
       
-      setUser(mockUser);
-      console.log('🏗️ TEMPORARY: Using mock user to prevent API loops');
+      setUser(userData);
+      console.log('✅ User restored from token:', userData.email);
       
     } catch (error) {
-      console.error('❌ Auth check failed:', error);
+      console.error('❌ Token parsing failed:', error);
+      clearTokens();
       setUser(null);
-    } finally {
-      setLoading(false);
     }
-  };
+  }, []);
 
-  // Authenticate with existing token (for SSO flow) - ONLY when explicitly called
+  // Authenticate with existing token (for SSO flow)
   const authenticateWithToken = useCallback(async (token: string): Promise<boolean> => {
     try {
       console.log('🔑 Authenticating with provided token...');
-      setLoading(true); // Show loading during authentication
+      setLoading(true);
       
       // Store the token first
       storeTokens(token, '');
@@ -133,6 +141,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       const payload = JSON.parse(atob(tokenParts[1]));
       
+      // Check token expiry
+      const now = Math.floor(Date.now() / 1000);
+      if (payload.exp && payload.exp <= now) {
+        throw new Error('Token is expired');
+      }
+      
       // Create user from token payload
       const userData: User = {
         id: payload.sub,
@@ -142,13 +156,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         restaurant_id: payload.user_metadata?.restaurant_id || 'c1cbea71-ece5-4d63-bb12-fe06b03d1140'
       };
       
-      // Set user state with a small delay to ensure proper rendering
-      setTimeout(() => {
-        setUser(userData);
-        setHasCheckedAuth(true);
-        setLoading(false);
-        console.log('✅ Token authentication successful:', userData);
-      }, 100);
+      // Set user state immediately - no delays to prevent races
+      setUser(userData);
+      setLoading(false);
+      console.log('✅ Token authentication successful:', userData);
       
       return true;
       
@@ -159,7 +170,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setLoading(false);
       return false;
     }
-  }, []); // useCallback with empty dependencies
+  }, []);
 
   // Login function using ONLY AdaAuth API - but only when explicitly called
   const login = async (email: string, password: string) => {
@@ -188,7 +199,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       // Set user from user_profile (AdaAuth format)
       setUser(data.user_profile);
-      setHasCheckedAuth(true);
     } catch (error) {
       console.error('❌ Login failed:', error);
       throw error;
@@ -216,7 +226,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } finally {
       clearTokens();
       setUser(null);
-      setHasCheckedAuth(false);
       console.log('✅ Logged out');
     }
   };
@@ -232,7 +241,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     console.log('✅ Setting user manually:', userData);
     setUser(userData);
     setLoading(false);
-    setHasCheckedAuth(true);
   }, []);
 
   // Emergency function to clear all authentication state
@@ -241,67 +249,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     clearTokens();
     setUser(null);
     setLoading(false);
-    setHasCheckedAuth(false);
   }, []);
 
   // Initial auth check on mount - handle hydration properly
   useEffect(() => {
-    console.log('🏁 AuthProvider mounted - checking initial auth state');
+    console.log('🏁 AuthProvider mounted');
     
     // Mark as hydrated (client-side only)
     setIsHydrated(true);
     
-    const initializeAuth = async () => {
-      try {
-        // Check for existing token
-        const token = getAccessToken();
-        
-        if (token && !hasCheckedAuth) {
-          console.log('📋 Existing token found, validating...');
-          
-          // Parse token to check if it's still valid
-          try {
-            const tokenParts = token.split('.');
-            if (tokenParts.length === 3) {
-              const payload = JSON.parse(atob(tokenParts[1]));
-              
-              // Check if token is expired
-              const now = Math.floor(Date.now() / 1000);
-              if (payload.exp && payload.exp > now) {
-                // Token is valid, create user object
-                const userData: User = {
-                  id: payload.sub,
-                  email: payload.email || payload.user_metadata?.email,
-                  full_name: payload.user_metadata?.full_name || payload.full_name,
-                  role: payload.user_metadata?.restaurant_role || 'staff',
-                  restaurant_id: payload.user_metadata?.restaurant_id || 'c1cbea71-ece5-4d63-bb12-fe06b03d1140'
-                };
-                
-                setUser(userData);
-                setHasCheckedAuth(true);
-                console.log('✅ Restored user from valid token:', userData.email);
-              } else {
-                console.log('🔄 Token expired, clearing...');
-                clearTokens();
-              }
-            }
-          } catch (parseError) {
-            console.warn('❌ Token parse failed, clearing:', parseError);
-            clearTokens();
-          }
-        } else {
-          console.log('📭 No existing token found');
-        }
-      } catch (error) {
-        console.error('❌ Auth initialization failed:', error);
-      } finally {
-        setLoading(false);
-        console.log('🎯 Auth initialization complete');
-      }
-    };
-
+    // Initialize authentication state from stored token
     initializeAuth();
-  }, []); // Empty dependency array - runs only once
+  }, [initializeAuth]);
 
   const value: AuthContextType = {
     user,

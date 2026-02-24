@@ -78,17 +78,20 @@ function AuthCallbackContent() {
             setMessage(`Welcome ${userData.full_name || userData.email}! Redirecting...`);
             setDebugInfo(`Authenticated as ${userData.role} for L'Osteria`);
             
-            // Set user in auth context manually
-            authenticateWithToken(token).catch(console.error);
+            // Authenticate with token and wait for completion
+            const authSuccess = await authenticateWithToken(token);
             
-            // Redirect after short delay to ensure state is properly set
-            setTimeout(() => {
-              if (isMounted) {
-                console.log('↗️ Redirecting to:', redirectTo);
-                // Use window.location for a hard redirect to ensure fresh state
-                window.location.href = redirectTo;
-              }
-            }, 1500);
+            if (authSuccess && isMounted) {
+              console.log('↗️ Authentication successful, redirecting to:', redirectTo);
+              
+              // Use Next.js router for smooth navigation instead of hard redirect
+              setTimeout(() => {
+                if (isMounted) {
+                  // Use router.push for smooth navigation
+                  router.push(redirectTo);
+                }
+              }, 800); // Shorter delay for better UX
+            }
           }
           
         } catch (error) {
@@ -101,11 +104,10 @@ function AuthCallbackContent() {
         return;
       }
 
-      // If no token and no error, something went wrong
+      // If no token and no error, redirect back to login
       if (isMounted) {
-        setStatus('error');
-        setMessage('No authentication token received. Please try logging in again.');
-        setDebugInfo('Missing token parameter in callback URL');
+        console.log('❌ No token in callback, redirecting to login');
+        router.push('/');
       }
     };
 
@@ -115,7 +117,7 @@ function AuthCallbackContent() {
     return () => {
       isMounted = false;
     };
-  }, [token, error, redirectTo]); // Simplified dependencies
+  }, [token, error, redirectTo, authenticateWithToken, router]); // Include all dependencies
 
   const handleRetry = () => {
     const currentUrl = encodeURIComponent(window.location.origin + '/auth/callback?redirect=' + encodeURIComponent(redirectTo));
