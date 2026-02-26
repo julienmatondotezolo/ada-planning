@@ -43,15 +43,18 @@ export const useAuth = () => {
 };
 
 // AdaAuth API URL - centralized authentication
+// Fixed: Using direct VPS IP since domain doesn't resolve
 const ADAAUTH_API_URL = 'http://46.224.93.79:5004';
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true); // Start as true until we check auth
+  const [hasCheckedAuth, setHasCheckedAuth] = useState(false); // PREVENT any multiple checks
   const [isHydrated, setIsHydrated] = useState(false); // Track client-side hydration
 
   // Get stored tokens
   const getAccessToken = () => typeof window !== 'undefined' ? localStorage.getItem('ada_access_token') : null;
+  const getRefreshToken = () => typeof window !== 'undefined' ? localStorage.getItem('ada_refresh_token') : null;
   
   // Store tokens
   const storeTokens = (accessToken: string, refreshToken: string) => {
@@ -71,24 +74,54 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  // FIXED: Add timeout to prevent infinite loading
-  const setLoadingWithTimeout = (isLoading: boolean, timeoutMs: number = 10000) => {
-    setLoading(isLoading);
+  // SIMPLIFIED: Manual token check - NO AUTOMATIC API CALLS
+  const checkAuthManually = async () => {
+    if (hasCheckedAuth) {
+      console.log('⏭️ Auth already checked, skipping to prevent loops');
+      return;
+    }
+
+    console.log('🔄 Manual auth check starting...');
+    setHasCheckedAuth(true);
+    setLoading(true);
     
-    if (isLoading) {
-      // Force loading to false after timeout to prevent white screen
-      setTimeout(() => {
-        console.log('⏰ Auth loading timeout - forcing loading = false');
-        setLoading(false);
-      }, timeoutMs);
+    try {
+      const token = getAccessToken();
+      
+      if (!token) {
+        console.log('❌ No token found');
+        setUser(null);
+        return;
+      }
+
+      console.log('✅ Token found in localStorage, setting as authenticated');
+      
+      // TEMPORARY: Just assume token is valid to break the loop
+      // We'll validate via API only when explicitly requested
+      const mockUser: User = {
+        id: 'temp-user',
+        email: 'user@losteria.be',
+        full_name: 'L\'Osteria User',
+        role: 'staff',
+        restaurant_id: 'c1cbea71-ece5-4d63-bb12-fe06b03d1140'
+      };
+      
+      setUser(mockUser);
+      console.log('🏗️ TEMPORARY: Using mock user to prevent API loops');
+      
+    } catch (error) {
+      console.error('❌ Auth check failed:', error);
+      setUser(null);
+    } finally {
+      setLoading(false);
     }
   };
 
-  // Authenticate with existing token (for SSO flow)
+  // Authenticate with existing token (for SSO flow) - ONLY when explicitly called
   const authenticateWithToken = useCallback(async (token: string): Promise<boolean> => {
     try {
       console.log('🔑 Authenticating with provided token...');
-      setLoadingWithTimeout(true, 5000); // 5 second timeout
+      setLoading(true); // Show loading during authentication
       
       // Store the token first
       storeTokens(token, '');
@@ -110,7 +143,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         restaurant_id: payload.user_metadata?.restaurant_id || 'c1cbea71-ece5-4d63-bb12-fe06b03d1140'
       };
       
+      // Set user state immediately for smooth transition
       setUser(userData);
+      setHasCheckedAuth(true);
       setLoading(false);
       
       console.log('✅ Token authentication successful:', userData);
@@ -123,12 +158,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setLoading(false);
       return false;
     }
-  }, []);
+  }, []); // useCallback with empty dependencies
 
-  // Login function
+  // Login function using ONLY AdaAuth API - but only when explicitly called
   const login = async (email: string, password: string) => {
     try {
-      setLoadingWithTimeout(true, 10000); // 10 second timeout for login
+      setLoading(true);
       console.log('🔐 Logging in via AdaAuth API...');
       
       const response = await fetch(`${ADAAUTH_API_URL}/auth/login`, {
@@ -140,141 +175,90 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
 
       if (!response.ok) {
-        throw new Error(`Login failed: ${response.status}`);
+        const errorData = await response.json();
+        throw new Error(errorData.message || errorData.error || 'Login failed');
       }
 
       const data = await response.json();
+      console.log('✅ Login successful:', data.user_profile);
       
-      if (data.access_token) {
-        storeTokens(data.access_token, data.refresh_token || '');
-        await authenticateWithToken(data.access_token);
-      }
+      // Store tokens
+      storeTokens(data.access_token, data.session?.refresh_token || '');
       
-      setLoading(false);
+      // Set user from user_profile (AdaAuth format)
+      setUser(data.user_profile);
+      setHasCheckedAuth(true);
     } catch (error) {
       console.error('❌ Login failed:', error);
-      setLoading(false);
       throw error;
+    } finally {
+      setLoading(false);
     }
   };
 
   // Logout function
   const logout = async () => {
     try {
-      setLoadingWithTimeout(true, 3000); // 3 second timeout for logout
-      
       const token = getAccessToken();
       if (token) {
-        // Attempt logout API call but don't wait forever
-        await Promise.race([
-          fetch(`${ADAAUTH_API_URL}/auth/logout`, {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${token}`,
-              'Content-Type': 'application/json',
-            },
-          }),
-          new Promise((_, reject) => 
-            setTimeout(() => reject(new Error('Logout timeout')), 3000)
-          )
-        ]);
-      }
-    } catch (error) {
-      console.warn('⚠️ Logout API call failed, continuing with local logout:', error);
-    } finally {
-      clearTokens();
-      setUser(null);
-      setLoading(false);
-    }
-  };
-
-  // Refresh token
-  const refreshToken = async (): Promise<boolean> => {
-    try {
-      setLoadingWithTimeout(true, 5000); // 5 second timeout
-      
-      const refreshTokenValue = typeof window !== 'undefined' 
-        ? localStorage.getItem('ada_refresh_token') 
-        : null;
-      
-      if (!refreshTokenValue) {
-        setLoading(false);
-        return false;
-      }
-
-      const response = await Promise.race([
-        fetch(`${ADAAUTH_API_URL}/auth/refresh`, {
+        console.log('🚪 Logging out via AdaAuth API...');
+        await fetch(`${ADAAUTH_API_URL}/auth/logout`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
           },
-          body: JSON.stringify({ refresh_token: refreshTokenValue }),
-        }),
-        new Promise<never>((_, reject) => 
-          setTimeout(() => reject(new Error('Refresh timeout')), 5000)
-        )
-      ]);
-
-      if (!response.ok) {
-        throw new Error('Refresh failed');
+        });
       }
-
-      const data = await response.json();
-      
-      if (data.access_token) {
-        storeTokens(data.access_token, data.refresh_token || refreshTokenValue);
-        await authenticateWithToken(data.access_token);
-        return true;
-      }
-      
-      setLoading(false);
-      return false;
     } catch (error) {
-      console.error('❌ Token refresh failed:', error);
+      console.error('❌ Logout API call failed:', error);
+    } finally {
       clearTokens();
       setUser(null);
-      setLoading(false);
-      return false;
+      setHasCheckedAuth(false);
+      console.log('✅ Logged out');
     }
   };
 
-  // Manual user setting
-  const setUserManually = (userData: User) => {
-    setUser(userData);
-    setLoading(false);
+  // Refresh token function - disabled for now to prevent loops
+  const refreshToken = async (): Promise<boolean> => {
+    console.log('🔄 Refresh token disabled to prevent loops');
+    return false;
   };
 
-  // Clear auth state
-  const clearAuthState = () => {
+  // Manual user state setter for callback page
+  const setUserManually = useCallback((userData: User) => {
+    console.log('✅ Setting user manually:', userData);
+    setUser(userData);
+    setLoading(false);
+    setHasCheckedAuth(true);
+  }, []);
+
+  // Emergency function to clear all authentication state
+  const clearAuthState = useCallback(() => {
+    console.log('🧹 Emergency: Clearing all authentication state');
     clearTokens();
     setUser(null);
     setLoading(false);
-  };
+    setHasCheckedAuth(false);
+  }, []);
 
-  // FIXED: Improved initialization with timeout and error handling
+  // Initial auth check on mount - handle hydration properly
   useEffect(() => {
+    console.log('🏁 AuthProvider mounted - checking initial auth state');
+    
     // Mark as hydrated (client-side only)
     setIsHydrated(true);
     
     const initializeAuth = async () => {
       try {
-        console.log('🚀 Initializing authentication...');
-        
-        // Set a maximum initialization timeout
-        const timeoutPromise = new Promise((resolve) => {
-          setTimeout(() => {
-            console.log('⏰ Auth initialization timeout - using fallback');
-            setLoading(false);
-            resolve('timeout');
-          }, 8000); // 8 second maximum initialization time
-        });
-        
         // Check for existing token
         const token = getAccessToken();
         
-        if (token) {
+        if (token && !hasCheckedAuth) {
           console.log('📋 Existing token found, validating...');
           
+          // Parse token to check if it's still valid
           try {
             const tokenParts = token.split('.');
             if (tokenParts.length === 3) {
@@ -293,9 +277,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 };
                 
                 setUser(userData);
+                setHasCheckedAuth(true);
                 console.log('✅ Restored user from valid token:', userData.email);
-                setLoading(false);
-                return 'success';
               } else {
                 console.log('🔄 Token expired, clearing...');
                 clearTokens();
@@ -308,23 +291,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         } else {
           console.log('📭 No existing token found');
         }
-        
-        setLoading(false);
-        return 'no-token';
-        
       } catch (error) {
         console.error('❌ Auth initialization failed:', error);
+      } finally {
         setLoading(false);
-        return 'error';
+        console.log('🎯 Auth initialization complete');
       }
     };
 
-    // Race between initialization and timeout
-    Promise.race([initializeAuth(), timeoutPromise])
-      .then((result) => {
-        console.log(`🎯 Auth initialization complete: ${result}`);
-      });
-    
+    initializeAuth();
   }, []); // Empty dependency array - runs only once
 
   const value: AuthContextType = {
