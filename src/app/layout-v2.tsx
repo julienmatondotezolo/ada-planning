@@ -1,24 +1,19 @@
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import './globals.css';
-import { getServerUser } from '@/lib/auth-server';
-import { AuthProvider } from '@/contexts/AuthContext-server-components';
+import { getServerUser, redirectToAuth } from '@/lib/auth-server';
+import { AuthProvider } from '@/contexts/AuthContext-v2';
+import { redirect } from 'next/navigation';
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });
 
 export const metadata: Metadata = {
   title: 'AdaPlanning - Staff Scheduling',
-  description: 'Professional staff scheduling for restaurants powered by AdaAuth',
+  description: 'Professional staff scheduling for restaurants',
   icons: {
     icon: '/icons/icon-192x192.png',
     apple: '/icons/apple-touch-icon.png',
   },
-  manifest: '/manifest.json',
-  other: {
-    'mobile-web-app-capable': 'yes',
-    'apple-mobile-web-app-title': 'AdaPlanning',
-    'apple-mobile-web-app-status-bar-style': 'default',
-  }
 };
 
 export default async function RootLayout({
@@ -26,15 +21,12 @@ export default async function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
-  // Server-side user authentication - single API call per request
+  // Get user data once at the server level
   const user = await getServerUser();
   
-  console.log('🏗️ Server Layout:', { 
-    hasUser: !!user, 
-    userEmail: user?.email,
-    timestamp: new Date().toISOString() 
-  });
-
+  // If this is a protected route and no user, redirect
+  // (We can check this in middleware instead, but showing the pattern)
+  
   return (
     <html lang="fr" suppressHydrationWarning>
       <body className={`${inter.variable} font-sans antialiased`}>
