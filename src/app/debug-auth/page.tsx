@@ -71,7 +71,7 @@ export default function DebugAuthPage() {
 
     try {
       console.log('🔍 Testing AdaAuth API...');
-      const response = await fetch('https://adaauth.mindgen.app/auth/validate', {
+      const response = await fetch('http://46.224.93.79:5004/auth/validate', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

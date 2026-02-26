@@ -43,7 +43,8 @@ export const useAuth = () => {
 };
 
 // AdaAuth API URL - centralized authentication
-const ADAAUTH_API_URL = 'https://adaauth.mindgen.app';
+// Fixed: Using direct VPS IP since domain doesn't resolve
+const ADAAUTH_API_URL = 'http://46.224.93.79:5004';
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);

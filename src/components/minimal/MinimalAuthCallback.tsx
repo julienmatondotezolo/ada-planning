@@ -29,7 +29,7 @@ function MinimalAuthCallbackContent() {
           console.log('Validating token with AdaAuth API...');
           
           // Use ONLY AdaAuth API for token validation
-          const response = await fetch('https://adaauth.mindgen.app/auth/validate', {
+          const response = await fetch('http://46.224.93.79:5004/auth/validate', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',

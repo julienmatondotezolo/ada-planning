@@ -1,17 +1,17 @@
 # AdaPlanning Authentication Flow
 
-## 🎯 Expected Flow (localhost:3001)
+## 🎯 Expected Flow (localhost:3003)
 
 ### 1. Initial Visit
-**URL**: `http://localhost:3001/`
+**URL**: `http://localhost:3003/`
 **Action**: ProtectedRoute detects no user → redirects to AdaAuth
 
 ### 2. AdaAuth Redirect
-**URL**: `https://adaauth.mindgen.app/?redirect=http%3A%2F%2Flocalhost%3A3001%2Fauth%2Fcallback%3Fredirect%3D%252F`
+**URL**: `https://adaauth.mindgen.app/?redirect=http%3A%2F%2Flocalhost%3A3003%2Fauth%2Fcallback%3Fredirect%3D%252F`
 **Action**: User enters credentials and submits login
 
 ### 3. Callback Processing
-**URL**: `http://localhost:3001/auth/callback?redirect=%2F&token=...`
+**URL**: `http://localhost:3003/auth/callback?redirect=%2F&token=...`
 **Action**: 
 - Parse JWT token directly (no API calls)
 - Store token in localStorage
@@ -19,7 +19,7 @@
 - Smooth redirect to dashboard using Next.js router
 
 ### 4. Dashboard Display
-**URL**: `http://localhost:3001/`
+**URL**: `http://localhost:3003/`
 **Result**: ✅ Dashboard loads immediately without white screen
 
 ## 🛠️ Technical Implementation
@@ -41,7 +41,7 @@
 
 ## 🧪 Testing Checklist
 
-- [ ] Visit `http://localhost:3001/` redirects to AdaAuth
+- [ ] Visit `http://localhost:3003/` redirects to AdaAuth
 - [ ] Login at AdaAuth redirects to callback with token
 - [ ] Callback processes token and redirects to dashboard
 - [ ] Dashboard loads immediately without white screen
@@ -53,4 +53,4 @@
 ✅ **Smooth transitions** using Next.js router  
 ✅ **Fast authentication** with reduced delays  
 ✅ **Proper error handling** for failed authentications  
-✅ **Works with localhost:3001** development environment
+✅ **Works with localhost:3003** development environment
