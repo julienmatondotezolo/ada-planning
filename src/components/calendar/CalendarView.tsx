@@ -532,9 +532,14 @@ function MonthStats({ shifts }: { shifts: Record<string, ShiftAssignment[]> }) {
 
 export function CalendarView() {
   const [currentDate, setCurrentDate] = useState(new Date());
-  const [shifts, setShifts] = useState<Record<string, ShiftAssignment[]>>(() =>
-    generateMockShifts()
-  );
+  const [shifts, setShifts] = useState<Record<string, ShiftAssignment[]>>({});
+  const [isClient, setIsClient] = useState(false);
+
+  // Generate mock data client-side only to avoid hydration mismatch (Math.random)
+  useEffect(() => {
+    setShifts(generateMockShifts());
+    setIsClient(true);
+  }, []);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [dialogDate, setDialogDate] = useState<Date>(new Date());
   const [editingShift, setEditingShift] = useState<ShiftAssignment | null>(null);
