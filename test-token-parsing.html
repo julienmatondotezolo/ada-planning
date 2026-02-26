@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Token Parsing - AdaAuth</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 2rem; }
+        .container { max-width: 600px; margin: 0 auto; }
+        .test-result { margin: 1rem 0; padding: 1rem; border-radius: 8px; }
+        .success { background: #d1f2eb; border: 1px solid #27ae60; color: #1e8449; }
+        .error { background: #fdf2f2; border: 1px solid #e53e3e; color: #c53030; }
+        .info { background: #ebf8ff; border: 1px solid #3182ce; color: #2c5aa0; }
+        pre { background: #f7fafc; padding: 1rem; border-radius: 4px; font-size: 12px; overflow: auto; }
+        button { background: #4d6aff; color: white; border: none; padding: 0.75rem 1.5rem; border-radius: 6px; cursor: pointer; margin: 0.5rem 0.5rem 0.5rem 0; }
+        button:hover { background: #3c5ce6; }
+        textarea { width: 100%; height: 120px; padding: 0.5rem; border: 1px solid #ccc; border-radius: 4px; font-family: monospace; font-size: 12px; }
+        input { width: 100%; padding: 0.5rem; border: 1px solid #ccc; border-radius: 4px; margin: 0.25rem 0; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔑 AdaAuth Token Parsing Test</h1>
+        <p>Test the token parsing logic used in the ada-planning callback page without making API calls.</p>
+
+        <div class="test-result info">
+            <h3>📋 Sample JWT Token</h3>
+            <p>Here's a sample Supabase JWT token for testing:</p>
+            <textarea id="sampleToken" readonly>eyJhbGciOiJIUzI1NiIsImtpZCI6InJjNjJReHZCYmlnYklRRkciLCJ0eXAiOiJKV1QifQ.eyJhdWQiOiJhdXRoZW50aWNhdGVkIiwiZXhwIjoxNzA5MTU0MDAwLCJpYXQiOjE3MDkxNTAzODAsImlzcyI6Imh0dHBzOi8venpmcHd4a3R3aGFza3F0d3p0ZGcuc3VwYWJhc2UuY28vYXV0aC92MSIsInN1YiI6IjdiY2Y5ZTFkLTAwZGUtNGEyNy05OTQzLTIxNjM1NGRlZjI3MyIsImVtYWlsIjoiZW1qaUBsb3N0ZXJpYS5iZSIsInBob25lIjoiIiwiYXBwX21ldGFkYXRhIjp7InByb3ZpZGVyIjoiZW1haWwiLCJwcm92aWRlcnMiOlsiZW1haWwiXX0sInVzZXJfbWV0YWRhdGEiOnsiZW1haWwiOiJlbWppQGxvc3RlcmlhLmJlIiwiZW1haWxfdmVyaWZpZWQiOmZhbHNlLCJmdWxsX25hbWUiOiJFbWppIFNvbHV0aW9ucyIsInBob25lX3ZlcmlmaWVkIjpmYWxzZSwicmVzdGF1cmFudF9yb2xlIjoic3RhZmYiLCJyZXN0YXVyYW50X2lkIjoiYzFjYmVhNzEtZWNlNS00ZDYzLWJiMTItZmUwNmIwM2QxMTQwIiwic3ViIjoiN2JjZjllMWQtMDBkZS00YTI3LTk5NDMtMjE2MzU0ZGVmMjczIn0sInJvbGUiOiJhdXRoZW50aWNhdGVkIiwiYWFsIjoiYWFsMSIsImFtciI6WyJwYXNzd29yZCJdLCJzZXNzaW9uX2lkIjoiOWE4MzdjOWItNzE4Zi00MWRjLWI1MjEtMGNjMzY5MjllZGE5In0.abc123456789_example_signature_here</textarea>
+            <button onclick="loadSampleToken()">Load Sample Token</button>
+        </div>
+
+        <div class="test-result">
+            <h3>🧪 Test Custom Token</h3>
+            <p>Paste your JWT token here to test parsing:</p>
+            <textarea id="customToken" placeholder="Paste your JWT token here..."></textarea>
+            <button onclick="testCustomToken()">Test Custom Token</button>
+            <button onclick="clearResults()">Clear Results</button>
+        </div>
+
+        <div id="results"></div>
+
+        <div class="test-result info">
+            <h3>🎯 Testing Checklist</h3>
+            <ul>
+                <li>✅ Token has 3 parts (header.payload.signature)</li>
+                <li>✅ Payload can be base64 decoded</li>
+                <li>✅ User data can be extracted (email, role, etc.)</li>
+                <li>✅ Token expiration is checked</li>
+                <li>✅ No white screen during processing</li>
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        function addResult(type, title, content) {
+            const results = document.getElementById('results');
+            const div = document.createElement('div');
+            div.className = `test-result ${type}`;
+            div.innerHTML = `<h3>${title}</h3>${content}`;
+            results.appendChild(div);
+            results.scrollIntoView({ behavior: 'smooth', block: 'end' });
+        }
+
+        function loadSampleToken() {
+            const sampleToken = document.getElementById('sampleToken').value;
+            document.getElementById('customToken').value = sampleToken;
+            testToken(sampleToken, "Sample Token");
+        }
+
+        function testCustomToken() {
+            const token = document.getElementById('customToken').value.trim();
+            if (!token) {
+                addResult('error', '❌ No Token', '<p>Please paste a JWT token to test.</p>');
+                return;
+            }
+            testToken(token, "Custom Token");
+        }
+
+        function clearResults() {
+            document.getElementById('results').innerHTML = '';
+        }
+
+        function testToken(token, label) {
+            console.log(`🔍 Testing ${label}...`);
+            
+            try {
+                // Step 1: Check token format
+                const tokenParts = token.split('.');
+                if (tokenParts.length !== 3) {
+                    addResult('error', '❌ Invalid Token Format', `
+                        <p>Token should have 3 parts separated by dots, but found ${tokenParts.length} parts.</p>
+                        <pre>Expected: header.payload.signature</pre>
+                    `);
+                    return;
+                }
+
+                addResult('success', '✅ Valid Token Format', `
+                    <p>Token has correct 3-part structure (header.payload.signature)</p>
+                    <p>Header: ${tokenParts[0].substring(0, 20)}...</p>
+                    <p>Payload: ${tokenParts[1].substring(0, 20)}...</p>
+                    <p>Signature: ${tokenParts[2].substring(0, 20)}...</p>
+                `);
+
+                // Step 2: Decode payload
+                const payload = JSON.parse(atob(tokenParts[1]));
+                
+                addResult('success', '✅ Payload Decoded Successfully', `
+                    <pre>${JSON.stringify(payload, null, 2)}</pre>
+                `);
+
+                // Step 3: Extract user data (ada-planning style)
+                const userData = {
+                    id: payload.sub,
+                    email: payload.email || payload.user_metadata?.email,
+                    full_name: payload.user_metadata?.full_name || payload.full_name,
+                    role: payload.user_metadata?.restaurant_role || 'staff',
+                    restaurant_id: payload.user_metadata?.restaurant_id || 'c1cbea71-ece5-4d63-bb12-fe06b03d1140'
+                };
+
+                addResult('success', '✅ User Data Extracted', `
+                    <pre>${JSON.stringify(userData, null, 2)}</pre>
+                `);
+
+                // Step 4: Check token expiration
+                const currentTime = Math.floor(Date.now() / 1000);
+                if (payload.exp) {
+                    const isExpired = payload.exp < currentTime;
+                    const expiresAt = new Date(payload.exp * 1000).toISOString();
+                    
+                    if (isExpired) {
+                        addResult('error', '❌ Token Expired', `
+                            <p>Token expired at: ${expiresAt}</p>
+                            <p>Current time: ${new Date().toISOString()}</p>
+                            <p>Token would be rejected in authentication flow.</p>
+                        `);
+                    } else {
+                        addResult('success', '✅ Token Valid', `
+                            <p>Token expires at: ${expiresAt}</p>
+                            <p>Current time: ${new Date().toISOString()}</p>
+                            <p>Token is still valid for authentication.</p>
+                        `);
+                    }
+                } else {
+                    addResult('info', 'ℹ️ No Expiration', '<p>Token does not have an expiration field (exp).</p>');
+                }
+
+                // Step 5: Simulate successful processing
+                addResult('success', '🎉 Authentication Simulation Complete', `
+                    <p><strong>Welcome ${userData.full_name || userData.email}!</strong></p>
+                    <p>Role: ${userData.role}</p>
+                    <p>Restaurant: L'Osteria (${userData.restaurant_id})</p>
+                    <p><em>In real app: Token would be stored in localStorage and user redirected to dashboard.</em></p>
+                `);
+
+                console.log('✅ Token test completed successfully:', userData);
+
+            } catch (error) {
+                console.error('❌ Token test failed:', error);
+                
+                addResult('error', '❌ Token Processing Failed', `
+                    <p><strong>Error:</strong> ${error.message}</p>
+                    <pre>Stack trace:\n${error.stack}</pre>
+                    <p>This error would cause authentication to fail and potentially show a white screen.</p>
+                `);
+            }
+        }
+
+        // Auto-test on load
+        window.addEventListener('load', function() {
+            addResult('info', '🚀 Test Page Loaded', `
+                <p>Ready to test JWT token parsing used in AdaAuth callback flow.</p>
+                <p>Use the "Load Sample Token" button to test with example data, or paste your own token.</p>
+            `);
+        });
+    </script>
+</body>
+</html>

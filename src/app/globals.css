@@ -1,143 +1,143 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
+@import "tailwindcss";
 
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+/* ── Tailwind v4 Theme ── */
+@theme {
+  --font-sans: 'Inter', 'Plus Jakarta Sans', system-ui, sans-serif;
+  --font-display: 'Plus Jakarta Sans', 'Inter', system-ui, sans-serif;
+  --radius-lg: var(--radius);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-sm: calc(var(--radius) - 4px);
 
-@layer base {
-  :root {
-    /* ADA Design System - Your Original Brand Colors */
-    --background: 0 0% 100%; /* Pure White #FFFFFF */
-    --foreground: 224 71% 4%;
-    
-    --card: 0 0% 100%;
-    --card-foreground: 224 71% 4%;
-    
-    --popover: 0 0% 100%;
-    --popover-foreground: 224 71% 4%;
-    
-    /* Primary - Electric/Professional Blue #4d6aff */
-    --primary: 232 100% 66%;
-    --primary-foreground: 210 40% 98%;
-    
-    /* Secondary - Tech/Atmospheric Blue #45b9ee */
-    --secondary: 201 85% 60%;
-    --secondary-foreground: 210 40% 98%;
-    
-    /* Muted */
-    --muted: 220 14.3% 95.9%;
-    --muted-foreground: 220 8.9% 46.1%;
-    
-    /* Accent - Vibrant Cyan */
-    --accent: 199 89% 48%;
-    --accent-foreground: 210 40% 98%;
-    
-    /* Success - Modern Green */
-    --success: 142 76% 36%;
-    --success-foreground: 210 40% 98%;
-    
-    /* Warning - Modern Orange */
-    --warning: 32 95% 44%;
-    --warning-foreground: 210 40% 98%;
-    
-    /* Destructive - Modern Red */
-    --destructive: 346 87% 43%;
-    --destructive-foreground: 210 40% 98%;
-    
-    /* Pink accent */
-    --pink: 322 100% 65%;
-    --pink-foreground: 210 40% 98%;
-    
-    /* Border & Input */
-    --border: 220 13% 91%;
-    --input: 220 13% 91%;
-    --ring: 221 83% 53%;
-    
-    /* Radius - More modern, subtle */
-    --radius: 0.5rem;
+  --color-border: hsl(var(--border));
+  --color-input: hsl(var(--input));
+  --color-ring: hsl(var(--ring));
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+  --color-secondary: hsl(var(--secondary));
+  --color-secondary-foreground: hsl(var(--secondary-foreground));
+  --color-destructive: hsl(var(--destructive));
+  --color-destructive-foreground: hsl(var(--destructive-foreground));
+  --color-success: hsl(var(--success));
+  --color-success-foreground: hsl(var(--success-foreground));
+  --color-warning: hsl(var(--warning));
+  --color-warning-foreground: hsl(var(--warning-foreground));
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+  --color-accent: hsl(var(--accent));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+  --color-popover: hsl(var(--popover));
+  --color-popover-foreground: hsl(var(--popover-foreground));
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+
+  --animate-accordion-down: accordion-down 0.2s ease-out;
+  --animate-accordion-up: accordion-up 0.2s ease-out;
+
+  @keyframes accordion-down {
+    from { height: 0; }
+    to { height: var(--radix-accordion-content-height); }
   }
-
-  .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-    
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
-    
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
-    
-    --primary: 232 100% 66%;
-    --primary-foreground: 222.2 84% 4.9%;
-    
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-    
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-    
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
-    
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-    
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 232 100% 66%;
+  @keyframes accordion-up {
+    from { height: var(--radix-accordion-content-height); }
+    to { height: 0; }
   }
 }
 
-@layer base {
-  * {
-    @apply border-border;
-  }
-  body {
-    @apply bg-background text-foreground antialiased;
-    font-family: 'Inter', 'Plus Jakarta Sans', system-ui, sans-serif;
-    font-feature-settings: 'rlig' 1, 'calt' 1;
-  }
-  
-  /* Modern scrollbars */
-  ::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
-  }
-  
-  ::-webkit-scrollbar-track {
-    background: hsl(var(--muted));
-  }
-  
-  ::-webkit-scrollbar-thumb {
-    background: hsl(var(--muted-foreground) / 0.3);
-    border-radius: 3px;
-  }
-  
-  ::-webkit-scrollbar-thumb:hover {
-    background: hsl(var(--muted-foreground) / 0.5);
-  }
+/* ── CSS Variables (Light) ── */
+:root {
+  --background: 0 0% 100%;
+  --foreground: 224 71% 4%;
+  --card: 0 0% 100%;
+  --card-foreground: 224 71% 4%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 224 71% 4%;
+  --primary: 232 100% 66%;
+  --primary-foreground: 210 40% 98%;
+  --secondary: 201 85% 60%;
+  --secondary-foreground: 210 40% 98%;
+  --muted: 220 14.3% 95.9%;
+  --muted-foreground: 220 8.9% 46.1%;
+  --accent: 199 89% 48%;
+  --accent-foreground: 210 40% 98%;
+  --success: 142 76% 36%;
+  --success-foreground: 210 40% 98%;
+  --warning: 32 95% 44%;
+  --warning-foreground: 210 40% 98%;
+  --destructive: 346 87% 43%;
+  --destructive-foreground: 210 40% 98%;
+  --pink: 322 100% 65%;
+  --pink-foreground: 210 40% 98%;
+  --border: 220 13% 91%;
+  --input: 220 13% 91%;
+  --ring: 221 83% 53%;
+  --radius: 0.5rem;
 }
 
-/* Calendar specific styles */
-@layer components {
-  .calendar-cell {
-    @apply relative;
-  }
-  
-  .calendar-cell:hover .opacity-0 {
-    @apply opacity-100;
-  }
-  
-  .staff-badge {
-    @apply block;
-  }
-  
-  .touch-feedback {
-    @apply transition-all duration-150;
-  }
-  
-  .touch-feedback:active {
-    @apply scale-95;
-  }
+.dark {
+  --background: 222.2 84% 4.9%;
+  --foreground: 210 40% 98%;
+  --card: 222.2 84% 4.9%;
+  --card-foreground: 210 40% 98%;
+  --popover: 222.2 84% 4.9%;
+  --popover-foreground: 210 40% 98%;
+  --primary: 232 100% 66%;
+  --primary-foreground: 222.2 84% 4.9%;
+  --secondary: 217.2 32.6% 17.5%;
+  --secondary-foreground: 210 40% 98%;
+  --muted: 217.2 32.6% 17.5%;
+  --muted-foreground: 215 20.2% 65.1%;
+  --accent: 217.2 32.6% 17.5%;
+  --accent-foreground: 210 40% 98%;
+  --destructive: 0 62.8% 30.6%;
+  --destructive-foreground: 210 40% 98%;
+  --border: 217.2 32.6% 17.5%;
+  --input: 217.2 32.6% 17.5%;
+  --ring: 232 100% 66%;
+}
+
+/* ── Base Styles ── */
+* {
+  border-color: var(--color-border);
+}
+
+body {
+  background-color: var(--color-background);
+  color: var(--color-foreground);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-feature-settings: 'rlig' 1, 'calt' 1;
+}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: hsl(var(--muted));
+}
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--muted-foreground) / 0.3);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground) / 0.5);
+}
+
+/* ── Calendar ── */
+.calendar-cell {
+  position: relative;
+}
+.calendar-cell:hover .opacity-0 {
+  opacity: 1;
+}
+.touch-feedback {
+  transition: all 150ms;
+}
+.touch-feedback:active {
+  transform: scale(0.95);
 }

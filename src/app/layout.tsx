@@ -1,73 +1,44 @@
-import type { Metadata, Viewport } from 'next';
+import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
-import { AuthProvider } from '@/contexts/AuthContext';
-import 'ada-design-system/styles.css';
 import './globals.css';
+import { getServerUser } from '@/lib/auth-server';
+import { AuthProvider } from '@/contexts/AuthContext';
 
-const inter = Inter({
-  subsets: ['latin'],
-  variable: '--font-sans',
-});
-
-export const viewport: Viewport = {
-  width: 'device-width',
-  initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
-  themeColor: '#1f2937',
-  viewportFit: 'cover',
-};
+const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });
 
 export const metadata: Metadata = {
-  title: 'AdaPlanning - Restaurant Staff Scheduling',
-  description: 'Tablet-optimized restaurant staff scheduling application for the Ada ecosystem',
-  manifest: '/manifest.json',
-  appleWebApp: {
-    capable: true,
-    statusBarStyle: 'default',
-    title: 'AdaPlanning',
-    startupImage: [
-      {
-        url: '/icons/splash-2048x2732.png',
-        media: '(device-width: 1024px) and (device-height: 1366px) and (-webkit-device-pixel-ratio: 2)',
-      },
-      {
-        url: '/icons/splash-1668x2224.png', 
-        media: '(device-width: 834px) and (device-height: 1112px) and (-webkit-device-pixel-ratio: 2)',
-      },
-      {
-        url: '/icons/splash-1536x2048.png',
-        media: '(device-width: 768px) and (device-height: 1024px) and (-webkit-device-pixel-ratio: 2)',
-      },
-    ],
-  },
+  title: 'AdaPlanning - Staff Scheduling',
+  description: 'Professional staff scheduling for restaurants powered by AdaAuth',
   icons: {
-    icon: [
-      { url: '/icons/icon-192x192.png', sizes: '192x192', type: 'image/png' },
-      { url: '/icons/icon-512x512.png', sizes: '512x512', type: 'image/png' },
-    ],
-    apple: [
-      { url: '/icons/apple-touch-icon.png', sizes: '180x180', type: 'image/png' },
-    ],
+    icon: '/icons/icon-192x192.png',
+    apple: '/icons/apple-touch-icon.png',
   },
+  manifest: '/manifest.json',
+  other: {
+    'mobile-web-app-capable': 'yes',
+    'apple-mobile-web-app-title': 'AdaPlanning',
+    'apple-mobile-web-app-status-bar-style': 'default',
+  }
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  // Server-side user authentication - single API call per request
+  const user = await getServerUser();
+  
+  console.log('🏗️ Server Layout:', { 
+    hasUser: !!user, 
+    userEmail: user?.email,
+    timestamp: new Date().toISOString() 
+  });
+
   return (
     <html lang="fr" suppressHydrationWarning>
-      <head>
-        <meta name="mobile-web-app-capable" content="yes" />
-        <meta name="apple-mobile-web-app-capable" content="yes" />
-        <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-        <meta name="format-detection" content="telephone=no" />
-        <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
-      </head>
       <body className={`${inter.variable} font-sans antialiased`}>
-        <AuthProvider>
+        <AuthProvider initialUser={user}>
           <div className="min-h-screen bg-background">
             {children}
           </div>

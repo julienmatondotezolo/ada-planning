@@ -1,8 +1,8 @@
 'use client';
 
-import { useSearchParams } from 'next/navigation';
+import { useEffect, useSearchParams } from 'next/navigation';
 import { useRouter } from 'next/navigation';
-import { Suspense, useState, useEffect } from 'react';
+import { Suspense, useState } from 'react';
 import { Spinner, AdaLogo } from 'ada-design-system';
 
 function CallbackHandler() {

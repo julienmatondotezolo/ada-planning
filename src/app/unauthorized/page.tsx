@@ -1,99 +1,41 @@
-'use client';
+import { Metadata } from 'next';
+import Link from 'next/link';
+import { AlertCircle } from 'lucide-react';
+import { Button, Card, CardHeader, CardTitle, CardContent } from 'ada-design-system';
 
-import React from 'react';
-import { useRouter } from 'next/navigation';
-import { useAuth } from '@/contexts/AuthContext';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle, Button, AdaLogo } from 'ada-design-system';
-import { AlertCircle, ArrowLeft, Home, LogOut } from 'lucide-react';
+export const metadata: Metadata = {
+  title: 'Accès non autorisé - AdaPlanning',
+  description: 'Vous n\'avez pas les permissions nécessaires pour accéder à cette page',
+};
 
 export default function UnauthorizedPage() {
-  const { user, logout } = useAuth();
-  const router = useRouter();
-
-  const handleGoHome = () => {
-    router.push('/');
-  };
-
-  const handleGoBack = () => {
-    router.back();
-  };
-
-  const handleLogout = async () => {
-    await logout();
-    router.push('/');
-  };
-
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background px-4">
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
       <Card className="w-full max-w-md">
-        <CardHeader className="text-center space-y-4">
-          <div className="flex justify-center">
-            <AdaLogo size="lg" variant="primary" />
+        <CardHeader className="text-center">
+          <div className="flex justify-center mb-4">
+            <AlertCircle className="h-12 w-12 text-red-500" />
           </div>
-          <div>
-            <CardTitle className="text-2xl font-bold text-primary flex items-center justify-center gap-2">
-              <AlertCircle className="h-6 w-6 text-destructive" />
-              Access Denied
-            </CardTitle>
-            <CardDescription className="mt-2">
-              You don't have permission to access this resource
-            </CardDescription>
-          </div>
+          <CardTitle className="text-xl text-red-600">Accès non autorisé</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
-          {/* User Info */}
-          {user && (
-            <div className="bg-muted/50 rounded-lg p-3 text-sm">
-              <div className="text-muted-foreground">Signed in as:</div>
-              <div className="font-medium">{user.full_name || user.email}</div>
-              <div className="text-xs text-muted-foreground capitalize">
-                Role: {user.role} • Restaurant ID: {user.restaurant_id?.substring(0, 8)}...
-              </div>
-            </div>
-          )}
-
-          {/* Error Message */}
-          <div className="text-center space-y-2">
-            <p className="text-sm text-muted-foreground">
-              Your current role doesn't have access to this page. Please contact your administrator if you believe this is an error.
-            </p>
-          </div>
-
-          {/* Action Buttons */}
-          <div className="space-y-3 pt-4">
-            <Button 
-              onClick={handleGoHome} 
-              className="w-full"
-              variant="default"
-            >
-              <Home className="h-4 w-4 mr-2" />
-              Go to Dashboard
+        <CardContent className="text-center space-y-4">
+          <p className="text-gray-600">
+            Vous n'avez pas les permissions nécessaires pour accéder à cette page.
+          </p>
+          <p className="text-sm text-gray-500">
+            Contactez votre administrateur si vous pensez que c'est une erreur.
+          </p>
+          <div className="space-y-2">
+            <Button asChild className="w-full">
+              <Link href="/">
+                Retour à l'accueil
+              </Link>
             </Button>
-            
-            <Button 
-              onClick={handleGoBack} 
-              className="w-full"
-              variant="outline"
-            >
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Go Back
+            <Button variant="outline" asChild className="w-full">
+              <Link href="https://adaauth.mindgen.app/dashboard">
+                Tableau de bord AdaAuth
+              </Link>
             </Button>
-            
-            <Button 
-              onClick={handleLogout} 
-              className="w-full"
-              variant="secondary"
-            >
-              <LogOut className="h-4 w-4 mr-2" />
-              Sign Out
-            </Button>
-          </div>
-
-          {/* Help Text */}
-          <div className="text-center pt-4 border-t">
-            <p className="text-xs text-muted-foreground">
-              Need help? Contact support for assistance with access permissions.
-            </p>
           </div>
         </CardContent>
       </Card>
