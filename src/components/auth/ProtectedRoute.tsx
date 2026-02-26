@@ -19,8 +19,20 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   const router = useRouter();
 
   useEffect(() => {
+    // DEBUG: Log current state
+    console.log('🔍 ProtectedRoute state check:', { 
+      isHydrated, 
+      loading, 
+      user: !!user,
+      userEmail: user?.email,
+      userRole: user?.role 
+    });
+    
     // Only act after hydration is complete to prevent SSR mismatch
-    if (!isHydrated) return;
+    if (!isHydrated) {
+      console.log('⏳ ProtectedRoute: Waiting for hydration...');
+      return;
+    }
     
     // Only redirect if not loading and no user found
     if (!loading && !user) {
@@ -32,6 +44,15 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
       }, 500); // Faster redirect for better UX
 
       return () => clearTimeout(redirectTimer);
+    }
+    
+    // User found!
+    if (!loading && user) {
+      console.log('✅ ProtectedRoute: User authenticated!', { 
+        email: user.email, 
+        role: user.role, 
+        requiredRole 
+      });
     }
 
     // Check role permissions after user is loaded

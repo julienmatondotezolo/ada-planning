@@ -13,6 +13,7 @@ import {
   User
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { Button, AdaLogo } from 'ada-design-system';
 
 const NAVIGATION_ITEMS = [
   {
@@ -83,9 +84,7 @@ export function Sidebar() {
       {/* Logo/Brand */}
       <div className="p-6 border-b border-gray-200">
         <div className="flex items-center space-x-3">
-          <div className="w-10 h-10 bg-primary text-primary-foreground rounded-lg flex items-center justify-center font-bold text-lg">
-            A
-          </div>
+          <AdaLogo size="lg" variant="primary" />
           <div>
             <div className="font-semibold text-gray-900">AdaPlanning</div>
             <div className="text-xs text-gray-500">Staff Scheduling</div>
@@ -103,9 +102,9 @@ export function Sidebar() {
                 <a
                   href={item.href}
                   className={cn(
-                    'flex-1 flex items-center space-x-3 px-3 py-2 rounded-md text-sm font-medium transition-colors touch-feedback',
+                    'flex-1 flex items-center space-x-3 px-3 py-2 rounded-md text-sm font-medium transition-colors',
                     {
-                      'bg-primary text-primary-foreground': item.active,
+                      'bg-blue-600 text-white': item.active,
                       'text-gray-700 hover:bg-gray-100': !item.active,
                     }
                   )}
@@ -136,7 +135,7 @@ export function Sidebar() {
                     <li key={child.id}>
                       <a
                         href={child.href}
-                        className="block px-3 py-2 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-50 rounded-md transition-colors touch-feedback"
+                        className="block px-3 py-2 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-50 rounded-md transition-colors"
                       >
                         {child.label}
                       </a>
@@ -162,7 +161,7 @@ export function Sidebar() {
           {STAFF_QUICK_ACCESS.slice(0, 4).map((staff) => (
             <div
               key={staff.id}
-              className="flex items-center space-x-3 p-2 rounded-md hover:bg-gray-50 cursor-pointer transition-colors touch-feedback"
+              className="flex items-center space-x-3 p-2 rounded-md hover:bg-gray-50 cursor-pointer transition-colors"
             >
               <div
                 className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-semibold"
@@ -191,15 +190,15 @@ export function Sidebar() {
 
       {/* Quick Actions */}
       <div className="border-t border-gray-200 p-4 space-y-2">
-        <button className="ada-button-primary w-full justify-center">
+        <Button className="w-full" size="sm">
           <Plus className="w-4 h-4 mr-2" />
           Nouvelle Affectation
-        </button>
+        </Button>
         
-        <button className="ada-button-secondary w-full justify-center">
+        <Button variant="outline" className="w-full" size="sm">
           <Calendar className="w-4 h-4 mr-2" />
           Voir Planning
-        </button>
+        </Button>
       </div>
     </div>
   );

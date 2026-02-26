@@ -123,10 +123,10 @@ export function CalendarView() {
   return (
     <div className="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
       {/* Calendar Header */}
-      <div className="bg-primary text-primary-foreground px-6 py-4 flex items-center justify-between">
+      <div className="bg-blue-600 text-white px-6 py-4 flex items-center justify-between">
         <button
           onClick={() => navigateMonth('prev')}
-          className="p-2 hover:bg-primary/80 rounded-md transition-colors touch-feedback"
+          className="p-2 hover:bg-blue-700 rounded-md transition-colors"
         >
           <ChevronLeft className="w-5 h-5" />
         </button>
@@ -137,7 +137,7 @@ export function CalendarView() {
         
         <button
           onClick={() => navigateMonth('next')}
-          className="p-2 hover:bg-primary/80 rounded-md transition-colors touch-feedback"
+          className="p-2 hover:bg-blue-700 rounded-md transition-colors"
         >
           <ChevronRight className="w-5 h-5" />
         </button>

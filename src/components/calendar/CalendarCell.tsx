@@ -67,7 +67,7 @@ export function CalendarCell({
               e.stopPropagation();
               onCellClick();
             }}
-            className="opacity-0 group-hover:opacity-100 hover:opacity-100 p-1 rounded-md hover:bg-gray-200 transition-all touch-feedback"
+            className="opacity-0 group-hover:opacity-100 hover:opacity-100 p-1 rounded-md hover:bg-gray-200 transition-all"
           >
             <Plus className="w-3 h-3 text-gray-500" />
           </button>
@@ -85,7 +85,7 @@ export function CalendarCell({
             }}
             className={cn(
               'staff-badge px-2 py-1 rounded text-xs font-medium cursor-pointer',
-              'hover:opacity-80 transition-opacity touch-feedback',
+              'hover:opacity-80 transition-opacity',
               'truncate w-full text-center'
             )}
             style={{

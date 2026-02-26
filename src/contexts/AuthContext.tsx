@@ -258,15 +258,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     
     const initializeAuth = async () => {
       try {
-        console.log('🚀 Initializing authentication...');
-        
-        // Set a maximum initialization timeout
-        const timeoutPromise = new Promise((resolve) => {
-          setTimeout(() => {
-            console.log('⏰ Auth initialization timeout - using fallback');
-            setLoading(false);
-            resolve('timeout');
-          }, 8000); // 8 second maximum initialization time
+        console.log('🚀 Initializing authentication...', { 
+          currentUser: !!user, 
+          currentLoading: loading,
+          url: window.location.href 
         });
         
         // Check for existing token
@@ -319,10 +314,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     };
 
+    // Set a maximum initialization timeout at the correct scope
+    let timeoutId: NodeJS.Timeout;
+    const timeoutPromise = new Promise((resolve) => {
+      timeoutId = setTimeout(() => {
+        console.log('⏰ Auth initialization timeout - using fallback');
+        setLoading(false);
+        resolve('timeout');
+      }, 8000); // 8 second maximum initialization time
+    });
+
     // Race between initialization and timeout
     Promise.race([initializeAuth(), timeoutPromise])
       .then((result) => {
         console.log(`🎯 Auth initialization complete: ${result}`);
+        // If initialization succeeded, clear the timeout
+        if (result === 'success' || result === 'no-token') {
+          clearTimeout(timeoutId);
+          console.log('🚫 Timeout cancelled - auth initialization succeeded');
+        }
       });
     
   }, []); // Empty dependency array - runs only once
