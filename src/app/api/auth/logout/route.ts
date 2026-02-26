@@ -5,7 +5,7 @@ export async function POST(request: NextRequest) {
   try {
     console.log('🚪 Processing logout request...');
     
-    const cookieStore = cookies();
+    const cookieStore = await cookies();
     const token = cookieStore.get('ada_access_token')?.value;
     
     // Optional: Call AdaAuth logout endpoint to invalidate token
@@ -43,7 +43,7 @@ export async function POST(request: NextRequest) {
     console.error('❌ Logout error:', error);
     
     // Still try to clear cookie even on error
-    const cookieStore = cookies();
+    const cookieStore = await cookies();
     cookieStore.delete('ada_access_token');
     
     return NextResponse.json({ 

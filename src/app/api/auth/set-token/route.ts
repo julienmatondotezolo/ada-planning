@@ -13,7 +13,7 @@ export async function POST(request: NextRequest) {
     console.log('🔐 Setting authentication cookie...');
     
     // Set secure httpOnly cookie
-    const cookieStore = cookies();
+    const cookieStore = await cookies();
     cookieStore.set('ada_access_token', token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',

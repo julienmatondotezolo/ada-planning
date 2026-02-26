@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react';
 import { Metadata } from 'next';
 import { Header } from '@/components/layout/Header';
 import { Sidebar } from '@/components/layout/Sidebar';
-import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 import { staffApi, type Staff } from '@/lib/api';
 import { 
   Users, 
@@ -103,8 +102,8 @@ export default function SettingsPage() {
     }
   };
 
+  // Authentication + role protection handled by middleware + Server Components
   return (
-    <ProtectedRoute requiredRole="manager">
       <div className="flex h-screen bg-background">
       {/* Sidebar */}
       <aside className="w-80 bg-card border-r border-border">
@@ -254,6 +253,5 @@ export default function SettingsPage() {
         </main>
       </div>
     </div>
-    </ProtectedRoute>
   );
 }

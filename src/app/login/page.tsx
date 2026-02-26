@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, Suspense } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { 
   Card, 
@@ -15,48 +15,37 @@ import {
 import { ExternalLink, LogIn } from 'lucide-react';
 
 function LoginPageContent() {
-  const { user, loading } = useAuth();
-  const router = useRouter();
+  const { user } = useAuth();
   const searchParams = useSearchParams();
 
   // Get redirect URL from search params
   const redirectTo = searchParams.get('redirect') || '/';
 
-  // Redirect if already authenticated
+  // If user is already authenticated (shouldn't happen — middleware redirects),
+  // just navigate to the target page
   useEffect(() => {
-    if (!loading && user) {
+    if (user) {
       console.log('✅ User already authenticated, redirecting...');
-      router.push(redirectTo);
+      window.location.href = redirectTo;
     }
-  }, [user, loading, redirectTo]); // REMOVED router from dependencies
+  }, [user, redirectTo]);
 
   // Auto-redirect to AdaAuth for SSO
   useEffect(() => {
-    if (!loading && !user) {
+    if (!user) {
       console.log('🔄 No user found, redirecting to AdaAuth in 1.5s...');
-      // Build redirect URL to come back to ada-planning after auth
-      const currentUrl = encodeURIComponent(window.location.origin + '/auth/callback?redirect=' + encodeURIComponent(redirectTo));
+      const currentUrl = encodeURIComponent(
+        window.location.origin + '/auth/callback?redirect=' + encodeURIComponent(redirectTo)
+      );
       
-      // Redirect to AdaAuth centralized login
       const redirectTimer = setTimeout(() => {
         console.log('🔗 Redirecting to AdaAuth SSO now...');
         window.location.href = `https://adaauth.mindgen.app/?redirect=${currentUrl}`;
-      }, 1500); // Short delay to show the redirect message
+      }, 1500);
       
       return () => clearTimeout(redirectTimer);
     }
-  }, [loading, user, redirectTo]);
-
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="text-center">
-          <Spinner size="lg" variant="primary" />
-          <p className="mt-2 text-muted-foreground">Loading...</p>
-        </div>
-      </div>
-    );
-  }
+  }, [user, redirectTo]);
 
   if (user) {
     return null; // Will redirect
@@ -85,7 +74,7 @@ function LoginPageContent() {
           
           <div className="space-y-2">
             <p className="text-sm text-muted-foreground">
-              You'll be redirected to AdaAuth for secure login
+              You&apos;ll be redirected to AdaAuth for secure login
             </p>
             
             <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
@@ -97,7 +86,7 @@ function LoginPageContent() {
           {/* Manual redirect link if auto-redirect fails */}
           <div className="pt-4 border-t">
             <p className="text-xs text-muted-foreground mb-2">
-              If you're not redirected automatically:
+              If you&apos;re not redirected automatically:
             </p>
             <a
               href={`https://adaauth.mindgen.app/?redirect=${encodeURIComponent(window.location.origin + '/auth/callback?redirect=' + encodeURIComponent(redirectTo))}`}

@@ -13,7 +13,7 @@ export interface User {
 }
 
 export async function getServerUser(): Promise<User | null> {
-  const cookieStore = cookies();
+  const cookieStore = await cookies();
   const token = cookieStore.get('ada_access_token')?.value;
   
   if (!token) {
