@@ -75,7 +75,7 @@ function AuthCallbackContent() {
           
           if (isMounted) {
             setStatus('success');
-            setMessage(`Welcome ${userData.full_name || userData.email}! Redirecting...`);
+            setMessage(`Welcome ${userData.full_name || userData.email}! Redirecting to AdaPlanning...`);
             setDebugInfo(`Authenticated as ${userData.role} for L'Osteria`);
             
             // Set user in auth context and wait for it to complete
@@ -83,14 +83,30 @@ function AuthCallbackContent() {
               await authenticateWithToken(token);
               console.log('✅ Auth context updated successfully');
               
-              // Short delay for UI feedback, then smooth redirect
+              // Multiple redirect strategies for robustness
               setTimeout(() => {
                 if (isMounted) {
-                  console.log('↗️ Redirecting to:', redirectTo);
-                  // Use Next.js router for smooth navigation (no white screen)
-                  router.push(redirectTo);
+                  console.log('↗️ ATTEMPTING REDIRECT to:', redirectTo);
+                  
+                  // Strategy 1: Next.js router (preferred)
+                  try {
+                    console.log('🔄 Trying router.push...');
+                    router.push(redirectTo);
+                    
+                    // Strategy 2: Fallback with window.location after delay
+                    setTimeout(() => {
+                      console.log('🔄 Fallback: Using window.location.href');
+                      window.location.href = redirectTo;
+                    }, 2000);
+                    
+                  } catch (routerError) {
+                    console.error('❌ router.push failed:', routerError);
+                    // Strategy 3: Immediate window.location fallback
+                    console.log('🔄 Emergency fallback: window.location.replace');
+                    window.location.replace(redirectTo);
+                  }
                 }
-              }, 800); // Reduced delay for faster UX
+              }, 500); // Faster redirect
               
             } catch (authError) {
               console.error('❌ Auth context update failed:', authError);
@@ -175,6 +191,19 @@ function AuthCallbackContent() {
                     {debugInfo}
                   </div>
                 )}
+                
+                {/* Manual redirect button as backup */}
+                <div className="pt-2">
+                  <button
+                    onClick={() => {
+                      console.log('🔄 Manual redirect clicked');
+                      window.location.href = redirectTo;
+                    }}
+                    className="text-xs text-primary hover:underline"
+                  >
+                    Click here if redirect doesn't work
+                  </button>
+                </div>
               </div>
             )}
             
