@@ -830,7 +830,8 @@ export function CalendarView() {
 
   const handleDragOver = (e: React.DragEvent, date: Date) => {
     e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
+    // effectAllowed is 'copy' from legend, 'move' from existing shifts
+    e.dataTransfer.dropEffect = e.dataTransfer.effectAllowed === 'copy' ? 'copy' : 'move';
     const dateKey = format(date, 'yyyy-MM-dd');
     if (dragOverDate !== dateKey) {
       setDragOverDate(dateKey);
