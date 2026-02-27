@@ -259,6 +259,7 @@ function ShiftDialog({
   shift,
   staff,
   servicePresets,
+  defaultStaffId,
   onSave,
   onDelete,
 }: {
@@ -268,6 +269,7 @@ function ShiftDialog({
   shift: ShiftAssignment | null;
   staff: StaffMember[];
   servicePresets: ShiftPreset[];
+  defaultStaffId?: string;
   onSave: (data: {
     staffId: string;
     startTime: string;
@@ -276,7 +278,7 @@ function ShiftDialog({
   }) => void;
   onDelete?: () => void;
 }) {
-  const [selectedStaff, setSelectedStaff] = useState(shift?.staffId || '');
+  const [selectedStaff, setSelectedStaff] = useState(shift?.staffId || defaultStaffId || '');
   const [selectedService, setSelectedService] = useState('');
   const [startTime, setStartTime] = useState(shift?.startTime || '17:00');
   const [endTime, setEndTime] = useState(shift?.endTime || '23:00');
@@ -284,7 +286,7 @@ function ShiftDialog({
   // Reset form when dialog opens with new data
   useEffect(() => {
     if (open) {
-      setSelectedStaff(shift?.staffId || '');
+      setSelectedStaff(shift?.staffId || defaultStaffId || '');
       setStartTime(shift?.startTime || '17:00');
       setEndTime(shift?.endTime || '23:00');
 
@@ -502,11 +504,15 @@ function ShiftDialog({
 
 function StaffLegend({ staff }: { staff: StaffMember[] }) {
   return (
-    <div className="flex items-center gap-3 overflow-x-auto py-1 px-1 scrollbar-none">
+    <div className="flex items-center gap-2 overflow-x-auto py-1 px-1 scrollbar-none">
       {staff.map((s) => (
         <div
           key={s.id}
-          className="flex items-center gap-1.5 shrink-0"
+          className="flex items-center gap-1.5 shrink-0 px-2.5 py-1 rounded-md cursor-grab active:cursor-grabbing hover:brightness-95 transition-all border-2"
+          style={{
+            borderColor: s.color,
+            backgroundColor: `${s.color}20`,
+          }}
           draggable
           onDragStart={(e) => {
             e.dataTransfer.setData('text/plain', JSON.stringify({ staffId: s.id, isNew: true }));
@@ -514,10 +520,10 @@ function StaffLegend({ staff }: { staff: StaffMember[] }) {
           }}
         >
           <div
-            className="w-3 h-3 rounded-full ring-1 ring-black/10"
+            className="w-2.5 h-2.5 rounded-full shrink-0"
             style={{ backgroundColor: s.color }}
           />
-          <span className="text-xs text-muted-foreground font-medium cursor-grab active:cursor-grabbing">
+          <span className="text-xs font-semibold" style={{ color: s.color }}>
             {s.name}
           </span>
         </div>
@@ -638,6 +644,7 @@ export function CalendarView() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [dialogDate, setDialogDate] = useState<Date>(new Date());
   const [editingShift, setEditingShift] = useState<ShiftAssignment | null>(null);
+  const [dialogDefaultStaffId, setDialogDefaultStaffId] = useState<string | undefined>();
   const [dragOverDate, setDragOverDate] = useState<string | null>(null);
   const [draggedShift, setDraggedShift] = useState<{
     shift: ShiftAssignment;
@@ -692,12 +699,14 @@ export function CalendarView() {
 
   const handleCellClick = (date: Date) => {
     setEditingShift(null);
+    setDialogDefaultStaffId(undefined);
     setDialogDate(date);
     setDialogOpen(true);
   };
 
   const handleShiftClick = (shift: ShiftAssignment, date: Date) => {
     setEditingShift(shift);
+    setDialogDefaultStaffId(undefined);
     setDialogDate(date);
     setDialogOpen(true);
   };
@@ -841,38 +850,15 @@ export function CalendarView() {
     try {
       const data = JSON.parse(e.dataTransfer.getData('text/plain'));
 
-      // Handle drag from staff legend (create new shift)
+      // Handle drag from staff legend — open dialog with staff pre-selected
       if (data.isNew) {
         const staffMember = staff.find((s) => s.id === data.staffId);
         if (!staffMember) return;
 
-        // Create shift via API
-        shiftsApi.create({
-          employee_id: staffMember.id,
-          scheduled_date: targetDateKey,
-          start_time: '17:00',
-          end_time: '23:00',
-          position: staffMember.position,
-        }).then((res) => {
-          if (res.success && res.data) {
-            setShifts((prev) => {
-              const updated = { ...prev };
-              const dayShifts = [...(updated[targetDateKey] || [])];
-              dayShifts.push({
-                id: res.data.id,
-                staffId: staffMember.id,
-                name: staffMember.name,
-                color: staffMember.color,
-                position: staffMember.position,
-                initials: staffMember.initials,
-                startTime: '17:00',
-                endTime: '23:00',
-              });
-              updated[targetDateKey] = dayShifts;
-              return updated;
-            });
-          }
-        });
+        setEditingShift(null);
+        setDialogDefaultStaffId(staffMember.id);
+        setDialogDate(targetDate);
+        setDialogOpen(true);
         return;
       }
 
@@ -1034,6 +1020,7 @@ export function CalendarView() {
         shift={editingShift}
         staff={staff}
         servicePresets={servicePresets}
+        defaultStaffId={dialogDefaultStaffId}
         onSave={handleSave}
         onDelete={editingShift ? handleDelete : undefined}
       />
