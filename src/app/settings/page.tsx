@@ -4,7 +4,8 @@ import { useState, useMemo } from 'react';
 import { AppShell } from '@/components/layout/AppShell';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRestaurantSettings, useMyRestaurant, useUpdateSettings } from '@/hooks/useSettings';
-import type { RestaurantSettings } from '@/lib/api';
+import { useShiftPresets, useCreateShiftPreset, useUpdateShiftPreset, useDeleteShiftPreset } from '@/hooks/useShiftPresets';
+import type { RestaurantSettings, ShiftPreset, ShiftTimeRange } from '@/lib/api';
 import {
   Settings as SettingsIcon,
   Building,
@@ -15,6 +16,9 @@ import {
   Save,
   User,
   Shield,
+  Pencil,
+  X,
+  GripVertical,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
@@ -36,13 +40,19 @@ import {
   Avatar,
   AvatarFallback,
   Skeleton,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
 } from 'ada-design-system';
 
-type SettingsTab = 'restaurant' | 'schedule' | 'notifications' | 'account';
+type SettingsTab = 'restaurant' | 'shifts' | 'notifications' | 'account';
 
 const TABS: { id: SettingsTab; label: string; icon: React.ElementType }[] = [
   { id: 'restaurant', label: 'Restaurant', icon: Building },
-  { id: 'schedule', label: 'Horaires', icon: Clock },
+  { id: 'shifts', label: 'Shifts', icon: Clock },
   { id: 'notifications', label: 'Notifications', icon: Bell },
   { id: 'account', label: 'Mon compte', icon: User },
 ];
@@ -90,7 +100,7 @@ export default function SettingsPage() {
           {/* Tab content */}
           <div className="flex-1 min-w-0">
             {activeTab === 'restaurant' && <RestaurantSettings userRole={user?.role} />}
-            {activeTab === 'schedule' && <ScheduleSettings userRole={user?.role} />}
+            {activeTab === 'shifts' && <ShiftPresetsSettings userRole={user?.role} />}
             {activeTab === 'notifications' && <NotificationSettings />}
             {activeTab === 'account' && <AccountSettings user={user} />}
           </div>
@@ -536,41 +546,124 @@ function OpeningHoursCard({ initialOpeningHours, isStaff }: { initialOpeningHour
   );
 }
 
-/* ---------- Schedule Settings ---------- */
-function ScheduleSettings({ userRole }: { userRole?: string }) {
-  const isStaff = !userRole || userRole === 'staff';
-  const { data: settings, isLoading } = useRestaurantSettings();
-  const updateSettings = useUpdateSettings();
+/* ---------- Shift Presets Settings ---------- */
 
-  const [rules, setRules] = useState({
-    default_break_minutes: 30,
-    max_hours_per_week: 38,
-    min_staff_per_service: 2,
-    min_rest_days_per_week: 2,
-  });
-  const [hasChanges, setHasChanges] = useState(false);
-  const [initialized, setInitialized] = useState(false);
+const PRESET_COLORS = [
+  { value: '#22c55e', label: 'Vert', class: 'bg-green-500' },
+  { value: '#6366f1', label: 'Indigo', class: 'bg-indigo-500' },
+  { value: '#f59e0b', label: 'Ambre', class: 'bg-amber-500' },
+  { value: '#ef4444', label: 'Rouge', class: 'bg-red-500' },
+  { value: '#3b82f6', label: 'Bleu', class: 'bg-blue-500' },
+  { value: '#8b5cf6', label: 'Violet', class: 'bg-violet-500' },
+  { value: '#ec4899', label: 'Rose', class: 'bg-pink-500' },
+  { value: '#14b8a6', label: 'Teal', class: 'bg-teal-500' },
+  { value: '#f97316', label: 'Orange', class: 'bg-orange-500' },
+  { value: '#64748b', label: 'Gris', class: 'bg-slate-500' },
+];
 
-  // Sync from server once
-  if (settings?.schedule_rules && !initialized) {
-    setRules(settings.schedule_rules);
-    setInitialized(true);
+const SHIFT_TIME_OPTIONS: string[] = [];
+for (let h = 6; h < 24; h++) {
+  for (let m = 0; m < 60; m += 15) {
+    SHIFT_TIME_OPTIONS.push(`${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`);
   }
+}
 
-  const updateRule = (field: string, value: number) => {
-    setRules((prev) => ({ ...prev, [field]: value }));
-    setHasChanges(true);
+function ShiftPresetsSettings({ userRole }: { userRole?: string }) {
+  const isStaff = !userRole || userRole === 'staff';
+  const { data: presets, isLoading } = useShiftPresets();
+  const createPreset = useCreateShiftPreset();
+  const updatePreset = useUpdateShiftPreset();
+  const deletePreset = useDeleteShiftPreset();
+
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingPreset, setEditingPreset] = useState<ShiftPreset | null>(null);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+
+  // Form state
+  const [formName, setFormName] = useState('');
+  const [formColor, setFormColor] = useState('#6366f1');
+  const [formShifts, setFormShifts] = useState<ShiftTimeRange[]>([{ start_time: '12:00', end_time: '14:00' }]);
+
+  const openCreateDialog = () => {
+    setEditingPreset(null);
+    setFormName('');
+    setFormColor('#6366f1');
+    setFormShifts([{ start_time: '12:00', end_time: '14:00' }]);
+    setDialogOpen(true);
+  };
+
+  const openEditDialog = (preset: ShiftPreset) => {
+    setEditingPreset(preset);
+    setFormName(preset.name);
+    setFormColor(preset.color);
+    setFormShifts(preset.shifts.length > 0 ? [...preset.shifts] : [{ start_time: '12:00', end_time: '14:00' }]);
+    setDialogOpen(true);
+  };
+
+  const addTimeRange = () => {
+    setFormShifts((prev) => [...prev, { start_time: '18:30', end_time: '21:30' }]);
+  };
+
+  const removeTimeRange = (index: number) => {
+    setFormShifts((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const updateTimeRange = (index: number, field: 'start_time' | 'end_time', value: string) => {
+    setFormShifts((prev) => prev.map((s, i) => i === index ? { ...s, [field]: value } : s));
   };
 
   const handleSave = () => {
-    updateSettings.mutate(
-      { schedule_rules: rules },
-      { onSuccess: () => setHasChanges(false) }
-    );
+    if (!formName.trim() || formShifts.length === 0) return;
+
+    const data = {
+      name: formName.trim(),
+      color: formColor,
+      shifts: formShifts,
+    };
+
+    if (editingPreset) {
+      updatePreset.mutate(
+        { id: editingPreset.id, data },
+        { onSuccess: () => setDialogOpen(false) }
+      );
+    } else {
+      createPreset.mutate(
+        { ...data, sort_order: (presets?.length || 0) },
+        { onSuccess: () => setDialogOpen(false) }
+      );
+    }
+  };
+
+  const handleDelete = (id: string) => {
+    deletePreset.mutate(id, {
+      onSuccess: () => setDeleteConfirmId(null),
+    });
+  };
+
+  const formatTimeRanges = (shifts: ShiftTimeRange[]) => {
+    return shifts.map((s) => `${s.start_time} – ${s.end_time}`).join('  •  ');
+  };
+
+  const computeHours = (shifts: ShiftTimeRange[]) => {
+    let total = 0;
+    for (const s of shifts) {
+      const [sh, sm] = s.start_time.split(':').map(Number);
+      const [eh, em] = s.end_time.split(':').map(Number);
+      total += (eh * 60 + em) - (sh * 60 + sm);
+    }
+    const hrs = Math.floor(total / 60);
+    const mins = total % 60;
+    return mins > 0 ? `${hrs}h${mins.toString().padStart(2, '0')}` : `${hrs}h`;
   };
 
   if (isLoading) {
-    return <Card><CardContent className="p-6"><Skeleton className="h-48 w-full" /></CardContent></Card>;
+    return (
+      <Card>
+        <CardContent className="p-6">
+          <Skeleton className="h-48 w-full" />
+        </CardContent>
+      </Card>
+    );
   }
 
   return (
@@ -578,45 +671,254 @@ function ScheduleSettings({ userRole }: { userRole?: string }) {
       {isStaff && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 flex items-center gap-2">
           <Shield className="w-4 h-4 shrink-0" />
-          Vous avez un accès en lecture seule. Contactez un manager pour modifier les règles.
+          Vous avez un accès en lecture seule. Contactez un manager pour modifier les shifts.
         </div>
       )}
+
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg">Règles de planification</CardTitle>
-          <CardDescription>Paramètres par défaut pour la création de shifts</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="flex items-center justify-between">
             <div>
-              <Label>Pause par défaut (min)</Label>
-              <Input type="number" value={rules.default_break_minutes} onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateRule('default_break_minutes', Number(e.target.value))} disabled={isStaff} />
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Clock className="w-5 h-5 text-primary" />
+                Modèles de shifts
+              </CardTitle>
+              <CardDescription>
+                Créez des modèles de shifts réutilisables pour la planification (ex: Midi, Soir, Journée)
+              </CardDescription>
             </div>
-            <div>
-              <Label>Heures max/semaine</Label>
-              <Input type="number" value={rules.max_hours_per_week} onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateRule('max_hours_per_week', Number(e.target.value))} disabled={isStaff} />
-            </div>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <Label>Personnel min. par service</Label>
-              <Input type="number" value={rules.min_staff_per_service} onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateRule('min_staff_per_service', Number(e.target.value))} disabled={isStaff} />
-            </div>
-            <div>
-              <Label>Jours de repos min./semaine</Label>
-              <Input type="number" value={rules.min_rest_days_per_week} onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateRule('min_rest_days_per_week', Number(e.target.value))} disabled={isStaff} />
-            </div>
-          </div>
-          {!isStaff && (
-            <div className="flex justify-end">
-              <Button onClick={handleSave} disabled={!hasChanges || updateSettings.isPending}>
-                <Save className="w-4 h-4 mr-2" />
-                {updateSettings.isPending ? 'Enregistrement...' : 'Enregistrer'}
+            {!isStaff && (
+              <Button onClick={openCreateDialog} size="sm">
+                <Plus className="w-4 h-4 mr-2" />
+                Nouveau
               </Button>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent className="p-0">
+          {!presets || presets.length === 0 ? (
+            <div className="px-6 pb-6 text-center py-8">
+              <Clock className="w-10 h-10 mx-auto text-muted-foreground/40 mb-3" />
+              <p className="text-sm text-muted-foreground">Aucun modèle de shift créé</p>
+              {!isStaff && (
+                <Button variant="outline" size="sm" className="mt-3" onClick={openCreateDialog}>
+                  <Plus className="w-4 h-4 mr-2" />
+                  Créer un modèle
+                </Button>
+              )}
+            </div>
+          ) : (
+            <div className="divide-y divide-border">
+              {presets.map((preset) => (
+                <div
+                  key={preset.id}
+                  className="flex items-center gap-3 px-6 py-3 hover:bg-muted/50 transition-colors group"
+                >
+                  {/* Color dot */}
+                  <div
+                    className="w-3 h-3 rounded-full shrink-0"
+                    style={{ backgroundColor: preset.color }}
+                  />
+
+                  {/* Name + time ranges */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-sm text-foreground">{preset.name}</span>
+                      <Badge variant="outline" className="text-[10px] px-1.5 py-0 font-normal">
+                        {computeHours(preset.shifts)}
+                      </Badge>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {formatTimeRanges(preset.shifts)}
+                    </p>
+                  </div>
+
+                  {/* Actions */}
+                  {!isStaff && (
+                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-muted-foreground hover:text-primary"
+                        onClick={() => openEditDialog(preset)}
+                      >
+                        <Pencil className="w-3.5 h-3.5" />
+                      </Button>
+
+                      {deleteConfirmId === preset.id ? (
+                        <div className="flex items-center gap-1">
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            className="h-8 text-xs"
+                            onClick={() => handleDelete(preset.id)}
+                            disabled={deletePreset.isPending}
+                          >
+                            {deletePreset.isPending ? '...' : 'Supprimer'}
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={() => setDeleteConfirmId(null)}
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </Button>
+                        </div>
+                      ) : (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                          onClick={() => setDeleteConfirmId(preset.id)}
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </Button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ))}
             </div>
           )}
         </CardContent>
       </Card>
+
+      {/* Create / Edit Dialog */}
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent className="sm:max-w-[480px]">
+          <DialogHeader>
+            <DialogTitle>{editingPreset ? 'Modifier le shift' : 'Nouveau modèle de shift'}</DialogTitle>
+            <DialogDescription>
+              {editingPreset
+                ? 'Modifiez le nom, la couleur et les créneaux horaires.'
+                : 'Définissez un modèle réutilisable avec un ou plusieurs créneaux horaires.'}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 mt-2">
+            {/* Name */}
+            <div>
+              <Label>Nom du shift</Label>
+              <Input
+                placeholder="ex: Midi, Soir, Coupure..."
+                value={formName}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormName(e.target.value)}
+                autoFocus
+              />
+            </div>
+
+            {/* Color */}
+            <div>
+              <Label className="mb-2 block">Couleur</Label>
+              <div className="flex flex-wrap gap-2">
+                {PRESET_COLORS.map((c) => (
+                  <button
+                    key={c.value}
+                    onClick={() => setFormColor(c.value)}
+                    className={cn(
+                      'w-8 h-8 rounded-full transition-all border-2',
+                      formColor === c.value
+                        ? 'border-foreground scale-110 shadow-md'
+                        : 'border-transparent hover:scale-105'
+                    )}
+                    style={{ backgroundColor: c.value }}
+                    title={c.label}
+                  />
+                ))}
+              </div>
+            </div>
+
+            {/* Time ranges */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <Label>Créneaux horaires</Label>
+                <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={addTimeRange}>
+                  <Plus className="w-3 h-3 mr-1" />
+                  Ajouter
+                </Button>
+              </div>
+              <div className="space-y-2">
+                {formShifts.map((shift, idx) => (
+                  <div key={idx} className="flex items-center gap-2">
+                    <Select value={shift.start_time} onValueChange={(v: string) => updateTimeRange(idx, 'start_time', v)}>
+                      <SelectTrigger className="h-9 text-sm flex-1">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-[200px]">
+                        {SHIFT_TIME_OPTIONS.map((t) => (
+                          <SelectItem key={t} value={t}>{t}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+
+                    <span className="text-xs text-muted-foreground shrink-0">à</span>
+
+                    <Select value={shift.end_time} onValueChange={(v: string) => updateTimeRange(idx, 'end_time', v)}>
+                      <SelectTrigger className={cn(
+                        'h-9 text-sm flex-1',
+                        shift.start_time >= shift.end_time && 'border-destructive'
+                      )}>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-[200px]">
+                        {SHIFT_TIME_OPTIONS.map((t) => (
+                          <SelectItem key={t} value={t}>{t}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+
+                    {formShifts.length > 1 && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-9 w-9 shrink-0 text-muted-foreground hover:text-destructive"
+                        onClick={() => removeTimeRange(idx)}
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </Button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Preview */}
+            <div className="rounded-lg border border-border bg-muted/30 p-3">
+              <div className="text-xs font-medium text-muted-foreground mb-1.5">Aperçu</div>
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: formColor }} />
+                <span className="font-medium text-sm">{formName || 'Sans nom'}</span>
+                <Badge variant="outline" className="text-[10px] px-1.5 py-0 font-normal ml-auto">
+                  {computeHours(formShifts)}
+                </Badge>
+              </div>
+              <p className="text-xs text-muted-foreground mt-1 ml-5">
+                {formatTimeRanges(formShifts)}
+              </p>
+            </div>
+
+            {/* Actions */}
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="outline" onClick={() => setDialogOpen(false)}>
+                Annuler
+              </Button>
+              <Button
+                onClick={handleSave}
+                disabled={
+                  !formName.trim() ||
+                  formShifts.length === 0 ||
+                  createPreset.isPending ||
+                  updatePreset.isPending
+                }
+              >
+                <Save className="w-4 h-4 mr-2" />
+                {(createPreset.isPending || updatePreset.isPending) ? 'Enregistrement...' : editingPreset ? 'Modifier' : 'Créer'}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

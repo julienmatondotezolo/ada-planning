@@ -183,6 +183,51 @@ export const settingsApi = {
     }),
 };
 
+// ─── Shift Presets ──────────────────────────────────────────────────────────
+
+export interface ShiftTimeRange {
+  start_time: string;
+  end_time: string;
+}
+
+export interface ShiftPreset {
+  id: string;
+  restaurant_id: string;
+  name: string;
+  color: string;
+  shifts: ShiftTimeRange[];
+  is_active: boolean;
+  sort_order: number;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export const shiftPresetsApi = {
+  getAll: () =>
+    apiFetch<ShiftPreset[]>('shift-presets'),
+
+  create: (data: { name: string; color?: string; shifts: ShiftTimeRange[]; sort_order?: number }) =>
+    apiFetch<ShiftPreset>('shift-presets', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  update: (id: string, data: Partial<{ name: string; color: string; shifts: ShiftTimeRange[]; sort_order: number }>) =>
+    apiFetch<ShiftPreset>(`shift-presets/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+
+  delete: (id: string) =>
+    apiFetch<void>(`shift-presets/${id}`, { method: 'DELETE' }),
+
+  reorder: (orderedIds: string[]) =>
+    apiFetch<void>('shift-presets/reorder', {
+      method: 'PUT',
+      body: JSON.stringify({ ordered_ids: orderedIds }),
+    }),
+};
+
 // ─── Templates ──────────────────────────────────────────────────────────────
 
 export const templatesApi = {
