@@ -106,17 +106,20 @@ function ShiftPill({
   draggable = true,
   onClick,
   onDragStart,
+  onDragEnd,
 }: {
   shift: ShiftAssignment;
   compact?: boolean;
   draggable?: boolean;
   onClick?: () => void;
   onDragStart?: (e: React.DragEvent) => void;
+  onDragEnd?: () => void;
 }) {
   return (
     <button
       draggable={draggable}
       onDragStart={onDragStart}
+      onDragEnd={onDragEnd}
       onClick={(e) => {
         e.stopPropagation();
         onClick?.();
@@ -151,9 +154,12 @@ function CalendarDayCell({
   isToday,
   isClosed,
   isDragOver,
+  isDropBlocked,
+  isDragging,
   onCellClick,
   onShiftClick,
   onDragStart,
+  onDragEnd,
   onDragOver,
   onDragLeave,
   onDrop,
@@ -164,9 +170,12 @@ function CalendarDayCell({
   isToday: boolean;
   isClosed: boolean;
   isDragOver: boolean;
+  isDropBlocked: boolean;
+  isDragging: boolean;
   onCellClick: () => void;
   onShiftClick: (shift: ShiftAssignment) => void;
   onDragStart: (e: React.DragEvent, shift: ShiftAssignment) => void;
+  onDragEnd: () => void;
   onDragOver: (e: React.DragEvent) => void;
   onDragLeave: () => void;
   onDrop: (e: React.DragEvent) => void;
@@ -175,16 +184,25 @@ function CalendarDayCell({
   const maxVisible = 3;
   const overflow = shifts.length - maxVisible;
 
+  // During drag: blocked cells get dimmed, valid cells stay bright
+  const blocked = isClosed || isDropBlocked;
+
   return (
     <div
       className={cn(
         'relative flex flex-col border-b border-r border-border/50 min-h-[100px] md:min-h-[120px] transition-colors',
         isCurrentMonth ? 'bg-background' : 'bg-muted/30',
+        // Closed days
         isClosed && isCurrentMonth && 'bg-muted/40 opacity-50 cursor-not-allowed',
         isClosed && !isCurrentMonth && 'bg-muted/50 opacity-30',
-        !isClosed && isDragOver && 'bg-primary/5 ring-2 ring-inset ring-primary/30',
-        !isClosed && isToday && 'bg-primary/[0.03]',
-        !isClosed && isCurrentMonth && 'cursor-pointer hover:bg-muted/20',
+        // During drag: blocked cells dim, valid cells highlighted on hover
+        isDragging && !blocked && isCurrentMonth && 'ring-1 ring-inset ring-primary/10',
+        isDragging && blocked && isCurrentMonth && 'opacity-40 cursor-not-allowed',
+        !blocked && isDragOver && 'bg-primary/5 ring-2 ring-inset ring-primary/30',
+        blocked && isDragOver && 'bg-destructive/5 ring-2 ring-inset ring-destructive/30',
+        // Normal state
+        !isDragging && !isClosed && isToday && 'bg-primary/[0.03]',
+        !isDragging && !isClosed && isCurrentMonth && 'cursor-pointer hover:bg-muted/20',
       )}
       onClick={() => !isClosed && isCurrentMonth && onCellClick()}
       onDragOver={onDragOver}
@@ -232,6 +250,7 @@ function CalendarDayCell({
             shift={shift}
             onClick={() => onShiftClick(shift)}
             onDragStart={(e) => onDragStart(e, shift)}
+            onDragEnd={onDragEnd}
           />
         ))}
 
@@ -503,7 +522,7 @@ function ShiftDialog({
 
 // ─── Staff Legend Bar ─────────────────────────────────────────────────────────
 
-function StaffLegend({ staff }: { staff: StaffMember[] }) {
+function StaffLegend({ staff, onDragStart, onDragEnd }: { staff: StaffMember[]; onDragStart: (staffId: string) => void; onDragEnd: () => void }) {
   return (
     <div className="flex items-center gap-2 overflow-x-auto py-1 px-1 scrollbar-none">
       {staff.map((s) => (
@@ -516,9 +535,11 @@ function StaffLegend({ staff }: { staff: StaffMember[] }) {
           }}
           draggable
           onDragStart={(e) => {
+            onDragStart(s.id);
             e.dataTransfer.setData('text/plain', JSON.stringify({ staffId: s.id, isNew: true }));
             e.dataTransfer.effectAllowed = 'copy';
           }}
+          onDragEnd={onDragEnd}
         >
           <div
             className="w-2.5 h-2.5 rounded-full shrink-0"
@@ -628,6 +649,12 @@ export function CalendarView() {
   const [editingShift, setEditingShift] = useState<ShiftAssignment | null>(null);
   const [dialogDefaultStaffId, setDialogDefaultStaffId] = useState<string | undefined>();
   const [dragOverDate, setDragOverDate] = useState<string | null>(null);
+  const [draggingStaffId, setDraggingStaffId] = useState<string | null>(null);
+
+  // Check if a specific employee already has a shift on a given date
+  const hasShiftOnDate = useCallback((staffId: string, dateKey: string) => {
+    return (shifts[dateKey] || []).some((s) => s.staffId === staffId);
+  }, [shifts]);
 
   // Generate calendar grid (Monday-first)
   const days = eachDayOfInterval({ start: monthStart, end: monthEnd });
@@ -791,6 +818,7 @@ export function CalendarView() {
     date: Date
   ) => {
     const dateKey = format(date, 'yyyy-MM-dd');
+    setDraggingStaffId(shift.staffId);
     e.dataTransfer.setData(
       'text/plain',
       JSON.stringify({ shiftId: shift.id, sourceDate: dateKey, staffId: shift.staffId })
@@ -799,16 +827,29 @@ export function CalendarView() {
   };
 
   const handleDragOver = (e: React.DragEvent, date: Date) => {
-    e.preventDefault();
-    // effectAllowed is 'copy' from legend, 'move' from existing shifts
-    e.dataTransfer.dropEffect = e.dataTransfer.effectAllowed === 'copy' ? 'copy' : 'move';
     const dateKey = format(date, 'yyyy-MM-dd');
+    const blocked = isClosedDay(date) || (draggingStaffId ? hasShiftOnDate(draggingStaffId, dateKey) : false);
+
+    if (blocked) {
+      // Show "not allowed" cursor but still track hover for visual feedback
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'none';
+    } else {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = e.dataTransfer.effectAllowed === 'copy' ? 'copy' : 'move';
+    }
+
     if (dragOverDate !== dateKey) {
       setDragOverDate(dateKey);
     }
   };
 
   const handleDragLeave = () => {
+    setDragOverDate(null);
+  };
+
+  const handleDragEnd = () => {
+    setDraggingStaffId(null);
     setDragOverDate(null);
   };
 
@@ -919,7 +960,11 @@ export function CalendarView() {
           <span className="text-xs font-medium text-muted-foreground shrink-0">
             Glisser pour planifier:
           </span>
-          <StaffLegend staff={staff} />
+          <StaffLegend
+            staff={staff}
+            onDragStart={(staffId) => setDraggingStaffId(staffId)}
+            onDragEnd={handleDragEnd}
+          />
         </div>
       </div>
 
@@ -947,6 +992,9 @@ export function CalendarView() {
             const isCurrentMonth = isSameMonth(date, currentDate);
             const dayShifts = shifts[dateKey] || [];
 
+            const closed = isClosedDay(date);
+            const dropBlocked = !closed && !!draggingStaffId && hasShiftOnDate(draggingStaffId, dateKey);
+
             return (
               <CalendarDayCell
                 key={index}
@@ -954,11 +1002,14 @@ export function CalendarView() {
                 shifts={dayShifts}
                 isCurrentMonth={isCurrentMonth}
                 isToday={isDateToday(date)}
-                isClosed={isClosedDay(date)}
+                isClosed={closed}
                 isDragOver={dragOverDate === dateKey}
+                isDropBlocked={dropBlocked}
+                isDragging={!!draggingStaffId}
                 onCellClick={() => handleCellClick(date)}
                 onShiftClick={(shift) => handleShiftClick(shift, date)}
                 onDragStart={(e, shift) => handleDragStart(e, shift, date)}
+                onDragEnd={handleDragEnd}
                 onDragOver={(e) => handleDragOver(e, date)}
                 onDragLeave={handleDragLeave}
                 onDrop={(e) => handleDrop(e, date)}
