@@ -37,7 +37,7 @@ export default async function RootLayout({
 
   return (
     <html lang="fr" suppressHydrationWarning>
-      <body className={`${inter.variable} font-sans antialiased`} onContextMenu="return false">
+      <body className={`${inter.variable} font-sans antialiased`}>
         <script dangerouslySetInnerHTML={{ __html: `document.addEventListener('contextmenu',function(e){e.preventDefault()});` }} />
         <AuthProvider initialUser={user}>
           <div className="min-h-screen bg-background">
