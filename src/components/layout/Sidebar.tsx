@@ -1,26 +1,19 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { usePathname } from 'next/navigation';
 import { 
   Calendar, 
   Users, 
   Clock,
-  BarChart3,
   Settings,
-  ChevronLeft,
-  ChevronRight,
-  ChevronDown,
   PanelLeftClose,
   PanelLeft,
   LogOut,
-  Phone,
-  UtensilsCrossed,
-  Package,
-  Monitor,
+  Bell,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { AdaLogo } from 'ada-design-system';
+import { AdaLogo, Avatar, AvatarFallback } from 'ada-design-system';
 import { useAuth } from '@/contexts/AuthContext';
 
 const NAVIGATION_ITEMS = [
@@ -50,29 +43,23 @@ const NAVIGATION_ITEMS = [
   },
 ];
 
-const ADA_APPS = [
-  { id: 'menu', label: 'AdaMenu', icon: UtensilsCrossed, href: 'https://ada.mindgen.app', color: '#ef4444' },
-  { id: 'stock', label: 'AdaStock', icon: Package, href: 'https://adastock.mindgen.app', color: '#f59e0b' },
-  { id: 'kds', label: 'AdaKDS', icon: Monitor, href: 'https://adakds.mindgen.app', color: '#10b981' },
-  { id: 'phone', label: 'AdaPhone', icon: Phone, href: 'https://adaphone.mindgen.app', color: '#8b5cf6' },
-];
-
 export function Sidebar() {
-  const [collapsed, setCollapsed] = useState(false);
-  const [showApps, setShowApps] = useState(false);
+  const [collapsed, setCollapsed] = useState(true);
+  const [showUserMenu, setShowUserMenu] = useState(false);
   const pathname = usePathname();
-  const { logout } = useAuth();
+  const { user, logout } = useAuth();
+  const userMenuRef = useRef<HTMLDivElement>(null);
 
-  // Auto-collapse on small tablets
+  // Close user menu on outside click
   useEffect(() => {
-    const mq = window.matchMedia('(max-width: 1024px)');
-    const handler = (e: MediaQueryListEvent | MediaQueryList) => {
-      if (e.matches) setCollapsed(true);
+    const handleClickOutside = (event: MouseEvent) => {
+      if (userMenuRef.current && !userMenuRef.current.contains(event.target as Node)) {
+        setShowUserMenu(false);
+      }
     };
-    handler(mq);
-    mq.addEventListener('change', handler);
-    return () => mq.removeEventListener('change', handler);
-  }, []);
+    if (showUserMenu) document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showUserMenu]);
 
   const isActive = (href: string) => {
     if (href === '/') return pathname === '/';
@@ -81,6 +68,21 @@ export function Sidebar() {
 
   const handleLogout = async () => {
     try { await logout(); } catch (e) { console.error('Logout failed:', e); }
+    setShowUserMenu(false);
+  };
+
+  const getUserInitials = (user: any) => {
+    if (!user) return 'U';
+    const first = user.first_name || user.email?.charAt(0) || '';
+    const last = user.last_name || '';
+    return (first.charAt(0) + last.charAt(0)).toUpperCase() || 'U';
+  };
+
+  const getUserDisplayName = (user: any) => {
+    if (!user) return 'User';
+    if (user.first_name && user.last_name) return `${user.first_name} ${user.last_name}`;
+    if (user.first_name) return user.first_name;
+    return user.email?.split('@')[0] || 'User';
   };
 
   return (
@@ -110,6 +112,71 @@ export function Sidebar() {
         </button>
       </div>
 
+      {/* User profile */}
+      <div ref={userMenuRef} className={cn(
+        'border-b border-gray-200 relative',
+        collapsed ? 'px-2 py-3' : 'px-3 py-3'
+      )}>
+        <button
+          onClick={() => setShowUserMenu(!showUserMenu)}
+          className={cn(
+            'flex items-center rounded-lg hover:bg-gray-50 transition-colors w-full',
+            collapsed ? 'justify-center p-1.5' : 'gap-3 px-2 py-1.5'
+          )}
+          title={collapsed ? getUserDisplayName(user) : undefined}
+        >
+          <Avatar className="h-8 w-8 shrink-0">
+            <AvatarFallback className="bg-primary text-primary-foreground text-xs font-semibold">
+              {getUserInitials(user)}
+            </AvatarFallback>
+          </Avatar>
+          {!collapsed && (
+            <div className="text-left min-w-0">
+              <div className="text-sm font-medium text-gray-900 truncate">{getUserDisplayName(user)}</div>
+              <div className="text-xs text-gray-500 truncate">{user?.email}</div>
+            </div>
+          )}
+        </button>
+
+        {/* User dropdown */}
+        {showUserMenu && (
+          <div className={cn(
+            'absolute z-50 bg-white rounded-md shadow-lg border border-gray-200',
+            collapsed ? 'left-full top-0 ml-2 w-48' : 'left-3 right-3 top-full mt-1'
+          )}>
+            <div className="px-3 py-2 border-b border-gray-100">
+              <div className="text-sm font-medium text-gray-900">{getUserDisplayName(user)}</div>
+              <div className="text-xs text-gray-500">{user?.email}</div>
+            </div>
+            <button
+              onClick={handleLogout}
+              className="w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
+            >
+              <LogOut className="w-4 h-4" />
+              <span>Déconnexion</span>
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Notifications */}
+      <div className={cn('border-b border-gray-200', collapsed ? 'px-2 py-2' : 'px-2 py-2')}>
+        <a
+          href="/notifications"
+          className={cn(
+            'flex items-center rounded-lg text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-colors relative',
+            collapsed ? 'justify-center p-2.5' : 'gap-3 px-3 py-2.5'
+          )}
+          title={collapsed ? 'Notifications' : undefined}
+        >
+          <div className="relative shrink-0">
+            <Bell className="w-5 h-5" />
+            <span className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full" />
+          </div>
+          {!collapsed && <span className="text-sm font-medium">Notifications</span>}
+        </a>
+      </div>
+
       {/* Main navigation */}
       <nav className="flex-1 overflow-y-auto py-3 px-2">
         <ul className="space-y-1">
@@ -128,7 +195,7 @@ export function Sidebar() {
                   )}
                   title={collapsed ? item.label : undefined}
                 >
-                  <item.icon className={cn('shrink-0', active ? 'text-blue-600' : 'text-gray-400', collapsed ? 'w-5 h-5' : 'w-5 h-5')} />
+                  <item.icon className={cn('w-5 h-5 shrink-0', active ? 'text-blue-600' : 'text-gray-400')} />
                   {!collapsed && (
                     <span className="text-sm font-medium truncate">{item.label}</span>
                   )}
@@ -137,44 +204,6 @@ export function Sidebar() {
             );
           })}
         </ul>
-
-        {/* Divider */}
-        <div className={cn('my-3 border-t border-gray-100', collapsed ? 'mx-2' : 'mx-1')} />
-
-        {/* ADA Apps section */}
-        {!collapsed && (
-          <button
-            onClick={() => setShowApps(!showApps)}
-            className="flex items-center justify-between w-full px-3 py-1.5 mb-1"
-          >
-            <span className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">ADA Apps</span>
-            <ChevronDown className={cn('w-3.5 h-3.5 text-gray-400 transition-transform', showApps && 'rotate-180')} />
-          </button>
-        )}
-
-        {(showApps || collapsed) && (
-          <ul className="space-y-1">
-            {ADA_APPS.map((app) => (
-              <li key={app.id}>
-                <a
-                  href={app.href}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className={cn(
-                    'flex items-center rounded-lg text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-colors',
-                    collapsed ? 'justify-center p-2.5' : 'gap-3 px-3 py-2',
-                  )}
-                  title={collapsed ? app.label : undefined}
-                >
-                  <app.icon className="w-4.5 h-4.5 shrink-0" style={{ color: app.color }} />
-                  {!collapsed && (
-                    <span className="text-sm font-medium truncate">{app.label}</span>
-                  )}
-                </a>
-              </li>
-            ))}
-          </ul>
-        )}
       </nav>
 
       {/* Logout */}
