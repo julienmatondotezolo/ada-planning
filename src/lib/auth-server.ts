@@ -34,8 +34,8 @@ export async function getServerUser(): Promise<User | null> {
         'User-Agent': 'AdaPlanning-ServerComponents/1.0'
       },
       body: JSON.stringify({ access_token: token }),
-      // Cache for 5 minutes to improve performance
-      next: { revalidate: 300 }
+      // No cache — always validate fresh (stale cache causes ghost sessions)
+      cache: 'no-store'
     });
 
     if (!response.ok) {

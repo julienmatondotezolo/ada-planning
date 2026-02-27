@@ -27,9 +27,10 @@ export default async function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
-  // Server-side user authentication - single API call per request
+  // Server-side user authentication
+  // Middleware already validated the token — this fetches the full user profile
   const user = await getServerUser();
-  
+
   console.log('🏗️ Server Layout:', { 
     hasUser: !!user, 
     userEmail: user?.email,
