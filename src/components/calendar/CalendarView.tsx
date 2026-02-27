@@ -45,6 +45,7 @@ import {
   SelectValue,
 } from 'ada-design-system';
 import { cn } from '@/lib/utils';
+import { staffApi, shiftsApi, type Employee, type Shift } from '@/lib/api';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -67,61 +68,26 @@ interface ShiftAssignment {
   endTime: string;
 }
 
-// ─── Mock Data ───────────────────────────────────────────────────────────────
+// ─── Staff Color Assignment ──────────────────────────────────────────────────
 
-const STAFF: StaffMember[] = [
-  { id: '1', name: 'José', color: '#ef4444', position: 'Serveur', initials: 'JO' },
-  { id: '2', name: 'Angélys', color: '#8b5cf6', position: 'Serveuse', initials: 'AN' },
-  { id: '3', name: 'Mélia', color: '#10b981', position: 'Cuisinière', initials: 'ME' },
-  { id: '4', name: 'Lino', color: '#f59e0b', position: 'Aide Cuisinier', initials: 'LI' },
-  { id: '5', name: 'Lucas', color: '#3b82f6', position: 'Serveur', initials: 'LU' },
+const STAFF_COLORS = [
+  '#ef4444', '#8b5cf6', '#10b981', '#f59e0b', '#3b82f6',
+  '#ec4899', '#14b8a6', '#f97316', '#6366f1', '#84cc16',
 ];
+
+function employeeToStaffMember(emp: Employee, index: number): StaffMember {
+  const initials = `${emp.first_name.charAt(0)}${emp.last_name.charAt(0)}`.toUpperCase();
+  return {
+    id: emp.id,
+    name: `${emp.first_name} ${emp.last_name}`,
+    color: STAFF_COLORS[index % STAFF_COLORS.length],
+    position: emp.position || emp.role || '',
+    initials,
+  };
+}
 
 const DAY_NAMES_SHORT = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
 const DAY_NAMES_FULL = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
-
-// Generate mock shift data
-function generateMockShifts(): Record<string, ShiftAssignment[]> {
-  const shifts: Record<string, ShiftAssignment[]> = {};
-  const now = new Date();
-  const start = startOfMonth(now);
-  const end = endOfMonth(now);
-  const days = eachDayOfInterval({ start, end });
-
-  days.forEach((day) => {
-    const dayOfWeek = getDay(day);
-    // L'Osteria closed Sunday (0) and Monday (1)
-    if (dayOfWeek === 0 || dayOfWeek === 1) return;
-
-    const dateKey = format(day, 'yyyy-MM-dd');
-    const dayShifts: ShiftAssignment[] = [];
-    
-    // Randomly assign 2-4 staff per day
-    const shuffled = [...STAFF].sort(() => Math.random() - 0.5);
-    const count = 2 + Math.floor(Math.random() * 3);
-    
-    for (let i = 0; i < Math.min(count, shuffled.length); i++) {
-      const s = shuffled[i];
-      const isLunch = Math.random() > 0.5;
-      dayShifts.push({
-        id: `${dateKey}-${s.id}`,
-        staffId: s.id,
-        name: s.name,
-        color: s.color,
-        position: s.position,
-        initials: s.initials,
-        startTime: isLunch ? '11:00' : '17:00',
-        endTime: isLunch ? '15:00' : '23:00',
-      });
-    }
-
-    if (dayShifts.length > 0) {
-      shifts[dateKey] = dayShifts;
-    }
-  });
-
-  return shifts;
-}
 
 // ─── Shift Pill Component ────────────────────────────────────────────────────
 
@@ -159,7 +125,7 @@ function ShiftPill({
       {!compact && (
         <GripVertical className="w-3 h-3 opacity-0 group-hover/pill:opacity-60 shrink-0 transition-opacity" />
       )}
-      <span className="truncate">{shift.name}</span>
+      <span className="truncate hover:underline cursor-pointer">{shift.name}</span>
       {!compact && (
         <span className="text-[10px] opacity-75 ml-auto shrink-0">
           {shift.startTime}
@@ -284,6 +250,7 @@ function ShiftDialog({
   onOpenChange,
   date,
   shift,
+  staff,
   onSave,
   onDelete,
 }: {
@@ -291,6 +258,7 @@ function ShiftDialog({
   onOpenChange: (open: boolean) => void;
   date: Date;
   shift: ShiftAssignment | null;
+  staff: StaffMember[];
   onSave: (data: {
     staffId: string;
     startTime: string;
@@ -313,7 +281,7 @@ function ShiftDialog({
   }, [open, shift]);
 
   const isEditing = !!shift;
-  const selectedStaffMember = STAFF.find((s) => s.id === selectedStaff);
+  const selectedStaffMember = staff.find((s) => s.id === selectedStaff);
 
   const handleSave = () => {
     if (!selectedStaff) return;
@@ -340,36 +308,43 @@ function ShiftDialog({
         </DialogHeader>
 
         <div className="space-y-5 pt-2">
-          {/* Staff Selection */}
+          {/* Staff Selection — Dropdown */}
           <div className="space-y-2">
             <Label className="text-sm font-medium">Personnel</Label>
-            <div className="grid grid-cols-2 gap-2">
-              {STAFF.map((s) => (
-                <button
-                  key={s.id}
-                  onClick={() => setSelectedStaff(s.id)}
-                  className={cn(
-                    'flex items-center gap-2 p-2.5 rounded-lg border-2 transition-all text-left',
-                    selectedStaff === s.id
-                      ? 'border-primary bg-primary/5 shadow-sm'
-                      : 'border-border hover:border-primary/30 hover:bg-muted/50'
-                  )}
-                >
-                  <div
-                    className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0"
-                    style={{ backgroundColor: s.color }}
-                  >
-                    {s.initials}
-                  </div>
-                  <div className="min-w-0">
-                    <div className="text-sm font-medium truncate">{s.name}</div>
-                    <div className="text-[11px] text-muted-foreground truncate">
-                      {s.position}
+            <Select value={selectedStaff} onValueChange={setSelectedStaff}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Sélectionner un employé">
+                  {selectedStaffMember && (
+                    <div className="flex items-center gap-2">
+                      <div
+                        className="w-5 h-5 rounded-full flex items-center justify-center text-white text-[9px] font-bold shrink-0"
+                        style={{ backgroundColor: selectedStaffMember.color }}
+                      >
+                        {selectedStaffMember.initials}
+                      </div>
+                      <span>{selectedStaffMember.name}</span>
+                      <span className="text-muted-foreground text-xs">— {selectedStaffMember.position}</span>
                     </div>
-                  </div>
-                </button>
-              ))}
-            </div>
+                  )}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {staff.map((s) => (
+                  <SelectItem key={s.id} value={s.id}>
+                    <div className="flex items-center gap-2">
+                      <div
+                        className="w-5 h-5 rounded-full flex items-center justify-center text-white text-[9px] font-bold shrink-0"
+                        style={{ backgroundColor: s.color }}
+                      >
+                        {s.initials}
+                      </div>
+                      <span>{s.name}</span>
+                      <span className="text-muted-foreground text-xs">— {s.position}</span>
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           {/* Time Selection */}
@@ -533,13 +508,68 @@ function MonthStats({ shifts }: { shifts: Record<string, ShiftAssignment[]> }) {
 export function CalendarView() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [shifts, setShifts] = useState<Record<string, ShiftAssignment[]>>({});
+  const [staff, setStaff] = useState<StaffMember[]>([]);
   const [isClient, setIsClient] = useState(false);
+  const [loadingData, setLoadingData] = useState(true);
 
-  // Generate mock data client-side only to avoid hydration mismatch (Math.random)
+  // Fetch real employees and shifts from API
   useEffect(() => {
-    setShifts(generateMockShifts());
-    setIsClient(true);
-  }, []);
+    const fetchData = async () => {
+      setLoadingData(true);
+      try {
+        // Fetch employees
+        const empRes = await staffApi.getAll({ active_only: true });
+        let staffMembers: StaffMember[] = [];
+        if (empRes.success && empRes.data && empRes.data.length > 0) {
+          staffMembers = empRes.data.map((emp, i) => employeeToStaffMember(emp, i));
+          setStaff(staffMembers);
+        }
+
+        // Fetch shifts for current month
+        const monthStart = startOfMonth(currentDate);
+        const monthEnd = endOfMonth(currentDate);
+        const shiftsRes = await shiftsApi.getAll({
+          start_date: format(monthStart, 'yyyy-MM-dd'),
+          end_date: format(monthEnd, 'yyyy-MM-dd'),
+        });
+
+        if (shiftsRes.success && shiftsRes.data && shiftsRes.data.length > 0) {
+          // Convert API shifts to ShiftAssignment format grouped by date
+          const shiftMap: Record<string, ShiftAssignment[]> = {};
+          shiftsRes.data.forEach((apiShift) => {
+            const dateKey = apiShift.date || apiShift.scheduled_date || '';
+            if (!dateKey) return;
+            
+            // Find matching staff member for color/initials
+            const staffMember = staffMembers.find((s) => s.id === apiShift.employee_id);
+            const empName = apiShift.employee_name || staffMember?.name || 'Inconnu';
+            const initials = staffMember?.initials || empName.split(' ').map((w: string) => w.charAt(0)).join('').toUpperCase().slice(0, 2);
+            
+            if (!shiftMap[dateKey]) shiftMap[dateKey] = [];
+            shiftMap[dateKey].push({
+              id: apiShift.id,
+              staffId: apiShift.employee_id,
+              name: empName,
+              color: staffMember?.color || STAFF_COLORS[0],
+              position: apiShift.position || staffMember?.position || '',
+              initials,
+              startTime: apiShift.start_time || '',
+              endTime: apiShift.end_time || '',
+            });
+          });
+          setShifts(shiftMap);
+        }
+      } catch (err) {
+        console.error('Failed to fetch data:', err);
+      } finally {
+        setLoadingData(false);
+        setIsClient(true);
+      }
+    };
+
+    fetchData();
+  }, [currentDate]);
+
   const [dialogOpen, setDialogOpen] = useState(false);
   const [dialogDate, setDialogDate] = useState<Date>(new Date());
   const [editingShift, setEditingShift] = useState<ShiftAssignment | null>(null);
@@ -598,68 +628,105 @@ export function CalendarView() {
     setDialogOpen(true);
   };
 
-  const handleSave = (data: {
+  const handleSave = async (data: {
     staffId: string;
     startTime: string;
     endTime: string;
     date: string;
   }) => {
-    const staff = STAFF.find((s) => s.id === data.staffId);
-    if (!staff) return;
+    const staffMember = staff.find((s) => s.id === data.staffId);
+    if (!staffMember) return;
 
-    setShifts((prev) => {
-      const updated = { ...prev };
-      const dayShifts = [...(updated[data.date] || [])];
+    if (editingShift) {
+      // Update existing shift via API
+      const res = await shiftsApi.update(editingShift.id, {
+        employee_id: data.staffId,
+        scheduled_date: data.date,
+        start_time: data.startTime,
+        end_time: data.endTime,
+        position: staffMember.position,
+      });
 
-      if (editingShift) {
-        // Update existing
-        const idx = dayShifts.findIndex((s) => s.id === editingShift.id);
-        if (idx >= 0) {
-          dayShifts[idx] = {
-            ...dayShifts[idx],
+      if (res.success) {
+        setShifts((prev) => {
+          const updated = { ...prev };
+          // Remove from old date
+          const oldDateKey = format(dialogDate, 'yyyy-MM-dd');
+          const oldDayShifts = (updated[oldDateKey] || []).filter(
+            (s) => s.id !== editingShift.id
+          );
+          if (oldDayShifts.length === 0) {
+            delete updated[oldDateKey];
+          } else {
+            updated[oldDateKey] = oldDayShifts;
+          }
+
+          // Add to new date
+          const newDayShifts = [...(updated[data.date] || [])];
+          newDayShifts.push({
+            id: res.data?.id || editingShift.id,
             staffId: data.staffId,
-            name: staff.name,
-            color: staff.color,
-            position: staff.position,
-            initials: staff.initials,
+            name: staffMember.name,
+            color: staffMember.color,
+            position: staffMember.position,
+            initials: staffMember.initials,
             startTime: data.startTime,
             endTime: data.endTime,
-          };
-        }
-      } else {
-        // Add new
-        dayShifts.push({
-          id: `${data.date}-${data.staffId}-${Date.now()}`,
-          staffId: data.staffId,
-          name: staff.name,
-          color: staff.color,
-          position: staff.position,
-          initials: staff.initials,
-          startTime: data.startTime,
-          endTime: data.endTime,
+          });
+          updated[data.date] = newDayShifts;
+          return updated;
         });
       }
+    } else {
+      // Create new shift via API
+      const res = await shiftsApi.create({
+        employee_id: data.staffId,
+        scheduled_date: data.date,
+        start_time: data.startTime,
+        end_time: data.endTime,
+        position: staffMember.position,
+      });
 
-      updated[data.date] = dayShifts;
-      return updated;
-    });
+      if (res.success && res.data) {
+        setShifts((prev) => {
+          const updated = { ...prev };
+          const dayShifts = [...(updated[data.date] || [])];
+          dayShifts.push({
+            id: res.data.id,
+            staffId: data.staffId,
+            name: staffMember.name,
+            color: staffMember.color,
+            position: staffMember.position,
+            initials: staffMember.initials,
+            startTime: data.startTime,
+            endTime: data.endTime,
+          });
+          updated[data.date] = dayShifts;
+          return updated;
+        });
+      }
+    }
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (!editingShift) return;
     const dateKey = format(dialogDate, 'yyyy-MM-dd');
-    setShifts((prev) => {
-      const updated = { ...prev };
-      const dayShifts = (updated[dateKey] || []).filter(
-        (s) => s.id !== editingShift.id
-      );
-      if (dayShifts.length === 0) {
-        delete updated[dateKey];
-      } else {
-        updated[dateKey] = dayShifts;
-      }
-      return updated;
-    });
+
+    const res = await shiftsApi.delete(editingShift.id);
+    if (res.success) {
+      setShifts((prev) => {
+        const updated = { ...prev };
+        const dayShifts = (updated[dateKey] || []).filter(
+          (s) => s.id !== editingShift.id
+        );
+        if (dayShifts.length === 0) {
+          delete updated[dateKey];
+        } else {
+          updated[dateKey] = dayShifts;
+        }
+        return updated;
+      });
+    }
   };
 
   // ── Drag & Drop ──
@@ -702,24 +769,35 @@ export function CalendarView() {
 
       // Handle drag from staff legend (create new shift)
       if (data.isNew) {
-        const staff = STAFF.find((s) => s.id === data.staffId);
-        if (!staff) return;
+        const staffMember = staff.find((s) => s.id === data.staffId);
+        if (!staffMember) return;
 
-        setShifts((prev) => {
-          const updated = { ...prev };
-          const dayShifts = [...(updated[targetDateKey] || [])];
-          dayShifts.push({
-            id: `${targetDateKey}-${staff.id}-${Date.now()}`,
-            staffId: staff.id,
-            name: staff.name,
-            color: staff.color,
-            position: staff.position,
-            initials: staff.initials,
-            startTime: '17:00',
-            endTime: '23:00',
-          });
-          updated[targetDateKey] = dayShifts;
-          return updated;
+        // Create shift via API
+        shiftsApi.create({
+          employee_id: staffMember.id,
+          scheduled_date: targetDateKey,
+          start_time: '17:00',
+          end_time: '23:00',
+          position: staffMember.position,
+        }).then((res) => {
+          if (res.success && res.data) {
+            setShifts((prev) => {
+              const updated = { ...prev };
+              const dayShifts = [...(updated[targetDateKey] || [])];
+              dayShifts.push({
+                id: res.data.id,
+                staffId: staffMember.id,
+                name: staffMember.name,
+                color: staffMember.color,
+                position: staffMember.position,
+                initials: staffMember.initials,
+                startTime: '17:00',
+                endTime: '23:00',
+              });
+              updated[targetDateKey] = dayShifts;
+              return updated;
+            });
+          }
         });
         return;
       }
@@ -728,30 +806,42 @@ export function CalendarView() {
       const { shiftId, sourceDate } = data;
       if (sourceDate === targetDateKey) return; // Same cell, no-op
 
-      setShifts((prev) => {
-        const updated = { ...prev };
+      // Find the shift being moved
+      const sourceShifts = shifts[sourceDate] || [];
+      const movedShift = sourceShifts.find((s) => s.id === shiftId);
+      if (!movedShift) return;
 
-        // Remove from source
-        const sourceShifts = [...(updated[sourceDate] || [])];
-        const shiftIdx = sourceShifts.findIndex((s) => s.id === shiftId);
-        if (shiftIdx < 0) return prev;
+      // Update via API
+      shiftsApi.update(shiftId, {
+        scheduled_date: targetDateKey,
+      }).then((res) => {
+        if (res.success) {
+          setShifts((prev) => {
+            const updated = { ...prev };
 
-        const [movedShift] = sourceShifts.splice(shiftIdx, 1);
-        if (sourceShifts.length === 0) {
-          delete updated[sourceDate];
-        } else {
-          updated[sourceDate] = sourceShifts;
+            // Remove from source
+            const srcShifts = [...(updated[sourceDate] || [])];
+            const idx = srcShifts.findIndex((s) => s.id === shiftId);
+            if (idx < 0) return prev;
+
+            const [removed] = srcShifts.splice(idx, 1);
+            if (srcShifts.length === 0) {
+              delete updated[sourceDate];
+            } else {
+              updated[sourceDate] = srcShifts;
+            }
+
+            // Add to target
+            const targetShifts = [...(updated[targetDateKey] || [])];
+            targetShifts.push({
+              ...removed,
+              id: res.data?.id || removed.id,
+            });
+            updated[targetDateKey] = targetShifts;
+
+            return updated;
+          });
         }
-
-        // Add to target
-        const targetShifts = [...(updated[targetDateKey] || [])];
-        targetShifts.push({
-          ...movedShift,
-          id: `${targetDateKey}-${movedShift.staffId}-${Date.now()}`,
-        });
-        updated[targetDateKey] = targetShifts;
-
-        return updated;
       });
     } catch {
       // Invalid data, ignore
@@ -813,7 +903,7 @@ export function CalendarView() {
           <span className="text-xs font-medium text-muted-foreground shrink-0">
             Glisser pour planifier:
           </span>
-          <StaffLegend staff={STAFF} />
+          <StaffLegend staff={staff} />
         </div>
       </div>
 
@@ -868,6 +958,7 @@ export function CalendarView() {
         onOpenChange={setDialogOpen}
         date={dialogDate}
         shift={editingShift}
+        staff={staff}
         onSave={handleSave}
         onDelete={editingShift ? handleDelete : undefined}
       />

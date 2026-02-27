@@ -359,6 +359,54 @@ export const schedulesApi = {
   },
 };
 
+// Restaurant Settings interfaces
+export interface TimeSlot {
+  from: string;
+  to: string;
+}
+
+export interface DaySchedule {
+  enabled: boolean;
+  slots: TimeSlot[];
+}
+
+export interface RestaurantSettings {
+  id?: string;
+  restaurant_id: string;
+  opening_hours: Record<string, DaySchedule>;
+  schedule_rules: {
+    default_break_minutes: number;
+    max_hours_per_week: number;
+    min_staff_per_service: number;
+    min_rest_days_per_week: number;
+  };
+  restaurant_info: {
+    name?: string;
+    phone?: string;
+    email?: string;
+    address?: string;
+    website?: string;
+  };
+  updated_at?: string;
+}
+
+export const settingsApi = {
+  // Get restaurant settings
+  get: () =>
+    apiCall<RestaurantSettings>('/settings'),
+
+  // Update restaurant settings (manager/owner only)
+  update: (data: Partial<{
+    opening_hours: Record<string, DaySchedule>;
+    schedule_rules: Record<string, any>;
+    restaurant_info: Record<string, any>;
+  }>) =>
+    apiCall<{ success: boolean; data: RestaurantSettings }>('/settings', {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+};
+
 // Health check for AdaStaff API
 export const healthApi = {
   check: () => 

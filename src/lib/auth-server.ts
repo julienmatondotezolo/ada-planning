@@ -33,7 +33,7 @@ export async function getServerUser(): Promise<User | null> {
         'Content-Type': 'application/json',
         'User-Agent': 'AdaPlanning-ServerComponents/1.0'
       },
-      body: JSON.stringify({ token }), // Uses improved API format
+      body: JSON.stringify({ access_token: token }),
       // Cache for 5 minutes to improve performance
       next: { revalidate: 300 }
     });
