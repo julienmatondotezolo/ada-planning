@@ -23,6 +23,7 @@ export function useEmployees(params?: { active_only?: boolean }) {
       if (!res.success) throw new Error(res.error || 'Failed to fetch employees');
       return res.data;
     },
+    staleTime: 5 * 60 * 1000, // 5 min — staff list rarely changes
   });
 }
 

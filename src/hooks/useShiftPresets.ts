@@ -14,6 +14,7 @@ export function useShiftPresets() {
       if (!res.success) throw new Error(res.error || 'Failed to fetch shift presets');
       return res.data;
     },
+    staleTime: 5 * 60 * 1000, // 5 min — presets rarely change
   });
 }
 

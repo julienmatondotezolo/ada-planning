@@ -1,13 +1,13 @@
 'use client';
 
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   format,
   startOfMonth,
   endOfMonth,
   eachDayOfInterval,
   getDay,
-  isSameDay,
   isSameMonth,
   addMonths,
   subMonths,
@@ -20,17 +20,12 @@ import {
   Plus,
   Clock,
   Trash2,
-  Edit3,
-  X,
   GripVertical,
   User,
   CalendarDays,
 } from 'lucide-react';
 import {
   Button,
-  Badge,
-  Avatar,
-  AvatarFallback,
   Dialog,
   DialogContent,
   DialogHeader,
@@ -46,7 +41,10 @@ import {
 } from 'ada-design-system';
 import { cn } from '@/lib/utils';
 import { toast } from '@/hooks/useToast';
-import { staffApi, shiftsApi, shiftPresetsApi, settingsApi, type Employee, type Shift, type ShiftPreset, type DaySchedule } from '@/lib/api';
+import { useEmployees, useShifts, shiftKeys } from '@/hooks/useStaff';
+import { useShiftPresets } from '@/hooks/useShiftPresets';
+import { useRestaurantSettings } from '@/hooks/useSettings';
+import { shiftsApi, type Employee, type Shift, type ShiftPreset, type DaySchedule } from '@/lib/api';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -567,96 +565,71 @@ function MonthStats({ shifts }: { shifts: Record<string, ShiftAssignment[]> }) {
 
 export function CalendarView() {
   const [currentDate, setCurrentDate] = useState(new Date());
-  const [shifts, setShifts] = useState<Record<string, ShiftAssignment[]>>({});
-  const [staff, setStaff] = useState<StaffMember[]>([]);
-  const [servicePresets, setServicePresets] = useState<ShiftPreset[]>([]);
-  const [openingHours, setOpeningHours] = useState<Record<string, DaySchedule>>({});
-  const [isClient, setIsClient] = useState(false);
-  const [loadingData, setLoadingData] = useState(true);
 
-  // Fetch real employees, shifts, service presets, and opening hours from API
-  useEffect(() => {
-    const fetchData = async () => {
-      setLoadingData(true);
-      try {
-        // Fetch employees
-        const empRes = await staffApi.getAll({ active_only: true });
-        let staffMembers: StaffMember[] = [];
-        if (empRes.success && empRes.data && empRes.data.length > 0) {
-          staffMembers = empRes.data.map((emp, i) => employeeToStaffMember(emp, i));
-          setStaff(staffMembers);
-        }
+  // ── TanStack Query: cached, stale-while-revalidate ──
+  const monthStart = startOfMonth(currentDate);
+  const monthEnd = endOfMonth(currentDate);
 
-        // Fetch service presets
-        const presetsRes = await shiftPresetsApi.getAll();
-        if (presetsRes.success && presetsRes.data) {
-          setServicePresets(presetsRes.data);
-        }
+  const { data: employeesRaw } = useEmployees({ active_only: true });
+  const { data: presetsRaw } = useShiftPresets();
+  const { data: settingsData } = useRestaurantSettings();
+  const { data: shiftsRaw } = useShifts({
+    start_date: format(monthStart, 'yyyy-MM-dd'),
+    end_date: format(monthEnd, 'yyyy-MM-dd'),
+  });
 
-        // Fetch opening hours from settings
-        const settingsRes = await settingsApi.get();
-        if (settingsRes.success && settingsRes.data?.opening_hours) {
-          setOpeningHours(settingsRes.data.opening_hours);
-        }
+  const queryClient = useQueryClient();
+  const shiftQueryKey = shiftKeys.list({
+    start_date: format(monthStart, 'yyyy-MM-dd'),
+    end_date: format(monthEnd, 'yyyy-MM-dd'),
+  });
 
-        // Fetch shifts for current month
-        const monthStart = startOfMonth(currentDate);
-        const monthEnd = endOfMonth(currentDate);
-        const shiftsRes = await shiftsApi.getAll({
-          start_date: format(monthStart, 'yyyy-MM-dd'),
-          end_date: format(monthEnd, 'yyyy-MM-dd'),
-        });
+  // Derived state: employees → StaffMember[]
+  const staff = useMemo<StaffMember[]>(() => {
+    if (!employeesRaw?.length) return [];
+    return employeesRaw.map((emp, i) => employeeToStaffMember(emp, i));
+  }, [employeesRaw]);
 
-        if (shiftsRes.success && shiftsRes.data && shiftsRes.data.length > 0) {
-          // Convert API shifts to ShiftAssignment format grouped by date
-          const shiftMap: Record<string, ShiftAssignment[]> = {};
-          shiftsRes.data.forEach((apiShift) => {
-            const dateKey = apiShift.date || apiShift.scheduled_date || '';
-            if (!dateKey) return;
-            
-            // Find matching staff member for color/initials
-            const staffMember = staffMembers.find((s) => s.id === apiShift.employee_id);
-            const empName = apiShift.employee_name || staffMember?.name || 'Inconnu';
-            const initials = staffMember?.initials || empName.split(' ').map((w: string) => w.charAt(0)).join('').toUpperCase().slice(0, 2);
-            
-            if (!shiftMap[dateKey]) shiftMap[dateKey] = [];
-            shiftMap[dateKey].push({
-              id: apiShift.id,
-              staffId: apiShift.employee_id,
-              name: empName,
-              color: staffMember?.color || STAFF_COLORS[0],
-              position: apiShift.position || staffMember?.position || '',
-              initials,
-              startTime: apiShift.start_time || '',
-              endTime: apiShift.end_time || '',
-            });
-          });
-          setShifts(shiftMap);
-        }
-      } catch (err) {
-        console.error('Failed to fetch data:', err);
-      } finally {
-        setLoadingData(false);
-        setIsClient(true);
-      }
-    };
+  // Derived state: presets
+  const servicePresets = useMemo<ShiftPreset[]>(() => presetsRaw ?? [], [presetsRaw]);
 
-    fetchData();
-  }, [currentDate]);
+  // Derived state: opening hours
+  const openingHours = useMemo<Record<string, DaySchedule>>(() => {
+    return settingsData?.opening_hours ?? {};
+  }, [settingsData]);
+
+  // Derived state: shifts grouped by date
+  const shifts = useMemo<Record<string, ShiftAssignment[]>>(() => {
+    if (!shiftsRaw?.length) return {};
+    const shiftMap: Record<string, ShiftAssignment[]> = {};
+    shiftsRaw.forEach((apiShift) => {
+      const dateKey = apiShift.date || apiShift.scheduled_date || '';
+      if (!dateKey) return;
+      const staffMember = staff.find((s) => s.id === apiShift.employee_id);
+      const empName = apiShift.employee_name || staffMember?.name || 'Inconnu';
+      const initials = staffMember?.initials || empName.split(' ').map((w: string) => w.charAt(0)).join('').toUpperCase().slice(0, 2);
+      if (!shiftMap[dateKey]) shiftMap[dateKey] = [];
+      shiftMap[dateKey].push({
+        id: apiShift.id,
+        staffId: apiShift.employee_id,
+        name: empName,
+        color: staffMember?.color || STAFF_COLORS[0],
+        position: apiShift.position || staffMember?.position || '',
+        initials,
+        startTime: apiShift.start_time || '',
+        endTime: apiShift.end_time || '',
+      });
+    });
+    return shiftMap;
+  }, [shiftsRaw, staff]);
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [dialogDate, setDialogDate] = useState<Date>(new Date());
   const [editingShift, setEditingShift] = useState<ShiftAssignment | null>(null);
   const [dialogDefaultStaffId, setDialogDefaultStaffId] = useState<string | undefined>();
   const [dragOverDate, setDragOverDate] = useState<string | null>(null);
-  const [draggedShift, setDraggedShift] = useState<{
-    shift: ShiftAssignment;
-    sourceDate: string;
-  } | null>(null);
 
   // Generate calendar grid (Monday-first)
-  const monthStart = startOfMonth(currentDate);
-  const monthEnd = endOfMonth(currentDate);
   const days = eachDayOfInterval({ start: monthStart, end: monthEnd });
 
   // Map JS getDay() (0=Sun) to French day keys for opening hours
@@ -723,6 +696,13 @@ export function CalendarView() {
     setDialogOpen(true);
   };
 
+  // Helper: optimistic update on the raw shift cache
+  const optimisticUpdate = (updater: (old: Shift[]) => Shift[]) => {
+    const prev = queryClient.getQueryData<Shift[]>(shiftQueryKey) ?? [];
+    queryClient.setQueryData<Shift[]>(shiftQueryKey, updater(prev));
+    return prev; // snapshot for rollback
+  };
+
   const handleSave = async (data: {
     staffId: string;
     startTime: string;
@@ -734,36 +714,14 @@ export function CalendarView() {
 
     if (editingShift) {
       // ── Optimistic update ──
-      const oldDateKey = format(dialogDate, 'yyyy-MM-dd');
-      const snapshot = { ...shifts };
-      Object.keys(snapshot).forEach((k) => { snapshot[k] = [...snapshot[k]]; });
+      const snapshot = optimisticUpdate((old) =>
+        old.map((s) =>
+          s.id === editingShift.id
+            ? { ...s, employee_id: data.staffId, date: data.date, start_time: data.startTime, end_time: data.endTime, position: staffMember.position }
+            : s
+        )
+      );
 
-      setShifts((prev) => {
-        const updated = { ...prev };
-        // Remove from old date
-        const oldDayShifts = (updated[oldDateKey] || []).filter(
-          (s) => s.id !== editingShift.id
-        );
-        if (oldDayShifts.length === 0) delete updated[oldDateKey];
-        else updated[oldDateKey] = oldDayShifts;
-
-        // Add to new date
-        const newDayShifts = [...(updated[data.date] || [])];
-        newDayShifts.push({
-          id: editingShift.id,
-          staffId: data.staffId,
-          name: staffMember.name,
-          color: staffMember.color,
-          position: staffMember.position,
-          initials: staffMember.initials,
-          startTime: data.startTime,
-          endTime: data.endTime,
-        });
-        updated[data.date] = newDayShifts;
-        return updated;
-      });
-
-      // Fire API — revert on error
       const res = await shiftsApi.update(editingShift.id, {
         employee_id: data.staffId,
         scheduled_date: data.date,
@@ -773,31 +731,23 @@ export function CalendarView() {
       });
 
       if (!res.success) {
-        setShifts(snapshot);
+        queryClient.setQueryData<Shift[]>(shiftQueryKey, snapshot);
         toast({ title: 'Erreur', description: 'Impossible de modifier le service.', variant: 'destructive' });
       }
     } else {
       // ── Optimistic create ──
       const tempId = `temp-${++shiftIdCounter}-${Date.now()}`;
-      const snapshot = { ...shifts };
-      Object.keys(snapshot).forEach((k) => { snapshot[k] = [...snapshot[k]]; });
-
-      setShifts((prev) => {
-        const updated = { ...prev };
-        const dayShifts = [...(updated[data.date] || [])];
-        dayShifts.push({
+      const snapshot = optimisticUpdate((old) => [
+        ...old,
+        {
           id: tempId,
-          staffId: data.staffId,
-          name: staffMember.name,
-          color: staffMember.color,
+          employee_id: data.staffId,
+          date: data.date,
+          start_time: data.startTime,
+          end_time: data.endTime,
           position: staffMember.position,
-          initials: staffMember.initials,
-          startTime: data.startTime,
-          endTime: data.endTime,
-        });
-        updated[data.date] = dayShifts;
-        return updated;
-      });
+        } as Shift,
+      ]);
 
       const res = await shiftsApi.create({
         employee_id: data.staffId,
@@ -808,16 +758,12 @@ export function CalendarView() {
       });
 
       if (res.success && res.data) {
-        // Replace temp ID with real ID from server
-        setShifts((prev) => {
-          const updated = { ...prev };
-          updated[data.date] = (updated[data.date] || []).map((s) =>
-            s.id === tempId ? { ...s, id: res.data.id } : s
-          );
-          return updated;
-        });
+        // Replace temp ID with real ID
+        queryClient.setQueryData<Shift[]>(shiftQueryKey, (old) =>
+          (old ?? []).map((s) => (s.id === tempId ? { ...s, id: res.data.id } : s))
+        );
       } else {
-        setShifts(snapshot);
+        queryClient.setQueryData<Shift[]>(shiftQueryKey, snapshot);
         toast({ title: 'Erreur', description: 'Impossible de créer le service.', variant: 'destructive' });
       }
     }
@@ -825,26 +771,14 @@ export function CalendarView() {
 
   const handleDelete = async () => {
     if (!editingShift) return;
-    const dateKey = format(dialogDate, 'yyyy-MM-dd');
 
     // ── Optimistic delete ──
-    const snapshot = { ...shifts };
-    Object.keys(snapshot).forEach((k) => { snapshot[k] = [...snapshot[k]]; });
-
-    setShifts((prev) => {
-      const updated = { ...prev };
-      const dayShifts = (updated[dateKey] || []).filter(
-        (s) => s.id !== editingShift.id
-      );
-      if (dayShifts.length === 0) delete updated[dateKey];
-      else updated[dateKey] = dayShifts;
-      return updated;
-    });
+    const snapshot = optimisticUpdate((old) => old.filter((s) => s.id !== editingShift.id));
     setDialogOpen(false);
 
     const res = await shiftsApi.delete(editingShift.id);
     if (!res.success) {
-      setShifts(snapshot);
+      queryClient.setQueryData<Shift[]>(shiftQueryKey, snapshot);
       toast({ title: 'Erreur', description: 'Impossible de supprimer le service.', variant: 'destructive' });
     }
   };
@@ -857,7 +791,6 @@ export function CalendarView() {
     date: Date
   ) => {
     const dateKey = format(date, 'yyyy-MM-dd');
-    setDraggedShift({ shift, sourceDate: dateKey });
     e.dataTransfer.setData(
       'text/plain',
       JSON.stringify({ shiftId: shift.id, sourceDate: dateKey, staffId: shift.staffId })
@@ -915,32 +848,15 @@ export function CalendarView() {
       const { shiftId, sourceDate } = data;
       if (sourceDate === targetDateKey) return; // Same cell, no-op
 
-      // Find the shift being moved
-      const sourceShifts = shifts[sourceDate] || [];
-      const movedShift = sourceShifts.find((s) => s.id === shiftId);
-      if (!movedShift) return;
-
       // ── Optimistic move ──
-      const snapshot = { ...shifts };
-      Object.keys(snapshot).forEach((k) => { snapshot[k] = [...snapshot[k]]; });
-
-      setShifts((prev) => {
-        const updated = { ...prev };
-        // Remove from source
-        const srcShifts = (updated[sourceDate] || []).filter((s) => s.id !== shiftId);
-        if (srcShifts.length === 0) delete updated[sourceDate];
-        else updated[sourceDate] = srcShifts;
-        // Add to target
-        const targetShifts = [...(updated[targetDateKey] || [])];
-        targetShifts.push(movedShift);
-        updated[targetDateKey] = targetShifts;
-        return updated;
-      });
+      const snapshot = optimisticUpdate((old) =>
+        old.map((s) => (s.id === shiftId ? { ...s, date: targetDateKey } : s))
+      );
 
       // Fire API — revert on error
       shiftsApi.update(shiftId, { scheduled_date: targetDateKey }).then((res) => {
         if (!res.success) {
-          setShifts(snapshot);
+          queryClient.setQueryData<Shift[]>(shiftQueryKey, snapshot);
           toast({ title: 'Erreur', description: 'Impossible de déplacer le service.', variant: 'destructive' });
         }
       });
@@ -948,7 +864,6 @@ export function CalendarView() {
       // Invalid data, ignore
     }
 
-    setDraggedShift(null);
   };
 
   // ── Render ──

@@ -19,6 +19,7 @@ export function useRestaurantSettings() {
       if (!res.success) throw new Error(res.error || 'Failed to fetch settings');
       return res.data;
     },
+    staleTime: 5 * 60 * 1000, // 5 min — settings rarely change
   });
 }
 
