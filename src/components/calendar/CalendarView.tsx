@@ -45,7 +45,7 @@ import {
   SelectValue,
 } from 'ada-design-system';
 import { cn } from '@/lib/utils';
-import { staffApi, shiftsApi, shiftPresetsApi, type Employee, type Shift, type ShiftPreset } from '@/lib/api';
+import { staffApi, shiftsApi, shiftPresetsApi, settingsApi, type Employee, type Shift, type ShiftPreset, type DaySchedule } from '@/lib/api';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -86,8 +86,9 @@ function employeeToStaffMember(emp: Employee, index: number): StaffMember {
   };
 }
 
-const DAY_NAMES_SHORT = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
-const DAY_NAMES_FULL = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
+// Monday-first week
+const DAY_NAMES_SHORT = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
+const DAY_NAMES_FULL = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche'];
 
 // ─── Shift Pill Component ────────────────────────────────────────────────────
 
@@ -120,17 +121,15 @@ function ShiftPill({
         compact ? 'px-1.5 py-0.5' : 'px-2 py-1 w-full'
       )}
       style={{ backgroundColor: shift.color }}
-      title={`${shift.name} • ${shift.position}\n${shift.startTime}–${shift.endTime}`}
+      title={`${shift.name} • ${shift.position}\n${shift.startTime} - ${shift.endTime}`}
     >
       {!compact && (
         <GripVertical className="w-3 h-3 opacity-0 group-hover/pill:opacity-60 shrink-0 transition-opacity" />
       )}
       <span className="truncate hover:underline cursor-pointer">{shift.name}</span>
-      {!compact && (
-        <span className="text-[10px] opacity-75 ml-auto shrink-0">
-          {shift.startTime}
-        </span>
-      )}
+      <span className={cn("opacity-80 shrink-0", compact ? "text-[9px]" : "text-[10px] ml-auto")}>
+        {shift.startTime} - {shift.endTime}
+      </span>
     </button>
   );
 }
@@ -173,15 +172,16 @@ function CalendarDayCell({
       className={cn(
         'relative flex flex-col border-b border-r border-border/50 min-h-[100px] md:min-h-[120px] transition-colors',
         isCurrentMonth ? 'bg-background' : 'bg-muted/30',
-        isDragOver && 'bg-primary/5 ring-2 ring-inset ring-primary/30',
-        isClosed && isCurrentMonth && 'bg-muted/20',
-        isToday && 'bg-primary/[0.03]',
+        isClosed && isCurrentMonth && 'bg-muted/40 opacity-50 cursor-not-allowed',
+        isClosed && !isCurrentMonth && 'bg-muted/50 opacity-30',
+        !isClosed && isDragOver && 'bg-primary/5 ring-2 ring-inset ring-primary/30',
+        !isClosed && isToday && 'bg-primary/[0.03]',
         !isClosed && isCurrentMonth && 'cursor-pointer hover:bg-muted/20',
       )}
       onClick={() => !isClosed && isCurrentMonth && onCellClick()}
-      onDragOver={onDragOver}
-      onDragLeave={onDragLeave}
-      onDrop={onDrop}
+      onDragOver={!isClosed ? onDragOver : undefined}
+      onDragLeave={!isClosed ? onDragLeave : undefined}
+      onDrop={!isClosed ? onDrop : undefined}
     >
       {/* Day number */}
       <div className="flex items-center justify-between px-2 pt-1.5">
@@ -554,10 +554,11 @@ export function CalendarView() {
   const [shifts, setShifts] = useState<Record<string, ShiftAssignment[]>>({});
   const [staff, setStaff] = useState<StaffMember[]>([]);
   const [servicePresets, setServicePresets] = useState<ShiftPreset[]>([]);
+  const [openingHours, setOpeningHours] = useState<Record<string, DaySchedule>>({});
   const [isClient, setIsClient] = useState(false);
   const [loadingData, setLoadingData] = useState(true);
 
-  // Fetch real employees, shifts, and service presets from API
+  // Fetch real employees, shifts, service presets, and opening hours from API
   useEffect(() => {
     const fetchData = async () => {
       setLoadingData(true);
@@ -574,6 +575,12 @@ export function CalendarView() {
         const presetsRes = await shiftPresetsApi.getAll();
         if (presetsRes.success && presetsRes.data) {
           setServicePresets(presetsRes.data);
+        }
+
+        // Fetch opening hours from settings
+        const settingsRes = await settingsApi.get();
+        if (settingsRes.success && settingsRes.data?.opening_hours) {
+          setOpeningHours(settingsRes.data.opening_hours);
         }
 
         // Fetch shifts for current month
@@ -630,15 +637,21 @@ export function CalendarView() {
     sourceDate: string;
   } | null>(null);
 
-  // Generate calendar grid
+  // Generate calendar grid (Monday-first)
   const monthStart = startOfMonth(currentDate);
   const monthEnd = endOfMonth(currentDate);
   const days = eachDayOfInterval({ start: monthStart, end: monthEnd });
 
+  // Map JS getDay() (0=Sun) to French day keys for opening hours
+  const JS_DAY_TO_FR_KEY = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'];
+
   const generateGrid = useCallback(() => {
-    const firstDayOfWeek = getDay(monthStart);
+    // getDay: 0=Sun, 1=Mon... We want Mon=0 col
+    const jsDay = getDay(monthStart); // 0-6
+    const mondayOffset = jsDay === 0 ? 6 : jsDay - 1; // Mon=0, Tue=1, ..., Sun=6
+
     const prev: Date[] = [];
-    for (let i = firstDayOfWeek - 1; i >= 0; i--) {
+    for (let i = mondayOffset - 1; i >= 0; i--) {
       const d = new Date(monthStart);
       d.setDate(d.getDate() - (i + 1));
       prev.push(d);
@@ -659,11 +672,14 @@ export function CalendarView() {
 
   const calendarDays = generateGrid();
 
-  // Check if a day is a closed day (Sunday=0, Monday=1 for L'Osteria)
-  const isClosedDay = (date: Date) => {
-    const day = getDay(date);
-    return day === 0 || day === 1;
-  };
+  // Check if a day is closed based on opening hours from API
+  const isClosedDay = useCallback((date: Date) => {
+    const dayKey = JS_DAY_TO_FR_KEY[getDay(date)];
+    const daySchedule = openingHours[dayKey];
+    // If no opening hours data, fall back to open
+    if (!daySchedule) return false;
+    return !daySchedule.enabled;
+  }, [openingHours]);
 
   // ── Handlers ──
 
@@ -965,7 +981,7 @@ export function CalendarView() {
             key={day}
             className={cn(
               'px-2 py-2 text-center text-xs font-semibold border-r border-border/50 last:border-r-0',
-              (i === 0 || i === 1) ? 'text-muted-foreground/50' : 'text-muted-foreground'
+              i >= 5 ? 'text-muted-foreground/50' : 'text-muted-foreground'
             )}
           >
             <span className="hidden md:inline">{DAY_NAMES_FULL[i]}</span>
