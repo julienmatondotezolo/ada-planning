@@ -5,7 +5,6 @@ import { usePathname } from 'next/navigation';
 import { 
   Calendar, 
   Users, 
-  Clock,
   Settings,
   PanelLeftClose,
   PanelLeft,
@@ -28,12 +27,6 @@ const NAVIGATION_ITEMS = [
     label: 'Personnel',
     icon: Users,
     href: '/staff',
-  },
-  {
-    id: 'schedules',
-    label: 'Horaires',
-    icon: Clock,
-    href: '/schedules',
   },
   {
     id: 'settings',

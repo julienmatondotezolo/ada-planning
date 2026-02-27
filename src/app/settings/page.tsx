@@ -3,7 +3,7 @@
 import { useState, useMemo } from 'react';
 import { AppShell } from '@/components/layout/AppShell';
 import { useAuth } from '@/contexts/AuthContext';
-import { useRestaurantSettings, useUpdateSettings } from '@/hooks/useSettings';
+import { useRestaurantSettings, useMyRestaurant, useUpdateSettings } from '@/hooks/useSettings';
 import type { RestaurantSettings } from '@/lib/api';
 import {
   Settings as SettingsIcon,
@@ -38,10 +38,11 @@ import {
   Skeleton,
 } from 'ada-design-system';
 
-type SettingsTab = 'restaurant' | 'notifications' | 'account';
+type SettingsTab = 'restaurant' | 'schedule' | 'notifications' | 'account';
 
 const TABS: { id: SettingsTab; label: string; icon: React.ElementType }[] = [
   { id: 'restaurant', label: 'Restaurant', icon: Building },
+  { id: 'schedule', label: 'Horaires', icon: Clock },
   { id: 'notifications', label: 'Notifications', icon: Bell },
   { id: 'account', label: 'Mon compte', icon: User },
 ];
@@ -89,6 +90,7 @@ export default function SettingsPage() {
           {/* Tab content */}
           <div className="flex-1 min-w-0">
             {activeTab === 'restaurant' && <RestaurantSettings userRole={user?.role} />}
+            {activeTab === 'schedule' && <ScheduleSettings userRole={user?.role} />}
             {activeTab === 'notifications' && <NotificationSettings />}
             {activeTab === 'account' && <AccountSettings user={user} />}
           </div>
@@ -102,19 +104,22 @@ export default function SettingsPage() {
 function RestaurantSettings({ userRole }: { userRole?: string }) {
   const isStaff = !userRole || userRole === 'staff';
 
-  const { data: settings, isLoading } = useRestaurantSettings();
+  const { data: settings, isLoading: settingsLoading } = useRestaurantSettings();
+  const { data: restaurant, isLoading: restaurantLoading } = useMyRestaurant();
   const updateSettings = useUpdateSettings();
+
+  const isLoading = settingsLoading || restaurantLoading;
 
   const initialInfo = useMemo(() => {
     const saved: Record<string, string> = settings?.restaurant_info || {};
     return {
-      name: saved.name || '',
-      phone: saved.phone || '',
-      email: saved.email || '',
-      address: saved.address || '',
-      website: saved.website || '',
+      name: saved.name || restaurant?.name || '',
+      phone: saved.phone || restaurant?.phone || '',
+      email: saved.email || restaurant?.email || '',
+      address: saved.address || restaurant?.address || '',
+      website: saved.website || restaurant?.website || '',
     };
-  }, [settings]);
+  }, [settings, restaurant]);
 
   const [infoForm, setInfoForm] = useState<Record<string, string>>({});
   const [infoChanged, setInfoChanged] = useState(false);
@@ -528,6 +533,91 @@ function OpeningHoursCard({ initialOpeningHours, isStaff }: { initialOpeningHour
         )}
       </CardContent>
     </Card>
+  );
+}
+
+/* ---------- Schedule Settings ---------- */
+function ScheduleSettings({ userRole }: { userRole?: string }) {
+  const isStaff = !userRole || userRole === 'staff';
+  const { data: settings, isLoading } = useRestaurantSettings();
+  const updateSettings = useUpdateSettings();
+
+  const [rules, setRules] = useState({
+    default_break_minutes: 30,
+    max_hours_per_week: 38,
+    min_staff_per_service: 2,
+    min_rest_days_per_week: 2,
+  });
+  const [hasChanges, setHasChanges] = useState(false);
+  const [initialized, setInitialized] = useState(false);
+
+  // Sync from server once
+  if (settings?.schedule_rules && !initialized) {
+    setRules(settings.schedule_rules);
+    setInitialized(true);
+  }
+
+  const updateRule = (field: string, value: number) => {
+    setRules((prev) => ({ ...prev, [field]: value }));
+    setHasChanges(true);
+  };
+
+  const handleSave = () => {
+    updateSettings.mutate(
+      { schedule_rules: rules },
+      { onSuccess: () => setHasChanges(false) }
+    );
+  };
+
+  if (isLoading) {
+    return <Card><CardContent className="p-6"><Skeleton className="h-48 w-full" /></CardContent></Card>;
+  }
+
+  return (
+    <div className="space-y-4">
+      {isStaff && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 flex items-center gap-2">
+          <Shield className="w-4 h-4 shrink-0" />
+          Vous avez un accès en lecture seule. Contactez un manager pour modifier les règles.
+        </div>
+      )}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">Règles de planification</CardTitle>
+          <CardDescription>Paramètres par défaut pour la création de shifts</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <Label>Pause par défaut (min)</Label>
+              <Input type="number" value={rules.default_break_minutes} onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateRule('default_break_minutes', Number(e.target.value))} disabled={isStaff} />
+            </div>
+            <div>
+              <Label>Heures max/semaine</Label>
+              <Input type="number" value={rules.max_hours_per_week} onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateRule('max_hours_per_week', Number(e.target.value))} disabled={isStaff} />
+            </div>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <Label>Personnel min. par service</Label>
+              <Input type="number" value={rules.min_staff_per_service} onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateRule('min_staff_per_service', Number(e.target.value))} disabled={isStaff} />
+            </div>
+            <div>
+              <Label>Jours de repos min./semaine</Label>
+              <Input type="number" value={rules.min_rest_days_per_week} onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateRule('min_rest_days_per_week', Number(e.target.value))} disabled={isStaff} />
+            </div>
+          </div>
+          {!isStaff && (
+            <div className="flex justify-end">
+              <Button onClick={handleSave} disabled={!hasChanges || updateSettings.isPending}>
+                <Save className="w-4 h-4 mr-2" />
+                {updateSettings.isPending ? 'Enregistrement...' : 'Enregistrer'}
+              </Button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
   );
 }
 
