@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { AppShell } from '@/components/layout/AppShell';
-import { Header } from '@/components/layout/Header';
-import { staffApi, settingsApi, type Employee, type RestaurantSettings } from '@/lib/api';
+// Header removed — navigation handled by AppShell sidebar
+import { staffApi, settingsApi, authApi, type Employee, type RestaurantSettings } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
 import {
   Settings as SettingsIcon,
@@ -64,8 +64,6 @@ export default function SettingsPage() {
 
   return (
     <AppShell>
-      <Header />
-
       <div className="flex-1 overflow-auto p-4 md:p-6">
         {/* Page header */}
         <div className="mb-6">
@@ -130,20 +128,42 @@ function RestaurantSettings({ userRole }: { userRole?: string }) {
   const [infoChanged, setInfoChanged] = useState(false);
 
   useEffect(() => {
-    settingsApi.get().then((res) => {
-      if (res.success && res.data) {
-        setSettings(res.data);
-        const info = res.data.restaurant_info || {};
+    const fetchAll = async () => {
+      // Fetch saved settings from AdaStaff
+      const settingsRes = await settingsApi.get();
+      let savedInfo: Record<string, string> = {};
+      if (settingsRes.success && settingsRes.data) {
+        setSettings(settingsRes.data);
+        savedInfo = settingsRes.data.restaurant_info || {};
+      }
+
+      // Fetch restaurant info from AdaAuth to fill in defaults
+      const authRes = await authApi.getMyRestaurants();
+      if (authRes.success && authRes.data.length > 0) {
+        const restaurant = authRes.data[0]; // Primary restaurant
+        // Use saved settings as priority, fall back to AdaAuth data
         setInfoForm({
-          name: info.name || '',
-          phone: info.phone || '',
-          email: info.email || '',
-          address: info.address || '',
-          website: info.website || '',
+          name: savedInfo.name || restaurant.name || '',
+          phone: savedInfo.phone || restaurant.phone || '',
+          email: savedInfo.email || restaurant.email || '',
+          address: savedInfo.address || restaurant.address || '',
+          website: savedInfo.website || restaurant.website || '',
+        });
+      } else {
+        // No AdaAuth data, just use saved settings
+        setInfoForm({
+          name: savedInfo.name || '',
+          phone: savedInfo.phone || '',
+          email: savedInfo.email || '',
+          address: savedInfo.address || '',
+          website: savedInfo.website || '',
         });
       }
+
       setLoading(false);
-    });
+    };
+
+    fetchAll();
   }, []);
 
   const handleSaveInfo = async () => {

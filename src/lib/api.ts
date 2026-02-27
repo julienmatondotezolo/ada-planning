@@ -413,6 +413,44 @@ export const healthApi = {
     apiCall('/api/v1/health', { requireAuth: false }),
 };
 
+// AdaAuth API — for user/restaurant info
+const ADAAUTH_API_URL = process.env.NEXT_PUBLIC_AUTH_URL || 'https://auth.adasystems.app';
+
+export interface Restaurant {
+  id: string;
+  name?: string;
+  slug?: string;
+  phone?: string;
+  email?: string;
+  address?: string;
+  website?: string;
+  [key: string]: any;
+}
+
+export const authApi = {
+  // Get restaurants the current user has access to
+  getMyRestaurants: async (): Promise<{ data: Restaurant[]; success: boolean; error?: string }> => {
+    const token = getAuthToken();
+    if (!token) {
+      return { data: [], success: false, error: 'No auth token' };
+    }
+    try {
+      const res = await fetch(`${ADAAUTH_API_URL}/api/v1/users/restaurants`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        return { data: [], success: false, error: `HTTP ${res.status}` };
+      }
+      const data = await res.json();
+      // API may return array directly or wrapped in { restaurants: [...] }
+      const restaurants = Array.isArray(data) ? data : (data.restaurants || data.data || []);
+      return { data: restaurants, success: true };
+    } catch (err: any) {
+      return { data: [], success: false, error: err.message };
+    }
+  },
+};
+
 export default {
   staff: staffApi,
   employees: staffApi, // Alias for new name
