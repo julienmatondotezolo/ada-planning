@@ -76,6 +76,8 @@ const STAFF_COLORS = [
   '#ec4899', '#14b8a6', '#f97316', '#6366f1', '#84cc16',
 ];
 
+let shiftIdCounter = 0;
+
 function employeeToStaffMember(emp: Employee, index: number): StaffMember {
   const initials = `${emp.first_name.charAt(0)}${emp.last_name.charAt(0)}`.toUpperCase();
   return {
@@ -776,7 +778,7 @@ export function CalendarView() {
       }
     } else {
       // ── Optimistic create ──
-      const tempId = `temp-${Date.now()}`;
+      const tempId = `temp-${++shiftIdCounter}-${Date.now()}`;
       const snapshot = { ...shifts };
       Object.keys(snapshot).forEach((k) => { snapshot[k] = [...snapshot[k]]; });
 
