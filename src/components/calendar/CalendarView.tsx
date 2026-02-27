@@ -195,11 +195,12 @@ function CalendarDayCell({
         // Closed days
         isClosed && isCurrentMonth && 'bg-muted/40 opacity-50 cursor-not-allowed',
         isClosed && !isCurrentMonth && 'bg-muted/50 opacity-30',
-        // During drag: blocked cells dim, valid cells highlighted on hover
-        isDragging && !blocked && isCurrentMonth && 'ring-1 ring-inset ring-primary/10',
+        // During drag: valid cells get green border
+        isDragging && !blocked && isCurrentMonth && 'ring-2 ring-inset ring-emerald-400/40',
+        isDragging && !blocked && isCurrentMonth && isDragOver && 'ring-emerald-500/70 bg-emerald-50/30',
+        // During drag: blocked cells dim
         isDragging && blocked && isCurrentMonth && 'opacity-40 cursor-not-allowed',
-        !blocked && isDragOver && 'bg-primary/5 ring-2 ring-inset ring-primary/30',
-        blocked && isDragOver && 'bg-destructive/5 ring-2 ring-inset ring-destructive/30',
+        isDragging && blocked && isCurrentMonth && isDragOver && 'opacity-60 bg-destructive/5',
         // Normal state
         !isDragging && !isClosed && isToday && 'bg-primary/[0.03]',
         !isDragging && !isClosed && isCurrentMonth && 'cursor-pointer hover:bg-muted/20',
@@ -209,6 +210,27 @@ function CalendarDayCell({
       onDragLeave={onDragLeave}
       onDrop={onDrop}
     >
+      {/* Drag overlay: blocked = grey cross + text, valid = green hint */}
+      {isDragging && isCurrentMonth && blocked && (
+        <div className="absolute inset-0 z-10 flex flex-col items-center justify-center pointer-events-none">
+          {/* X cross */}
+          <svg className="w-10 h-10 text-muted-foreground/30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+            <line x1="4" y1="4" x2="20" y2="20" />
+            <line x1="20" y1="4" x2="4" y2="20" />
+          </svg>
+          <span className="text-[9px] font-semibold text-muted-foreground/40 mt-0.5 uppercase tracking-wide">
+            Indisponible
+          </span>
+        </div>
+      )}
+      {isDragging && isCurrentMonth && !blocked && (
+        <div className="absolute inset-0 z-10 flex items-center justify-center pointer-events-none">
+          <span className="text-[9px] font-semibold text-emerald-500/30 uppercase tracking-wide">
+            Déposer ici
+          </span>
+        </div>
+      )}
+
       {/* Day number */}
       <div className="flex items-center justify-between px-2 pt-1.5">
         <span
