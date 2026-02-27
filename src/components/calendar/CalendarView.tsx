@@ -766,12 +766,7 @@ export function CalendarView() {
     <div className="flex flex-col h-full">
       {/* ── Top Bar ── */}
       <div className="flex items-center justify-between px-4 md:px-6 py-2.5 border-b bg-background">
-        {/* Today's date */}
-        <div className="text-sm text-muted-foreground capitalize">
-          {format(new Date(), 'EEEE d MMMM yyyy', { locale: fr })}
-        </div>
-
-        {/* Month Navigation */}
+        {/* Left — Month Navigation */}
         <div className="flex items-center gap-2">
           <Button
             variant="ghost"
@@ -794,20 +789,21 @@ export function CalendarView() {
           >
             <ChevronRight className="w-4 h-4" />
           </Button>
-
-          <Button
-            variant="outline"
-            size="sm"
-            className="ml-2 text-xs h-7"
-            onClick={() => setCurrentDate(new Date())}
-          >
-            Aujourd'hui
-          </Button>
         </div>
 
-        {/* Stats */}
-        <div className="hidden md:flex items-center gap-4">
-          <MonthStats shifts={shifts} />
+        {/* Center — Today button */}
+        <Button
+          variant="outline"
+          size="sm"
+          className="text-xs h-7"
+          onClick={() => setCurrentDate(new Date())}
+        >
+          Aujourd'hui
+        </Button>
+
+        {/* Right — Today's date */}
+        <div className="text-sm text-muted-foreground capitalize">
+          {format(new Date(), 'EEEE d MMMM yyyy', { locale: fr })}
         </div>
       </div>
 

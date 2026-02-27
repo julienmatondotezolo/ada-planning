@@ -98,9 +98,9 @@ export function Sidebar() {
         collapsed ? 'justify-center px-2' : 'justify-between px-4'
       )}>
         {!collapsed && (
-          <div className="flex items-center gap-2.5 min-w-0">
-            <AdaLogo size="sm" variant="primary" className="shrink-0" />
-            <span className="font-semibold text-gray-900 text-sm truncate">AdaPlanning</span>
+          <div className="flex items-center gap-2 min-w-0">
+            <AdaLogo size="sm" variant="primary" className="shrink-0 h-5 w-auto" />
+            <span className="font-semibold text-gray-900 text-sm truncate">Planning</span>
           </div>
         )}
         <button
