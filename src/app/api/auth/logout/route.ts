@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 
+const AUTH_URL = process.env.NEXT_PUBLIC_AUTH_URL || 'https://auth.adasystems.app';
+
 export async function POST(request: NextRequest) {
   try {
     console.log('🚪 Processing logout request...');
@@ -12,7 +14,7 @@ export async function POST(request: NextRequest) {
     if (token) {
       try {
         console.log('🔄 Invalidating token with AdaAuth...');
-        const response = await fetch('https://auth.adasystems.app/auth/logout', {
+        const response = await fetch(`${AUTH_URL}/auth/logout`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ token })

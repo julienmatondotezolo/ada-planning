@@ -3,6 +3,8 @@
 import React, { useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
+
+const AUTH_URL = process.env.NEXT_PUBLIC_AUTH_URL || 'https://auth.adasystems.app';
 import { 
   Card, 
   CardContent, 
@@ -40,7 +42,7 @@ function LoginPageContent() {
       
       const redirectTimer = setTimeout(() => {
         console.log('🔗 Redirecting to AdaAuth SSO now...');
-        window.location.href = `https://auth.adasystems.app/?redirect=${currentUrl}`;
+        window.location.href = `${AUTH_URL}/?redirect=${currentUrl}`;
       }, 1500);
       
       return () => clearTimeout(redirectTimer);
@@ -89,7 +91,7 @@ function LoginPageContent() {
               If you&apos;re not redirected automatically:
             </p>
             <a
-              href={`https://auth.adasystems.app/?redirect=${encodeURIComponent(window.location.origin + '/auth/callback?redirect=' + encodeURIComponent(redirectTo))}`}
+              href={`${AUTH_URL}/?redirect=${encodeURIComponent(window.location.origin + '/auth/callback?redirect=' + encodeURIComponent(redirectTo))}`}
               className="inline-flex items-center gap-1 text-sm text-primary hover:text-primary/80 font-medium"
             >
               <span>Click here to login</span>
@@ -100,7 +102,7 @@ function LoginPageContent() {
           {/* AdaAuth Link */}
           <div className="text-center pt-2">
             <a
-              href="https://auth.adasystems.app"
+              href={AUTH_URL}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"

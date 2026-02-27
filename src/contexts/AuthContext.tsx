@@ -2,6 +2,8 @@
 
 import React, { createContext, useContext, useState, useTransition } from 'react';
 
+const AUTH_URL = process.env.NEXT_PUBLIC_AUTH_URL || 'https://auth.adasystems.app';
+
 interface User {
   id: string;
   email: string;
@@ -64,7 +66,7 @@ export function AuthProvider({ children, initialUser }: AuthProviderProps) {
         const returnUrl = encodeURIComponent(
           window.location.origin + '/auth/callback?redirect=' + encodeURIComponent('/')
         );
-        window.location.href = `https://auth.adasystems.app/?redirect=${returnUrl}`;
+        window.location.href = `${AUTH_URL}/?redirect=${returnUrl}`;
       }
     });
   };

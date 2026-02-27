@@ -32,7 +32,7 @@ export default function UnauthorizedPage() {
               </Link>
             </Button>
             <Button variant="outline" asChild className="w-full">
-              <Link href="https://auth.adasystems.app/dashboard">
+              <Link href={`${process.env.NEXT_PUBLIC_AUTH_URL || 'https://auth.adasystems.app'}/dashboard`}>
                 Tableau de bord AdaAuth
               </Link>
             </Button>

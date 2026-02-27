@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+const AUTH_URL = process.env.NEXT_PUBLIC_AUTH_URL || 'https://auth.adasystems.app';
+
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const token = request.cookies.get('ada_access_token')?.value;
@@ -16,7 +18,7 @@ export function middleware(request: NextRequest) {
   // Protected routes — redirect to AdaAuth if no token
   if (!token) {
     const callbackUrl = `${request.nextUrl.origin}/auth/callback?redirect=${encodeURIComponent(pathname)}`;
-    const authUrl = `https://auth.adasystems.app/?redirect=${encodeURIComponent(callbackUrl)}`;
+    const authUrl = `${AUTH_URL}/?redirect=${encodeURIComponent(callbackUrl)}`;
     return NextResponse.redirect(authUrl);
   }
 

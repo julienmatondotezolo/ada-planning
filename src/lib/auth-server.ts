@@ -1,6 +1,8 @@
 // Server-side authentication utilities for AdaPlanning
 import { cookies } from 'next/headers';
 
+const AUTH_URL = process.env.NEXT_PUBLIC_AUTH_URL || 'https://auth.adasystems.app';
+
 export interface User {
   id: string;
   email: string;
@@ -25,7 +27,7 @@ export async function getServerUser(): Promise<User | null> {
     console.log('🔍 Validating token with AdaAuth API...');
     
     // Call improved AdaAuth API validate endpoint
-    const response = await fetch('https://auth.adasystems.app/auth/validate', {
+    const response = await fetch(`${AUTH_URL}/auth/validate`, {
       method: 'POST',
       headers: { 
         'Content-Type': 'application/json',
@@ -76,7 +78,7 @@ export function getAuthRedirectUrl(currentPath: string = '/') {
     : 'http://localhost:3005';
     
   const callbackUrl = `${baseUrl}/auth/callback?redirect=${encodeURIComponent(currentPath)}`;
-  const authUrl = `https://auth.adasystems.app/?redirect=${encodeURIComponent(callbackUrl)}`;
+  const authUrl = `${AUTH_URL}/?redirect=${encodeURIComponent(callbackUrl)}`;
   
   return authUrl;
 }
