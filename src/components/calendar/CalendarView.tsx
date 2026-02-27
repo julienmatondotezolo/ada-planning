@@ -225,7 +225,7 @@ function CalendarDayCell({
       )}
       {isDragging && isCurrentMonth && !blocked && (
         <div className="absolute inset-0 z-10 flex items-center justify-center pointer-events-none">
-          <span className="text-[9px] font-semibold text-emerald-500/30 uppercase tracking-wide">
+          <span className="text-[10px] font-bold text-white bg-emerald-500/60 px-2.5 py-1 rounded-md uppercase tracking-wide">
             Déposer ici
           </span>
         </div>
