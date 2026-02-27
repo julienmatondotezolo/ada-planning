@@ -52,7 +52,7 @@ type SettingsTab = 'restaurant' | 'shifts' | 'notifications' | 'account';
 
 const TABS: { id: SettingsTab; label: string; icon: React.ElementType }[] = [
   { id: 'restaurant', label: 'Restaurant', icon: Building },
-  { id: 'shifts', label: 'Shifts', icon: Clock },
+  { id: 'shifts', label: 'Services', icon: Clock },
   { id: 'notifications', label: 'Notifications', icon: Bell },
   { id: 'account', label: 'Mon compte', icon: User },
 ];
@@ -671,7 +671,7 @@ function ShiftPresetsSettings({ userRole }: { userRole?: string }) {
       {isStaff && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 flex items-center gap-2">
           <Shield className="w-4 h-4 shrink-0" />
-          Vous avez un accès en lecture seule. Contactez un manager pour modifier les shifts.
+          Vous avez un accès en lecture seule. Contactez un manager pour modifier les services.
         </div>
       )}
 
@@ -681,10 +681,10 @@ function ShiftPresetsSettings({ userRole }: { userRole?: string }) {
             <div>
               <CardTitle className="text-lg flex items-center gap-2">
                 <Clock className="w-5 h-5 text-primary" />
-                Modèles de shifts
+                Modèles de services
               </CardTitle>
               <CardDescription>
-                Créez des modèles de shifts réutilisables pour la planification (ex: Midi, Soir, Journée)
+                Créez des modèles de services réutilisables pour la planification (ex: Midi, Soir, Journée)
               </CardDescription>
             </div>
             {!isStaff && (
@@ -699,11 +699,11 @@ function ShiftPresetsSettings({ userRole }: { userRole?: string }) {
           {!presets || presets.length === 0 ? (
             <div className="px-6 pb-6 text-center py-8">
               <Clock className="w-10 h-10 mx-auto text-muted-foreground/40 mb-3" />
-              <p className="text-sm text-muted-foreground">Aucun modèle de shift créé</p>
+              <p className="text-sm text-muted-foreground">Aucun modèle de service créé</p>
               {!isStaff && (
                 <Button variant="outline" size="sm" className="mt-3" onClick={openCreateDialog}>
                   <Plus className="w-4 h-4 mr-2" />
-                  Créer un modèle
+                  Créer un service
                 </Button>
               )}
             </div>
@@ -788,18 +788,18 @@ function ShiftPresetsSettings({ userRole }: { userRole?: string }) {
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="sm:max-w-[480px]">
           <DialogHeader>
-            <DialogTitle>{editingPreset ? 'Modifier le shift' : 'Nouveau modèle de shift'}</DialogTitle>
+            <DialogTitle>{editingPreset ? 'Modifier le service' : 'Nouveau modèle de service'}</DialogTitle>
             <DialogDescription>
               {editingPreset
                 ? 'Modifiez le nom, la couleur et les créneaux horaires.'
-                : 'Définissez un modèle réutilisable avec un ou plusieurs créneaux horaires.'}
+                : 'Définissez un service réutilisable avec un ou plusieurs créneaux horaires.'}
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4 mt-2">
             {/* Name */}
             <div>
-              <Label>Nom du shift</Label>
+              <Label>Nom du service</Label>
               <Input
                 placeholder="ex: Midi, Soir, Coupure..."
                 value={formName}
