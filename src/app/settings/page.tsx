@@ -1,10 +1,11 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import { AppShell } from '@/components/layout/AppShell';
-// Header removed — navigation handled by AppShell sidebar
-import { staffApi, settingsApi, authApi, type Employee, type RestaurantSettings } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
+import { useRestaurantSettings, useMyRestaurants, useUpdateSettings } from '@/hooks/useSettings';
+import { useEmployees, useDeleteEmployee } from '@/hooks/useStaff';
+import type { Employee, RestaurantSettings } from '@/lib/api';
 import {
   Settings as SettingsIcon,
   Building,
@@ -12,12 +13,9 @@ import {
   Bell,
   Users,
   Plus,
-  Edit,
   Trash2,
   Save,
   User,
-  Globe,
-  Palette,
   Shield,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -77,7 +75,7 @@ export default function SettingsPage() {
         </div>
 
         <div className="flex flex-col lg:flex-row gap-6">
-          {/* Settings nav — horizontal on mobile, vertical on desktop */}
+          {/* Settings nav */}
           <nav className="lg:w-[200px] shrink-0">
             <div className="flex lg:flex-col gap-1 overflow-x-auto pb-2 lg:pb-0">
               {TABS.map((tab) => (
@@ -115,69 +113,42 @@ export default function SettingsPage() {
 /* ---------- Restaurant Settings ---------- */
 function RestaurantSettings({ userRole }: { userRole?: string }) {
   const isStaff = !userRole || userRole === 'staff';
-  const [settings, setSettings] = useState<RestaurantSettings | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [infoForm, setInfoForm] = useState({
-    name: '',
-    phone: '',
-    email: '',
-    address: '',
-    website: '',
-  });
+
+  const { data: settings, isLoading: settingsLoading } = useRestaurantSettings();
+  const { data: restaurants, isLoading: restaurantsLoading } = useMyRestaurants();
+  const updateSettings = useUpdateSettings();
+
+  const loading = settingsLoading || restaurantsLoading;
+
+  // Build initial restaurant info form from saved settings + AdaAuth fallback
+  const initialInfo = useMemo(() => {
+    const saved: Record<string, string> = settings?.restaurant_info || {};
+    const restaurant: Record<string, any> = restaurants?.[0] || {};
+    return {
+      name: saved.name || restaurant.name || '',
+      phone: saved.phone || restaurant.phone || '',
+      email: saved.email || restaurant.email || '',
+      address: saved.address || restaurant.address || '',
+      website: saved.website || restaurant.website || '',
+    };
+  }, [settings, restaurants]);
+
+  const [infoForm, setInfoForm] = useState<Record<string, string>>({});
   const [infoChanged, setInfoChanged] = useState(false);
 
-  useEffect(() => {
-    const fetchAll = async () => {
-      // Fetch saved settings from AdaStaff
-      const settingsRes = await settingsApi.get();
-      let savedInfo: Record<string, string> = {};
-      if (settingsRes.success && settingsRes.data) {
-        setSettings(settingsRes.data);
-        savedInfo = settingsRes.data.restaurant_info || {};
-      }
-
-      // Fetch restaurant info from AdaAuth to fill in defaults
-      const authRes = await authApi.getMyRestaurants();
-      if (authRes.success && authRes.data.length > 0) {
-        const restaurant = authRes.data[0]; // Primary restaurant
-        // Use saved settings as priority, fall back to AdaAuth data
-        setInfoForm({
-          name: savedInfo.name || restaurant.name || '',
-          phone: savedInfo.phone || restaurant.phone || '',
-          email: savedInfo.email || restaurant.email || '',
-          address: savedInfo.address || restaurant.address || '',
-          website: savedInfo.website || restaurant.website || '',
-        });
-      } else {
-        // No AdaAuth data, just use saved settings
-        setInfoForm({
-          name: savedInfo.name || '',
-          phone: savedInfo.phone || '',
-          email: savedInfo.email || '',
-          address: savedInfo.address || '',
-          website: savedInfo.website || '',
-        });
-      }
-
-      setLoading(false);
-    };
-
-    fetchAll();
-  }, []);
-
-  const handleSaveInfo = async () => {
-    setSaving(true);
-    const res = await settingsApi.update({ restaurant_info: infoForm });
-    if (res.success) {
-      setInfoChanged(false);
-    }
-    setSaving(false);
-  };
+  // Merge initial values once loaded (only set if empty)
+  const displayInfo = { ...initialInfo, ...infoForm };
 
   const updateInfoField = (field: string, value: string) => {
     setInfoForm((prev) => ({ ...prev, [field]: value }));
     setInfoChanged(true);
+  };
+
+  const handleSaveInfo = () => {
+    updateSettings.mutate(
+      { restaurant_info: displayInfo },
+      { onSuccess: () => setInfoChanged(false) }
+    );
   };
 
   if (loading) {
@@ -207,32 +178,32 @@ function RestaurantSettings({ userRole }: { userRole?: string }) {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <Label>Nom</Label>
-              <Input value={infoForm.name} onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateInfoField('name', e.target.value)} disabled={isStaff} />
+              <Input value={displayInfo.name} onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateInfoField('name', e.target.value)} disabled={isStaff} />
             </div>
             <div>
               <Label>Téléphone</Label>
-              <Input value={infoForm.phone} onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateInfoField('phone', e.target.value)} disabled={isStaff} />
+              <Input value={displayInfo.phone} onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateInfoField('phone', e.target.value)} disabled={isStaff} />
             </div>
           </div>
           <div>
             <Label>Adresse</Label>
-            <Input value={infoForm.address} onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateInfoField('address', e.target.value)} disabled={isStaff} />
+            <Input value={displayInfo.address} onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateInfoField('address', e.target.value)} disabled={isStaff} />
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <Label>Email</Label>
-              <Input value={infoForm.email} onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateInfoField('email', e.target.value)} disabled={isStaff} />
+              <Input value={displayInfo.email} onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateInfoField('email', e.target.value)} disabled={isStaff} />
             </div>
             <div>
               <Label>Site web</Label>
-              <Input value={infoForm.website} onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateInfoField('website', e.target.value)} disabled={isStaff} />
+              <Input value={displayInfo.website} onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateInfoField('website', e.target.value)} disabled={isStaff} />
             </div>
           </div>
           {!isStaff && (
             <div className="flex justify-end">
-              <Button onClick={handleSaveInfo} disabled={!infoChanged || saving}>
+              <Button onClick={handleSaveInfo} disabled={!infoChanged || updateSettings.isPending}>
                 <Save className="w-4 h-4 mr-2" />
-                {saving ? 'Enregistrement...' : 'Enregistrer'}
+                {updateSettings.isPending ? 'Enregistrement...' : 'Enregistrer'}
               </Button>
             </div>
           )}
@@ -270,7 +241,6 @@ const DAYS_OF_WEEK = [
   { key: 'dimanche', label: 'Dimanche', short: 'Dim' },
 ];
 
-// Generate time options in 30-min increments
 const TIME_OPTIONS: string[] = [];
 for (let h = 0; h < 24; h++) {
   for (let m = 0; m < 60; m += 30) {
@@ -304,9 +274,10 @@ const DEFAULT_SCHEDULE: Record<string, DayScheduleLocal> = {
 };
 
 function OpeningHoursCard({ initialOpeningHours, isStaff }: { initialOpeningHours?: Record<string, any>; isStaff: boolean }) {
+  const updateSettings = useUpdateSettings();
+
   const [schedule, setSchedule] = useState<Record<string, DayScheduleLocal>>(() => {
     if (initialOpeningHours && Object.keys(initialOpeningHours).length > 0) {
-      // Convert API data (no slot ids) to local format (with ids)
       const converted: Record<string, DayScheduleLocal> = {};
       for (const day of DAYS_OF_WEEK) {
         const apiDay = initialOpeningHours[day.key];
@@ -328,7 +299,6 @@ function OpeningHoursCard({ initialOpeningHours, isStaff }: { initialOpeningHour
     return DEFAULT_SCHEDULE;
   });
   const [hasChanges, setHasChanges] = useState(false);
-  const [saving, setSaving] = useState(false);
 
   const toggleDay = (dayKey: string) => {
     if (isStaff) return;
@@ -353,7 +323,6 @@ function OpeningHoursCard({ initialOpeningHours, isStaff }: { initialOpeningHour
     setSchedule((prev) => {
       const day = prev[dayKey];
       const lastSlot = day.slots[day.slots.length - 1];
-      // Smart default: if last slot ends before 17:00, suggest evening; otherwise suggest next block
       const newFrom = lastSlot && lastSlot.to <= '17:00' ? '18:30' : '12:00';
       const newTo = newFrom === '18:30' ? '21:30' : '14:00';
       return {
@@ -423,9 +392,7 @@ function OpeningHoursCard({ initialOpeningHours, isStaff }: { initialOpeningHour
     setHasChanges(true);
   };
 
-  const handleSaveOpeningHours = async () => {
-    setSaving(true);
-    // Convert local format (with ids) to API format (without ids)
+  const handleSave = () => {
     const apiData: Record<string, { enabled: boolean; slots: { from: string; to: string }[] }> = {};
     for (const [dayKey, day] of Object.entries(schedule)) {
       apiData[dayKey] = {
@@ -433,9 +400,10 @@ function OpeningHoursCard({ initialOpeningHours, isStaff }: { initialOpeningHour
         slots: day.slots.map((s) => ({ from: s.from, to: s.to })),
       };
     }
-    const res = await settingsApi.update({ opening_hours: apiData });
-    if (res.success) setHasChanges(false);
-    setSaving(false);
+    updateSettings.mutate(
+      { opening_hours: apiData },
+      { onSuccess: () => setHasChanges(false) }
+    );
   };
 
   return (
@@ -486,7 +454,6 @@ function OpeningHoursCard({ initialOpeningHours, isStaff }: { initialOpeningHour
                   <>
                     {day.slots.map((slot, slotIdx) => (
                       <div key={slot.id} className="flex items-center gap-2">
-                        {/* FROM */}
                         <div className="flex items-center gap-1.5 flex-1 min-w-0">
                           <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide shrink-0 w-8">De</span>
                           <Select value={slot.from} onValueChange={(v: string) => updateSlotTime(key, slot.id, 'from', v)} disabled={isStaff}>
@@ -501,7 +468,6 @@ function OpeningHoursCard({ initialOpeningHours, isStaff }: { initialOpeningHour
                           </Select>
                         </div>
 
-                        {/* TO */}
                         <div className="flex items-center gap-1.5 flex-1 min-w-0">
                           <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide shrink-0 w-5">à</span>
                           <Select value={slot.to} onValueChange={(v: string) => updateSlotTime(key, slot.id, 'to', v)} disabled={isStaff}>
@@ -519,7 +485,6 @@ function OpeningHoursCard({ initialOpeningHours, isStaff }: { initialOpeningHour
                           </Select>
                         </div>
 
-                        {/* Add / Remove buttons — hidden for staff */}
                         {!isStaff && (
                           slotIdx === 0 ? (
                             <Button
@@ -572,9 +537,9 @@ function OpeningHoursCard({ initialOpeningHours, isStaff }: { initialOpeningHour
                 </button>
               ))}
             </div>
-            <Button disabled={!hasChanges || saving} size="sm" onClick={handleSaveOpeningHours}>
+            <Button disabled={!hasChanges || updateSettings.isPending} size="sm" onClick={handleSave}>
               <Save className="w-4 h-4 mr-2" />
-              {saving ? 'Enregistrement...' : 'Enregistrer'}
+              {updateSettings.isPending ? 'Enregistrement...' : 'Enregistrer'}
             </Button>
           </div>
         )}
@@ -586,21 +551,13 @@ function OpeningHoursCard({ initialOpeningHours, isStaff }: { initialOpeningHour
 /* ---------- Staff Settings ---------- */
 function StaffSettings({ userRole }: { userRole?: string }) {
   const isStaff = !userRole || userRole === 'staff';
-  const [staff, setStaff] = useState<Employee[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data: staff = [], isLoading } = useEmployees({ active_only: false });
+  const deleteEmployee = useDeleteEmployee();
 
-  useEffect(() => {
-    staffApi.getAll({ active_only: false }).then((res) => {
-      if (res.success && res.data) setStaff(res.data);
-      setLoading(false);
-    });
-  }, []);
-
-  const handleDelete = async (id: string) => {
+  const handleDelete = (id: string) => {
     if (isStaff) return;
     if (!confirm('Supprimer ce membre ?')) return;
-    const res = await staffApi.delete(id);
-    if (res.success) setStaff((prev) => prev.filter((s) => s.id !== id));
+    deleteEmployee.mutate(id);
   };
 
   return (
@@ -629,7 +586,7 @@ function StaffSettings({ userRole }: { userRole?: string }) {
           </div>
         </CardHeader>
         <CardContent className="p-0">
-          {loading ? (
+          {isLoading ? (
             <div className="p-6 space-y-3">
               {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}
             </div>
@@ -674,38 +631,37 @@ function StaffSettings({ userRole }: { userRole?: string }) {
 /* ---------- Schedule Settings ---------- */
 function ScheduleSettings({ userRole }: { userRole?: string }) {
   const isStaff = !userRole || userRole === 'staff';
+  const { data: settings, isLoading } = useRestaurantSettings();
+  const updateSettings = useUpdateSettings();
+
   const [rules, setRules] = useState({
     default_break_minutes: 30,
     max_hours_per_week: 38,
     min_staff_per_service: 2,
     min_rest_days_per_week: 2,
   });
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
+  const [initialized, setInitialized] = useState(false);
 
-  useEffect(() => {
-    settingsApi.get().then((res) => {
-      if (res.success && res.data?.schedule_rules) {
-        setRules(res.data.schedule_rules);
-      }
-      setLoading(false);
-    });
-  }, []);
+  // Sync from server once
+  if (settings?.schedule_rules && !initialized) {
+    setRules(settings.schedule_rules);
+    setInitialized(true);
+  }
 
   const updateRule = (field: string, value: number) => {
     setRules((prev) => ({ ...prev, [field]: value }));
     setHasChanges(true);
   };
 
-  const handleSave = async () => {
-    setSaving(true);
-    const res = await settingsApi.update({ schedule_rules: rules });
-    if (res.success) setHasChanges(false);
-    setSaving(false);
+  const handleSave = () => {
+    updateSettings.mutate(
+      { schedule_rules: rules },
+      { onSuccess: () => setHasChanges(false) }
+    );
   };
 
-  if (loading) {
+  if (isLoading) {
     return <Card><CardContent className="p-6"><Skeleton className="h-48 w-full" /></CardContent></Card>;
   }
 
@@ -745,9 +701,9 @@ function ScheduleSettings({ userRole }: { userRole?: string }) {
           </div>
           {!isStaff && (
             <div className="flex justify-end">
-              <Button onClick={handleSave} disabled={!hasChanges || saving}>
+              <Button onClick={handleSave} disabled={!hasChanges || updateSettings.isPending}>
                 <Save className="w-4 h-4 mr-2" />
-                {saving ? 'Enregistrement...' : 'Enregistrer'}
+                {updateSettings.isPending ? 'Enregistrement...' : 'Enregistrer'}
               </Button>
             </div>
           )}

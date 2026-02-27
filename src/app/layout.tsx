@@ -3,6 +3,7 @@ import { Inter } from 'next/font/google';
 import './globals.css';
 import { getServerUser } from '@/lib/auth-server';
 import { AuthProvider } from '@/contexts/AuthContext';
+import { QueryProvider } from '@/providers/QueryProvider';
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });
 
@@ -39,11 +40,13 @@ export default async function RootLayout({
     <html lang="fr" suppressHydrationWarning>
       <body className={`${inter.variable} font-sans antialiased`}>
         <script dangerouslySetInnerHTML={{ __html: `document.addEventListener('contextmenu',function(e){e.preventDefault()});` }} />
-        <AuthProvider initialUser={user}>
-          <div className="min-h-screen bg-background">
-            {children}
-          </div>
-        </AuthProvider>
+        <QueryProvider>
+          <AuthProvider initialUser={user}>
+            <div className="min-h-screen bg-background">
+              {children}
+            </div>
+          </AuthProvider>
+        </QueryProvider>
       </body>
     </html>
   );
