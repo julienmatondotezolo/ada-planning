@@ -59,8 +59,14 @@ export interface Employee {
   email?: string;
   phone?: string;
   position: string;
+  role?: string;
   color?: string;
   active: boolean;
+  hourly_rate?: number;
+  hire_date?: string;
+  notes?: string;
+  emergency_contact?: { name?: string; phone?: string };
+  availability?: Record<string, unknown>;
   created_at?: string;
   updated_at?: string;
 }
@@ -70,9 +76,13 @@ export interface Shift {
   restaurant_id: string;
   employee_id: string;
   date: string;
+  scheduled_date?: string;
   start_time: string;
   end_time: string;
+  duration_hours?: number;
   position?: string;
+  role?: string;
+  employee_name?: string;
   notes?: string;
   status?: string;
   created_at?: string;

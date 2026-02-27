@@ -118,7 +118,7 @@ export default function StaffPage() {
       email: emp.email || '',
       phone: emp.phone || '',
       position: emp.position,
-      hourly_rate: emp.hourly_rate,
+      hourly_rate: emp.hourly_rate ?? 14,
       notes: emp.notes || '',
       emergency_contact_name: emp.emergency_contact?.name || '',
       emergency_contact_phone: emp.emergency_contact?.phone || '',

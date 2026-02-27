@@ -2,16 +2,11 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { AppShell } from '@/components/layout/AppShell';
-// Header removed — navigation handled by AppShell sidebar
 import { shiftsApi, staffApi, type Shift, type Employee } from '@/lib/api';
 import {
   Clock,
   ChevronLeft,
   ChevronRight,
-  Calendar as CalendarIcon,
-  Download,
-  Filter,
-  Plus,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
@@ -28,10 +23,7 @@ import { fr } from 'date-fns/locale';
 import {
   Card,
   CardContent,
-  CardHeader,
-  CardTitle,
   Button,
-  Badge,
   Avatar,
   AvatarFallback,
   Select,
@@ -41,6 +33,19 @@ import {
   SelectValue,
   Skeleton,
 } from 'ada-design-system';
+
+function fmtTime(t: string): string {
+  if (!t) return '';
+  const parts = t.split(':');
+  return `${parts[0]}:${parts[1]}`;
+}
+
+function computeDuration(start: string, end: string): number {
+  if (!start || !end) return 0;
+  const [sh, sm] = start.split(':').map(Number);
+  const [eh, em] = end.split(':').map(Number);
+  return ((eh * 60 + em) - (sh * 60 + sm)) / 60;
+}
 
 export default function SchedulesPage() {
   const [currentWeek, setCurrentWeek] = useState(new Date());
@@ -54,60 +59,51 @@ export default function SchedulesPage() {
   const weekDays = eachDayOfInterval({ start: weekStart, end: weekEnd });
 
   useEffect(() => {
+    const fetchData = async () => {
+      setLoading(true);
+      const [shiftsRes, empRes] = await Promise.all([
+        shiftsApi.getAll({
+          start_date: format(weekStart, 'yyyy-MM-dd'),
+          end_date: format(weekEnd, 'yyyy-MM-dd'),
+        }),
+        staffApi.getAll({ active_only: true }),
+      ]);
+      if (shiftsRes.success && shiftsRes.data) setShifts(shiftsRes.data);
+      if (empRes.success && empRes.data) setEmployees(empRes.data);
+      setLoading(false);
+    };
     fetchData();
   }, [currentWeek]);
-
-  const fetchData = async () => {
-    setLoading(true);
-    const [shiftsRes, empRes] = await Promise.all([
-      shiftsApi.getAll({
-        start_date: format(weekStart, 'yyyy-MM-dd'),
-        end_date: format(weekEnd, 'yyyy-MM-dd'),
-      }),
-      staffApi.getAll({ active_only: true }),
-    ]);
-    if (shiftsRes.success && shiftsRes.data) setShifts(shiftsRes.data);
-    if (empRes.success && empRes.data) setEmployees(empRes.data);
-    setLoading(false);
-  };
 
   // Group shifts by employee
   const shiftsByEmployee = useMemo(() => {
     const map = new Map<string, { employee: Employee; shifts: Shift[] }>();
 
-    // Initialize all employees
     employees.forEach((emp) => {
       map.set(emp.id, { employee: emp, shifts: [] });
     });
 
-    // Assign shifts
     shifts.forEach((shift) => {
       const empId = shift.employee_id;
       if (map.has(empId)) {
         map.get(empId)!.shifts.push(shift);
       } else {
-        // Shift for unknown employee — create placeholder
+        // Shift for unknown employee — create placeholder from available data
+        const empData = shift.employee;
         map.set(empId, {
           employee: {
             id: empId,
             restaurant_id: '',
-            name: shift.employee_name || 'Inconnu',
-            first_name: shift.employee_name?.split(' ')[0] || 'Inconnu',
-            last_name: shift.employee_name?.split(' ').slice(1).join(' ') || '',
-            role: shift.role || '',
-            position: shift.position || '',
-            availability: {},
-            hourly_rate: 0,
-            hire_date: '',
+            first_name: empData?.first_name || 'Inconnu',
+            last_name: empData?.last_name || '',
+            position: shift.position || empData?.position || '',
             active: true,
-            emergency_contact: {},
           },
           shifts: [shift],
         });
       }
     });
 
-    // Filter
     if (filterEmployee !== 'all') {
       const entry = map.get(filterEmployee);
       const filtered = new Map<string, { employee: Employee; shifts: Shift[] }>();
@@ -119,13 +115,13 @@ export default function SchedulesPage() {
   }, [employees, shifts, filterEmployee]);
 
   // Stats
-  const totalHours = shifts.reduce((sum, s) => sum + (s.duration_hours || 0), 0);
+  const totalHours = shifts.reduce((sum, s) => sum + computeDuration(s.start_time, s.end_time), 0);
   const totalShifts = shifts.length;
 
   const getShiftForDay = (empShifts: Shift[], day: Date) =>
-    empShifts.filter((s) => isSameDay(new Date(s.date || s.scheduled_date || ''), day));
+    empShifts.filter((s) => isSameDay(new Date(s.date || ''), day));
 
-  const getStatusColor = (status: string) => {
+  const getStatusColor = (status?: string) => {
     switch (status) {
       case 'confirmed': return 'bg-green-100 text-green-800 border-green-200';
       case 'scheduled': return 'bg-blue-100 text-blue-800 border-blue-200';
@@ -149,7 +145,7 @@ export default function SchedulesPage() {
               Horaires
             </h1>
             <p className="text-sm text-muted-foreground mt-1">
-              {totalShifts} shift{totalShifts > 1 ? 's' : ''} · {totalHours.toFixed(1)}h cette semaine
+              {totalShifts} service{totalShifts > 1 ? 's' : ''} · {totalHours.toFixed(1)}h cette semaine
             </p>
           </div>
 
@@ -259,21 +255,24 @@ export default function SchedulesPage() {
                           )}>
                             {dayShifts.length > 0 ? (
                               <div className="space-y-1">
-                                {dayShifts.map((s) => (
-                                  <div
-                                    key={s.id}
-                                    className={cn(
-                                      'rounded-md border px-1.5 py-1 text-xs cursor-pointer hover:opacity-80 transition',
-                                      getStatusColor(s.status)
-                                    )}
-                                    title={`${s.start_time}–${s.end_time} (${s.duration_hours}h)`}
-                                  >
-                                    <div className="font-medium">{s.start_time}–{s.end_time}</div>
-                                    {s.duration_hours && (
-                                      <div className="opacity-70">{s.duration_hours}h</div>
-                                    )}
-                                  </div>
-                                ))}
+                                {dayShifts.map((s) => {
+                                  const dur = computeDuration(s.start_time, s.end_time);
+                                  return (
+                                    <div
+                                      key={s.id}
+                                      className={cn(
+                                        'rounded-md border px-1.5 py-1 text-xs cursor-pointer hover:opacity-80 transition',
+                                        getStatusColor(s.status)
+                                      )}
+                                      title={`${fmtTime(s.start_time)}–${fmtTime(s.end_time)} (${dur.toFixed(1)}h)`}
+                                    >
+                                      <div className="font-medium">{fmtTime(s.start_time)}–{fmtTime(s.end_time)}</div>
+                                      {dur > 0 && (
+                                        <div className="opacity-70">{dur.toFixed(1)}h</div>
+                                      )}
+                                    </div>
+                                  );
+                                })}
                               </div>
                             ) : (
                               <div className="text-muted-foreground/30 text-xs py-2">—</div>
