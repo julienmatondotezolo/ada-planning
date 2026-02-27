@@ -14,6 +14,9 @@ const nextConfig = {
   // Use empty turbopack config to silence Turbopack warnings
   turbopack: {},
   
+  // Hide dev indicator
+  devIndicators: false,
+  
   // Updated from experimental.serverComponentsExternalPackages
   serverExternalPackages: [],
   
