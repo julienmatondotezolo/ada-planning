@@ -9,21 +9,18 @@ export const metadata: Metadata = {
 };
 
 export default function HomePage() {
-  // Authentication is now handled by middleware.ts
-  // No need for ProtectedRoute wrapper - users are authenticated before reaching this component
-  
   return (
-    <div className="flex h-screen bg-background">
-      {/* Sidebar */}
+    <div className="flex h-dvh bg-background overflow-hidden">
+      {/* Collapsible Sidebar */}
       <Sidebar />
-      
-      {/* Main Content */}
-      <div className="flex-1 flex flex-col">
-        {/* Header */}
+
+      {/* Main Content — fills all remaining space */}
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+        {/* Slim Header */}
         <Header />
-        
-        {/* Calendar View */}
-        <main className="flex-1 overflow-auto">
+
+        {/* Calendar — full screen */}
+        <main className="flex-1 overflow-hidden">
           <CalendarView />
         </main>
       </div>

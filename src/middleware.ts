@@ -17,7 +17,11 @@ export function middleware(request: NextRequest) {
 
   // Protected routes — redirect to AdaAuth if no token
   if (!token) {
-    const callbackUrl = `${request.nextUrl.origin}/auth/callback?redirect=${encodeURIComponent(pathname)}`;
+    // Use the Host header to build the correct origin (supports LAN IPs, not just localhost)
+    const host = request.headers.get('host') || request.nextUrl.host;
+    const protocol = request.nextUrl.protocol || 'http:';
+    const origin = `${protocol}//${host}`;
+    const callbackUrl = `${origin}/auth/callback?redirect=${encodeURIComponent(pathname)}`;
     const authUrl = `${AUTH_URL}/?redirect=${encodeURIComponent(callbackUrl)}`;
     return NextResponse.redirect(authUrl);
   }
