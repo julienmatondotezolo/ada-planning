@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { AppShell } from '@/components/layout/AppShell';
 // Header removed — navigation handled by AppShell sidebar
 import { staffApi, type Employee } from '@/lib/api';
+import { useAuth } from '@/contexts/AuthContext';
 import {
   Users,
   Plus,
@@ -73,6 +74,8 @@ const EMPTY_FORM = {
 };
 
 export default function StaffPage() {
+  const { user } = useAuth();
+  const isStaff = user?.role === 'staff';
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -172,10 +175,12 @@ export default function StaffPage() {
             </p>
           </div>
 
-          <Button onClick={openAdd} className="gap-2">
-            <UserPlus className="w-4 h-4" />
-            Ajouter
-          </Button>
+          {!isStaff && (
+            <Button onClick={openAdd} className="gap-2">
+              <UserPlus className="w-4 h-4" />
+              Ajouter
+            </Button>
+          )}
         </div>
 
         {/* Filters */}
@@ -225,7 +230,7 @@ export default function StaffPage() {
                     <TableHead className="hidden md:table-cell">Contact</TableHead>
                     <TableHead className="hidden lg:table-cell">Taux</TableHead>
                     <TableHead>Statut</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
+                    {!isStaff && <TableHead className="text-right">Actions</TableHead>}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -271,16 +276,18 @@ export default function StaffPage() {
                           {emp.active ? 'Actif' : 'Inactif'}
                         </Badge>
                       </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-1">
-                          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(emp)}>
-                            <Edit className="w-4 h-4" />
-                          </Button>
-                          <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => handleDelete(emp.id)}>
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                        </div>
-                      </TableCell>
+                      {!isStaff && (
+                        <TableCell className="text-right">
+                          <div className="flex items-center justify-end gap-1">
+                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(emp)}>
+                              <Edit className="w-4 h-4" />
+                            </Button>
+                            <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => handleDelete(emp.id)}>
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      )}
                     </TableRow>
                   ))}
                 </TableBody>
