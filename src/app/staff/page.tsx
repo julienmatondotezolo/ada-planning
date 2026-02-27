@@ -35,6 +35,7 @@ import {
   SelectValue,
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -294,6 +295,9 @@ export default function StaffPage() {
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>{editingId ? 'Modifier' : 'Ajouter'} un membre</DialogTitle>
+            <DialogDescription>
+              {editingId ? 'Modifiez les informations du membre du personnel.' : 'Ajoutez un nouveau membre à votre équipe.'}
+            </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4 pt-2">

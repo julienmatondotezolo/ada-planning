@@ -3,15 +3,13 @@
 import { useState, useMemo } from 'react';
 import { AppShell } from '@/components/layout/AppShell';
 import { useAuth } from '@/contexts/AuthContext';
-import { useRestaurantSettings, useMyRestaurants, useUpdateSettings } from '@/hooks/useSettings';
-import { useEmployees, useDeleteEmployee } from '@/hooks/useStaff';
-import type { Employee, RestaurantSettings } from '@/lib/api';
+import { useRestaurantSettings, useUpdateSettings } from '@/hooks/useSettings';
+import type { RestaurantSettings } from '@/lib/api';
 import {
   Settings as SettingsIcon,
   Building,
   Clock,
   Bell,
-  Users,
   Plus,
   Trash2,
   Save,
@@ -37,21 +35,13 @@ import {
   SelectValue,
   Avatar,
   AvatarFallback,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
   Skeleton,
 } from 'ada-design-system';
 
-type SettingsTab = 'restaurant' | 'staff' | 'schedule' | 'notifications' | 'account';
+type SettingsTab = 'restaurant' | 'notifications' | 'account';
 
 const TABS: { id: SettingsTab; label: string; icon: React.ElementType }[] = [
   { id: 'restaurant', label: 'Restaurant', icon: Building },
-  { id: 'staff', label: 'Personnel', icon: Users },
-  { id: 'schedule', label: 'Horaires', icon: Clock },
   { id: 'notifications', label: 'Notifications', icon: Bell },
   { id: 'account', label: 'Mon compte', icon: User },
 ];
@@ -99,8 +89,6 @@ export default function SettingsPage() {
           {/* Tab content */}
           <div className="flex-1 min-w-0">
             {activeTab === 'restaurant' && <RestaurantSettings userRole={user?.role} />}
-            {activeTab === 'staff' && <StaffSettings userRole={user?.role} />}
-            {activeTab === 'schedule' && <ScheduleSettings userRole={user?.role} />}
             {activeTab === 'notifications' && <NotificationSettings />}
             {activeTab === 'account' && <AccountSettings user={user} />}
           </div>
@@ -114,24 +102,19 @@ export default function SettingsPage() {
 function RestaurantSettings({ userRole }: { userRole?: string }) {
   const isStaff = !userRole || userRole === 'staff';
 
-  const { data: settings, isLoading: settingsLoading } = useRestaurantSettings();
-  const { data: restaurants, isLoading: restaurantsLoading } = useMyRestaurants();
+  const { data: settings, isLoading } = useRestaurantSettings();
   const updateSettings = useUpdateSettings();
 
-  const loading = settingsLoading || restaurantsLoading;
-
-  // Build initial restaurant info form from saved settings + AdaAuth fallback
   const initialInfo = useMemo(() => {
     const saved: Record<string, string> = settings?.restaurant_info || {};
-    const restaurant: Record<string, any> = restaurants?.[0] || {};
     return {
-      name: saved.name || restaurant.name || '',
-      phone: saved.phone || restaurant.phone || '',
-      email: saved.email || restaurant.email || '',
-      address: saved.address || restaurant.address || '',
-      website: saved.website || restaurant.website || '',
+      name: saved.name || '',
+      phone: saved.phone || '',
+      email: saved.email || '',
+      address: saved.address || '',
+      website: saved.website || '',
     };
-  }, [settings, restaurants]);
+  }, [settings]);
 
   const [infoForm, setInfoForm] = useState<Record<string, string>>({});
   const [infoChanged, setInfoChanged] = useState(false);
@@ -151,7 +134,7 @@ function RestaurantSettings({ userRole }: { userRole?: string }) {
     );
   };
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="space-y-6">
         <Card><CardContent className="p-6"><Skeleton className="h-48 w-full" /></CardContent></Card>
@@ -545,171 +528,6 @@ function OpeningHoursCard({ initialOpeningHours, isStaff }: { initialOpeningHour
         )}
       </CardContent>
     </Card>
-  );
-}
-
-/* ---------- Staff Settings ---------- */
-function StaffSettings({ userRole }: { userRole?: string }) {
-  const isStaff = !userRole || userRole === 'staff';
-  const { data: staff = [], isLoading } = useEmployees({ active_only: false });
-  const deleteEmployee = useDeleteEmployee();
-
-  const handleDelete = (id: string) => {
-    if (isStaff) return;
-    if (!confirm('Supprimer ce membre ?')) return;
-    deleteEmployee.mutate(id);
-  };
-
-  return (
-    <div className="space-y-4">
-      {isStaff && (
-        <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 flex items-center gap-2">
-          <Shield className="w-4 h-4 shrink-0" />
-          Vous avez un accès en lecture seule. Contactez un manager pour modifier le personnel.
-        </div>
-      )}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="text-lg">Gestion du personnel</CardTitle>
-              <CardDescription>{staff.length} membres</CardDescription>
-            </div>
-            {!isStaff && (
-              <Button size="sm" asChild>
-                <a href="/staff">
-                  <Users className="w-4 h-4 mr-2" />
-                  Gérer
-                </a>
-              </Button>
-            )}
-          </div>
-        </CardHeader>
-        <CardContent className="p-0">
-          {isLoading ? (
-            <div className="p-6 space-y-3">
-              {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}
-            </div>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Nom</TableHead>
-                  <TableHead>Position</TableHead>
-                  <TableHead>Statut</TableHead>
-                  {!isStaff && <TableHead className="text-right">Actions</TableHead>}
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {staff.map((member) => (
-                  <TableRow key={member.id}>
-                    <TableCell className="font-medium">{member.first_name} {member.last_name}</TableCell>
-                    <TableCell><Badge variant="outline">{member.position}</Badge></TableCell>
-                    <TableCell>
-                      <Badge variant={member.active ? 'default' : 'secondary'}>
-                        {member.active ? 'Actif' : 'Inactif'}
-                      </Badge>
-                    </TableCell>
-                    {!isStaff && (
-                      <TableCell className="text-right">
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => handleDelete(member.id)}>
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </TableCell>
-                    )}
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
-    </div>
-  );
-}
-
-/* ---------- Schedule Settings ---------- */
-function ScheduleSettings({ userRole }: { userRole?: string }) {
-  const isStaff = !userRole || userRole === 'staff';
-  const { data: settings, isLoading } = useRestaurantSettings();
-  const updateSettings = useUpdateSettings();
-
-  const [rules, setRules] = useState({
-    default_break_minutes: 30,
-    max_hours_per_week: 38,
-    min_staff_per_service: 2,
-    min_rest_days_per_week: 2,
-  });
-  const [hasChanges, setHasChanges] = useState(false);
-  const [initialized, setInitialized] = useState(false);
-
-  // Sync from server once
-  if (settings?.schedule_rules && !initialized) {
-    setRules(settings.schedule_rules);
-    setInitialized(true);
-  }
-
-  const updateRule = (field: string, value: number) => {
-    setRules((prev) => ({ ...prev, [field]: value }));
-    setHasChanges(true);
-  };
-
-  const handleSave = () => {
-    updateSettings.mutate(
-      { schedule_rules: rules },
-      { onSuccess: () => setHasChanges(false) }
-    );
-  };
-
-  if (isLoading) {
-    return <Card><CardContent className="p-6"><Skeleton className="h-48 w-full" /></CardContent></Card>;
-  }
-
-  return (
-    <div className="space-y-4">
-      {isStaff && (
-        <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 flex items-center gap-2">
-          <Shield className="w-4 h-4 shrink-0" />
-          Vous avez un accès en lecture seule. Contactez un manager pour modifier les règles.
-        </div>
-      )}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Règles de planification</CardTitle>
-          <CardDescription>Paramètres par défaut pour la création de shifts</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <Label>Pause par défaut (min)</Label>
-              <Input type="number" value={rules.default_break_minutes} onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateRule('default_break_minutes', Number(e.target.value))} disabled={isStaff} />
-            </div>
-            <div>
-              <Label>Heures max/semaine</Label>
-              <Input type="number" value={rules.max_hours_per_week} onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateRule('max_hours_per_week', Number(e.target.value))} disabled={isStaff} />
-            </div>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <Label>Personnel min. par service</Label>
-              <Input type="number" value={rules.min_staff_per_service} onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateRule('min_staff_per_service', Number(e.target.value))} disabled={isStaff} />
-            </div>
-            <div>
-              <Label>Jours de repos min./semaine</Label>
-              <Input type="number" value={rules.min_rest_days_per_week} onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateRule('min_rest_days_per_week', Number(e.target.value))} disabled={isStaff} />
-            </div>
-          </div>
-          {!isStaff && (
-            <div className="flex justify-end">
-              <Button onClick={handleSave} disabled={!hasChanges || updateSettings.isPending}>
-                <Save className="w-4 h-4 mr-2" />
-                {updateSettings.isPending ? 'Enregistrement...' : 'Enregistrer'}
-              </Button>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-    </div>
   );
 }
 
