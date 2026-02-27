@@ -45,7 +45,7 @@ import {
   SelectValue,
 } from 'ada-design-system';
 import { cn } from '@/lib/utils';
-import { staffApi, shiftsApi, type Employee, type Shift } from '@/lib/api';
+import { staffApi, shiftsApi, shiftPresetsApi, type Employee, type Shift, type ShiftPreset } from '@/lib/api';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -251,6 +251,7 @@ function ShiftDialog({
   date,
   shift,
   staff,
+  servicePresets,
   onSave,
   onDelete,
 }: {
@@ -259,6 +260,7 @@ function ShiftDialog({
   date: Date;
   shift: ShiftAssignment | null;
   staff: StaffMember[];
+  servicePresets: ShiftPreset[];
   onSave: (data: {
     staffId: string;
     startTime: string;
@@ -268,6 +270,7 @@ function ShiftDialog({
   onDelete?: () => void;
 }) {
   const [selectedStaff, setSelectedStaff] = useState(shift?.staffId || '');
+  const [selectedService, setSelectedService] = useState('');
   const [startTime, setStartTime] = useState(shift?.startTime || '17:00');
   const [endTime, setEndTime] = useState(shift?.endTime || '23:00');
 
@@ -277,11 +280,35 @@ function ShiftDialog({
       setSelectedStaff(shift?.staffId || '');
       setStartTime(shift?.startTime || '17:00');
       setEndTime(shift?.endTime || '23:00');
+
+      // Try to match existing shift times to a service preset
+      if (shift) {
+        const match = servicePresets.find((p) =>
+          p.shifts.length === 1 &&
+          p.shifts[0].start_time === shift.startTime &&
+          p.shifts[0].end_time === shift.endTime
+        );
+        setSelectedService(match?.id || 'custom');
+      } else {
+        setSelectedService('');
+      }
     }
-  }, [open, shift]);
+  }, [open, shift, servicePresets]);
 
   const isEditing = !!shift;
   const selectedStaffMember = staff.find((s) => s.id === selectedStaff);
+
+  const handleServiceChange = (presetId: string) => {
+    setSelectedService(presetId);
+    if (presetId === 'custom') return;
+
+    const preset = servicePresets.find((p) => p.id === presetId);
+    if (preset && preset.shifts.length > 0) {
+      // Use first time range for start/end
+      setStartTime(preset.shifts[0].start_time);
+      setEndTime(preset.shifts[preset.shifts.length - 1].end_time);
+    }
+  };
 
   const handleSave = () => {
     if (!selectedStaff) return;
@@ -300,7 +327,7 @@ function ShiftDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <CalendarDays className="w-5 h-5 text-primary" />
-            {isEditing ? 'Modifier le Shift' : 'Ajouter un Shift'}
+            {isEditing ? 'Modifier le service' : 'Ajouter un service'}
           </DialogTitle>
           <DialogDescription>
             {format(date, 'EEEE d MMMM yyyy', { locale: fr })}
@@ -347,7 +374,50 @@ function ShiftDialog({
             </Select>
           </div>
 
-          {/* Time Selection */}
+          {/* Service Preset Selection */}
+          <div className="space-y-2">
+            <Label className="text-sm font-medium">Service</Label>
+            <Select value={selectedService} onValueChange={handleServiceChange}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Sélectionner un service">
+                  {selectedService && selectedService !== 'custom' && (() => {
+                    const preset = servicePresets.find((p) => p.id === selectedService);
+                    if (!preset) return null;
+                    return (
+                      <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: preset.color }} />
+                        <span>{preset.name}</span>
+                        <span className="text-muted-foreground text-xs">
+                          {preset.shifts.map((s) => `${s.start_time}–${s.end_time}`).join(' • ')}
+                        </span>
+                      </div>
+                    );
+                  })()}
+                  {selectedService === 'custom' && (
+                    <span className="text-muted-foreground">Horaire personnalisé</span>
+                  )}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {servicePresets.map((preset) => (
+                  <SelectItem key={preset.id} value={preset.id}>
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: preset.color }} />
+                      <span className="font-medium">{preset.name}</span>
+                      <span className="text-muted-foreground text-xs">
+                        {preset.shifts.map((s) => `${s.start_time}–${s.end_time}`).join(' • ')}
+                      </span>
+                    </div>
+                  </SelectItem>
+                ))}
+                <SelectItem value="custom">
+                  <span className="text-muted-foreground">Horaire personnalisé</span>
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Time Selection — always visible, editable even after service selection */}
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="start-time" className="text-sm font-medium">
@@ -359,7 +429,10 @@ function ShiftDialog({
                   id="start-time"
                   type="time"
                   value={startTime}
-                  onChange={(e) => setStartTime(e.target.value)}
+                  onChange={(e) => {
+                    setStartTime(e.target.value);
+                    setSelectedService('custom');
+                  }}
                   className="pl-10"
                 />
               </div>
@@ -374,42 +447,13 @@ function ShiftDialog({
                   id="end-time"
                   type="time"
                   value={endTime}
-                  onChange={(e) => setEndTime(e.target.value)}
+                  onChange={(e) => {
+                    setEndTime(e.target.value);
+                    setSelectedService('custom');
+                  }}
                   className="pl-10"
                 />
               </div>
-            </div>
-          </div>
-
-          {/* Quick Time Presets */}
-          <div className="space-y-2">
-            <Label className="text-xs text-muted-foreground">Raccourcis</Label>
-            <div className="flex flex-wrap gap-2">
-              {[
-                { label: 'Midi', start: '11:00', end: '15:00' },
-                { label: 'Soir', start: '17:00', end: '23:00' },
-                { label: 'Journée', start: '10:00', end: '23:00' },
-                { label: 'Coupure', start: '11:00', end: '14:00' },
-              ].map((preset) => (
-                <button
-                  key={preset.label}
-                  onClick={() => {
-                    setStartTime(preset.start);
-                    setEndTime(preset.end);
-                  }}
-                  className={cn(
-                    'px-3 py-1.5 text-xs font-medium rounded-full border transition-all',
-                    startTime === preset.start && endTime === preset.end
-                      ? 'bg-primary text-primary-foreground border-primary'
-                      : 'border-border hover:border-primary/50 hover:bg-muted/50 text-muted-foreground'
-                  )}
-                >
-                  {preset.label}
-                  <span className="ml-1 opacity-60">
-                    {preset.start}–{preset.end}
-                  </span>
-                </button>
-              ))}
             </div>
           </div>
 
@@ -509,10 +553,11 @@ export function CalendarView() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [shifts, setShifts] = useState<Record<string, ShiftAssignment[]>>({});
   const [staff, setStaff] = useState<StaffMember[]>([]);
+  const [servicePresets, setServicePresets] = useState<ShiftPreset[]>([]);
   const [isClient, setIsClient] = useState(false);
   const [loadingData, setLoadingData] = useState(true);
 
-  // Fetch real employees and shifts from API
+  // Fetch real employees, shifts, and service presets from API
   useEffect(() => {
     const fetchData = async () => {
       setLoadingData(true);
@@ -523,6 +568,12 @@ export function CalendarView() {
         if (empRes.success && empRes.data && empRes.data.length > 0) {
           staffMembers = empRes.data.map((emp, i) => employeeToStaffMember(emp, i));
           setStaff(staffMembers);
+        }
+
+        // Fetch service presets
+        const presetsRes = await shiftPresetsApi.getAll();
+        if (presetsRes.success && presetsRes.data) {
+          setServicePresets(presetsRes.data);
         }
 
         // Fetch shifts for current month
@@ -959,6 +1010,7 @@ export function CalendarView() {
         date={dialogDate}
         shift={editingShift}
         staff={staff}
+        servicePresets={servicePresets}
         onSave={handleSave}
         onDelete={editingShift ? handleDelete : undefined}
       />
