@@ -731,7 +731,37 @@ export function CalendarView() {
     if (!staffMember) return;
 
     if (editingShift) {
-      // Update existing shift via API
+      // ── Optimistic update ──
+      const oldDateKey = format(dialogDate, 'yyyy-MM-dd');
+      const snapshot = { ...shifts };
+      Object.keys(snapshot).forEach((k) => { snapshot[k] = [...snapshot[k]]; });
+
+      setShifts((prev) => {
+        const updated = { ...prev };
+        // Remove from old date
+        const oldDayShifts = (updated[oldDateKey] || []).filter(
+          (s) => s.id !== editingShift.id
+        );
+        if (oldDayShifts.length === 0) delete updated[oldDateKey];
+        else updated[oldDateKey] = oldDayShifts;
+
+        // Add to new date
+        const newDayShifts = [...(updated[data.date] || [])];
+        newDayShifts.push({
+          id: editingShift.id,
+          staffId: data.staffId,
+          name: staffMember.name,
+          color: staffMember.color,
+          position: staffMember.position,
+          initials: staffMember.initials,
+          startTime: data.startTime,
+          endTime: data.endTime,
+        });
+        updated[data.date] = newDayShifts;
+        return updated;
+      });
+
+      // Fire API — revert on error
       const res = await shiftsApi.update(editingShift.id, {
         employee_id: data.staffId,
         scheduled_date: data.date,
@@ -740,38 +770,33 @@ export function CalendarView() {
         position: staffMember.position,
       });
 
-      if (res.success) {
-        setShifts((prev) => {
-          const updated = { ...prev };
-          // Remove from old date
-          const oldDateKey = format(dialogDate, 'yyyy-MM-dd');
-          const oldDayShifts = (updated[oldDateKey] || []).filter(
-            (s) => s.id !== editingShift.id
-          );
-          if (oldDayShifts.length === 0) {
-            delete updated[oldDateKey];
-          } else {
-            updated[oldDateKey] = oldDayShifts;
-          }
-
-          // Add to new date
-          const newDayShifts = [...(updated[data.date] || [])];
-          newDayShifts.push({
-            id: res.data?.id || editingShift.id,
-            staffId: data.staffId,
-            name: staffMember.name,
-            color: staffMember.color,
-            position: staffMember.position,
-            initials: staffMember.initials,
-            startTime: data.startTime,
-            endTime: data.endTime,
-          });
-          updated[data.date] = newDayShifts;
-          return updated;
-        });
+      if (!res.success) {
+        setShifts(snapshot);
+        toast({ title: 'Erreur', description: 'Impossible de modifier le service.', variant: 'destructive' });
       }
     } else {
-      // Create new shift via API
+      // ── Optimistic create ──
+      const tempId = `temp-${Date.now()}`;
+      const snapshot = { ...shifts };
+      Object.keys(snapshot).forEach((k) => { snapshot[k] = [...snapshot[k]]; });
+
+      setShifts((prev) => {
+        const updated = { ...prev };
+        const dayShifts = [...(updated[data.date] || [])];
+        dayShifts.push({
+          id: tempId,
+          staffId: data.staffId,
+          name: staffMember.name,
+          color: staffMember.color,
+          position: staffMember.position,
+          initials: staffMember.initials,
+          startTime: data.startTime,
+          endTime: data.endTime,
+        });
+        updated[data.date] = dayShifts;
+        return updated;
+      });
+
       const res = await shiftsApi.create({
         employee_id: data.staffId,
         scheduled_date: data.date,
@@ -781,22 +806,17 @@ export function CalendarView() {
       });
 
       if (res.success && res.data) {
+        // Replace temp ID with real ID from server
         setShifts((prev) => {
           const updated = { ...prev };
-          const dayShifts = [...(updated[data.date] || [])];
-          dayShifts.push({
-            id: res.data.id,
-            staffId: data.staffId,
-            name: staffMember.name,
-            color: staffMember.color,
-            position: staffMember.position,
-            initials: staffMember.initials,
-            startTime: data.startTime,
-            endTime: data.endTime,
-          });
-          updated[data.date] = dayShifts;
+          updated[data.date] = (updated[data.date] || []).map((s) =>
+            s.id === tempId ? { ...s, id: res.data.id } : s
+          );
           return updated;
         });
+      } else {
+        setShifts(snapshot);
+        toast({ title: 'Erreur', description: 'Impossible de créer le service.', variant: 'destructive' });
       }
     }
   };
@@ -805,20 +825,25 @@ export function CalendarView() {
     if (!editingShift) return;
     const dateKey = format(dialogDate, 'yyyy-MM-dd');
 
+    // ── Optimistic delete ──
+    const snapshot = { ...shifts };
+    Object.keys(snapshot).forEach((k) => { snapshot[k] = [...snapshot[k]]; });
+
+    setShifts((prev) => {
+      const updated = { ...prev };
+      const dayShifts = (updated[dateKey] || []).filter(
+        (s) => s.id !== editingShift.id
+      );
+      if (dayShifts.length === 0) delete updated[dateKey];
+      else updated[dateKey] = dayShifts;
+      return updated;
+    });
+    setDialogOpen(false);
+
     const res = await shiftsApi.delete(editingShift.id);
-    if (res.success) {
-      setShifts((prev) => {
-        const updated = { ...prev };
-        const dayShifts = (updated[dateKey] || []).filter(
-          (s) => s.id !== editingShift.id
-        );
-        if (dayShifts.length === 0) {
-          delete updated[dateKey];
-        } else {
-          updated[dateKey] = dayShifts;
-        }
-        return updated;
-      });
+    if (!res.success) {
+      setShifts(snapshot);
+      toast({ title: 'Erreur', description: 'Impossible de supprimer le service.', variant: 'destructive' });
     }
   };
 
@@ -893,36 +918,28 @@ export function CalendarView() {
       const movedShift = sourceShifts.find((s) => s.id === shiftId);
       if (!movedShift) return;
 
-      // Update via API
-      shiftsApi.update(shiftId, {
-        scheduled_date: targetDateKey,
-      }).then((res) => {
-        if (res.success) {
-          setShifts((prev) => {
-            const updated = { ...prev };
+      // ── Optimistic move ──
+      const snapshot = { ...shifts };
+      Object.keys(snapshot).forEach((k) => { snapshot[k] = [...snapshot[k]]; });
 
-            // Remove from source
-            const srcShifts = [...(updated[sourceDate] || [])];
-            const idx = srcShifts.findIndex((s) => s.id === shiftId);
-            if (idx < 0) return prev;
+      setShifts((prev) => {
+        const updated = { ...prev };
+        // Remove from source
+        const srcShifts = (updated[sourceDate] || []).filter((s) => s.id !== shiftId);
+        if (srcShifts.length === 0) delete updated[sourceDate];
+        else updated[sourceDate] = srcShifts;
+        // Add to target
+        const targetShifts = [...(updated[targetDateKey] || [])];
+        targetShifts.push(movedShift);
+        updated[targetDateKey] = targetShifts;
+        return updated;
+      });
 
-            const [removed] = srcShifts.splice(idx, 1);
-            if (srcShifts.length === 0) {
-              delete updated[sourceDate];
-            } else {
-              updated[sourceDate] = srcShifts;
-            }
-
-            // Add to target
-            const targetShifts = [...(updated[targetDateKey] || [])];
-            targetShifts.push({
-              ...removed,
-              id: res.data?.id || removed.id,
-            });
-            updated[targetDateKey] = targetShifts;
-
-            return updated;
-          });
+      // Fire API — revert on error
+      shiftsApi.update(shiftId, { scheduled_date: targetDateKey }).then((res) => {
+        if (!res.success) {
+          setShifts(snapshot);
+          toast({ title: 'Erreur', description: 'Impossible de déplacer le service.', variant: 'destructive' });
         }
       });
     } catch {
