@@ -45,6 +45,7 @@ import {
   SelectValue,
 } from 'ada-design-system';
 import { cn } from '@/lib/utils';
+import { toast } from '@/hooks/useToast';
 import { staffApi, shiftsApi, shiftPresetsApi, settingsApi, type Employee, type Shift, type ShiftPreset, type DaySchedule } from '@/lib/api';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -186,9 +187,9 @@ function CalendarDayCell({
         !isClosed && isCurrentMonth && 'cursor-pointer hover:bg-muted/20',
       )}
       onClick={() => !isClosed && isCurrentMonth && onCellClick()}
-      onDragOver={!isClosed ? onDragOver : undefined}
-      onDragLeave={!isClosed ? onDragLeave : undefined}
-      onDrop={!isClosed ? onDrop : undefined}
+      onDragOver={onDragOver}
+      onDragLeave={onDragLeave}
+      onDrop={onDrop}
     >
       {/* Day number */}
       <div className="flex items-center justify-between px-2 pt-1.5">
@@ -698,6 +699,15 @@ export function CalendarView() {
   // ── Handlers ──
 
   const handleCellClick = (date: Date) => {
+    if (isClosedDay(date)) {
+      const dayName = format(date, 'EEEE', { locale: fr });
+      toast({
+        title: 'Restaurant fermé',
+        description: `Impossible d'ajouter un service le ${dayName} — le restaurant est fermé ce jour.`,
+        variant: 'destructive',
+      });
+      return;
+    }
     setEditingShift(null);
     setDialogDefaultStaffId(undefined);
     setDialogDate(date);
@@ -845,6 +855,17 @@ export function CalendarView() {
   const handleDrop = (e: React.DragEvent, targetDate: Date) => {
     e.preventDefault();
     setDragOverDate(null);
+
+    // Block drops on closed days
+    if (isClosedDay(targetDate)) {
+      const dayName = format(targetDate, 'EEEE', { locale: fr });
+      toast({
+        title: 'Restaurant fermé',
+        description: `Impossible d'ajouter un service le ${dayName} — le restaurant est fermé ce jour.`,
+        variant: 'destructive',
+      });
+      return;
+    }
 
     const targetDateKey = format(targetDate, 'yyyy-MM-dd');
 

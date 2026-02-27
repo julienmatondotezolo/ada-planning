@@ -4,6 +4,7 @@ import './globals.css';
 import { getServerUser } from '@/lib/auth-server';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { QueryProvider } from '@/providers/QueryProvider';
+import { Toaster } from '@/components/Toaster';
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });
 
@@ -46,6 +47,7 @@ export default async function RootLayout({
             <div className="min-h-screen bg-background">
               {children}
             </div>
+            <Toaster />
           </AuthProvider>
         </QueryProvider>
       </body>
