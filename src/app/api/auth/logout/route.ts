@@ -12,7 +12,7 @@ export async function POST(request: NextRequest) {
     if (token) {
       try {
         console.log('🔄 Invalidating token with AdaAuth...');
-        const response = await fetch('https://adaauth.mindgen.app/auth/logout', {
+        const response = await fetch('https://auth.adasystems.app/auth/logout', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ token })

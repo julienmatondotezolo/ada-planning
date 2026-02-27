@@ -109,7 +109,7 @@ function CallbackHandler() {
                   const returnUrl = encodeURIComponent(
                     window.location.origin + '/auth/callback?redirect=' + encodeURIComponent('/')
                   );
-                  window.location.href = `https://adaauth.mindgen.app/?redirect=${returnUrl}`;
+                  window.location.href = `https://auth.adasystems.app/?redirect=${returnUrl}`;
                 }}
                 className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
               >
@@ -120,7 +120,7 @@ function CallbackHandler() {
           
           <div className="mt-6 text-xs text-gray-500">
             <a 
-              href="https://adaauth.mindgen.app" 
+              href="https://auth.adasystems.app" 
               target="_blank" 
               rel="noopener noreferrer"
               className="hover:text-gray-700"

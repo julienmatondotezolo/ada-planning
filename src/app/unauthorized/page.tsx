@@ -32,7 +32,7 @@ export default function UnauthorizedPage() {
               </Link>
             </Button>
             <Button variant="outline" asChild className="w-full">
-              <Link href="https://adaauth.mindgen.app/dashboard">
+              <Link href="https://auth.adasystems.app/dashboard">
                 Tableau de bord AdaAuth
               </Link>
             </Button>

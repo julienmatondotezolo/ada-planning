@@ -16,7 +16,7 @@ export function middleware(request: NextRequest) {
   // Protected routes — redirect to AdaAuth if no token
   if (!token) {
     const callbackUrl = `${request.nextUrl.origin}/auth/callback?redirect=${encodeURIComponent(pathname)}`;
-    const authUrl = `https://adaauth.mindgen.app/?redirect=${encodeURIComponent(callbackUrl)}`;
+    const authUrl = `https://auth.adasystems.app/?redirect=${encodeURIComponent(callbackUrl)}`;
     return NextResponse.redirect(authUrl);
   }
 

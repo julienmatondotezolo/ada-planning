@@ -64,7 +64,7 @@ export function AuthProvider({ children, initialUser }: AuthProviderProps) {
         const returnUrl = encodeURIComponent(
           window.location.origin + '/auth/callback?redirect=' + encodeURIComponent('/')
         );
-        window.location.href = `https://adaauth.mindgen.app/?redirect=${returnUrl}`;
+        window.location.href = `https://auth.adasystems.app/?redirect=${returnUrl}`;
       }
     });
   };

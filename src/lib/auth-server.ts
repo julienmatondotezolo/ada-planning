@@ -25,7 +25,7 @@ export async function getServerUser(): Promise<User | null> {
     console.log('🔍 Validating token with AdaAuth API...');
     
     // Call improved AdaAuth API validate endpoint
-    const response = await fetch('https://adaauth.mindgen.app/auth/validate', {
+    const response = await fetch('https://auth.adasystems.app/auth/validate', {
       method: 'POST',
       headers: { 
         'Content-Type': 'application/json',
@@ -76,7 +76,7 @@ export function getAuthRedirectUrl(currentPath: string = '/') {
     : 'http://localhost:3005';
     
   const callbackUrl = `${baseUrl}/auth/callback?redirect=${encodeURIComponent(currentPath)}`;
-  const authUrl = `https://adaauth.mindgen.app/?redirect=${encodeURIComponent(callbackUrl)}`;
+  const authUrl = `https://auth.adasystems.app/?redirect=${encodeURIComponent(callbackUrl)}`;
   
   return authUrl;
 }
