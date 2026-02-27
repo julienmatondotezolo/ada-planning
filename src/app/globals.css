@@ -141,3 +141,17 @@ body {
 .touch-feedback:active {
   transform: scale(0.95);
 }
+
+/* Prevent long-press context menu and text selection on touch devices */
+body {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+  touch-action: manipulation;
+}
+
+/* Allow text selection in input fields */
+input, textarea, [contenteditable="true"] {
+  -webkit-user-select: text;
+  user-select: text;
+}
