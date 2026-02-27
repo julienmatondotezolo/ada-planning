@@ -640,8 +640,9 @@ function ShiftPresetsSettings({ userRole }: { userRole?: string }) {
     });
   };
 
+  const fmtTime = (t: string) => { const p = t.split(':'); return `${p[0]}:${p[1]}`; };
   const formatTimeRanges = (shifts: ShiftTimeRange[]) => {
-    return shifts.map((s) => `${s.start_time} – ${s.end_time}`).join('  •  ');
+    return shifts.map((s) => `${fmtTime(s.start_time)} – ${fmtTime(s.end_time)}`).join('  •  ');
   };
 
   const computeHours = (shifts: ShiftTimeRange[]) => {

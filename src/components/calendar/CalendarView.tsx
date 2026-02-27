@@ -86,6 +86,13 @@ function employeeToStaffMember(emp: Employee, index: number): StaffMember {
   };
 }
 
+// Format time to hh:mm (strip seconds if present)
+function fmtTime(t: string): string {
+  if (!t) return '';
+  const parts = t.split(':');
+  return `${parts[0]}:${parts[1]}`;
+}
+
 // Monday-first week
 const DAY_NAMES_SHORT = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
 const DAY_NAMES_FULL = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche'];
@@ -121,14 +128,14 @@ function ShiftPill({
         compact ? 'px-1.5 py-0.5' : 'px-2 py-1 w-full'
       )}
       style={{ backgroundColor: shift.color }}
-      title={`${shift.name} • ${shift.position}\n${shift.startTime} - ${shift.endTime}`}
+      title={`${shift.name} • ${shift.position}\n${fmtTime(shift.startTime)} - ${fmtTime(shift.endTime)}`}
     >
       {!compact && (
         <GripVertical className="w-3 h-3 opacity-0 group-hover/pill:opacity-60 shrink-0 transition-opacity" />
       )}
-      <span className="truncate hover:underline cursor-pointer">{shift.name}</span>
+      <span className="font-bold truncate hover:underline cursor-pointer">{shift.name}</span>
       <span className={cn("opacity-80 shrink-0", compact ? "text-[9px]" : "text-[10px] ml-auto")}>
-        {shift.startTime} - {shift.endTime}
+        {fmtTime(shift.startTime)} - {fmtTime(shift.endTime)}
       </span>
     </button>
   );
@@ -388,7 +395,7 @@ function ShiftDialog({
                         <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: preset.color }} />
                         <span>{preset.name}</span>
                         <span className="text-muted-foreground text-xs">
-                          {preset.shifts.map((s) => `${s.start_time}–${s.end_time}`).join(' • ')}
+                          {preset.shifts.map((s) => `${fmtTime(s.start_time)}–${fmtTime(s.end_time)}`).join(' • ')}
                         </span>
                       </div>
                     );
@@ -405,7 +412,7 @@ function ShiftDialog({
                       <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: preset.color }} />
                       <span className="font-medium">{preset.name}</span>
                       <span className="text-muted-foreground text-xs">
-                        {preset.shifts.map((s) => `${s.start_time}–${s.end_time}`).join(' • ')}
+                        {preset.shifts.map((s) => `${fmtTime(s.start_time)}–${fmtTime(s.end_time)}`).join(' • ')}
                       </span>
                     </div>
                   </SelectItem>
