@@ -6,11 +6,17 @@ import {
   format,
   startOfMonth,
   endOfMonth,
+  startOfWeek,
+  endOfWeek,
   eachDayOfInterval,
   getDay,
   isSameMonth,
   addMonths,
   subMonths,
+  addWeeks,
+  subWeeks,
+  addDays,
+  subDays,
   isToday as isDateToday,
 } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -51,6 +57,9 @@ import { useShiftPresets } from '@/hooks/useShiftPresets';
 import { useRestaurantSettings } from '@/hooks/useSettings';
 import { useClosingPeriods } from '@/hooks/useClosingPeriods';
 import { shiftsApi, type Employee, type Shift, type ShiftPreset, type DaySchedule, type ClosingPeriod } from '@/lib/api';
+import { WeeklyView } from './WeeklyView';
+import { DailyView } from './DailyView';
+import type { CalendarViewMode, TimeViewProps } from './types';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -779,24 +788,42 @@ function MonthStats({ shifts }: { shifts: Record<string, ShiftAssignment[]> }) {
 
 export function CalendarView() {
   const [currentDate, setCurrentDate] = useState(new Date());
+  const [viewMode, setViewMode] = useState<CalendarViewMode>('month');
 
-  // ── TanStack Query: cached, stale-while-revalidate ──
+  // ── Date range based on view mode ──
   const monthStart = startOfMonth(currentDate);
   const monthEnd = endOfMonth(currentDate);
 
+  // Always fetch the full month range (covers week/day views within the month)
+  // For week view at month boundaries, extend range to cover the full week
+  const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 });
+  const weekEnd = endOfWeek(currentDate, { weekStartsOn: 1 });
+
+  const fetchStart = viewMode === 'month'
+    ? monthStart
+    : viewMode === 'week'
+    ? (weekStart < monthStart ? weekStart : monthStart)
+    : (currentDate < monthStart ? currentDate : monthStart);
+  const fetchEnd = viewMode === 'month'
+    ? monthEnd
+    : viewMode === 'week'
+    ? (weekEnd > monthEnd ? weekEnd : monthEnd)
+    : (currentDate > monthEnd ? currentDate : monthEnd);
+
+  // ── TanStack Query: cached, stale-while-revalidate ──
   const { data: employeesRaw } = useEmployees({ active_only: true });
   const { data: presetsRaw } = useShiftPresets();
   const { data: settingsData } = useRestaurantSettings();
   const { data: closingPeriodsRaw } = useClosingPeriods();
   const { data: shiftsRaw } = useShifts({
-    start_date: format(monthStart, 'yyyy-MM-dd'),
-    end_date: format(monthEnd, 'yyyy-MM-dd'),
+    start_date: format(fetchStart, 'yyyy-MM-dd'),
+    end_date: format(fetchEnd, 'yyyy-MM-dd'),
   });
 
   const queryClient = useQueryClient();
   const shiftQueryKey = shiftKeys.list({
-    start_date: format(monthStart, 'yyyy-MM-dd'),
-    end_date: format(monthEnd, 'yyyy-MM-dd'),
+    start_date: format(fetchStart, 'yyyy-MM-dd'),
+    end_date: format(fetchEnd, 'yyyy-MM-dd'),
   });
 
   // Derived state: employees → StaffMember[]
@@ -1168,49 +1195,105 @@ export function CalendarView() {
 
   };
 
+  // ── Handlers for Weekly/Daily views ──
+
+  /** Move a shift to a new date (used by week/day views) */
+  const handleDragShiftToDate = async (shiftId: string, targetDateKey: string) => {
+    const snapshot = optimisticUpdate((old) =>
+      old.map((s) => (s.id === shiftId ? { ...s, date: targetDateKey } : s))
+    );
+
+    const res = await shiftsApi.update(shiftId, { scheduled_date: targetDateKey });
+    if (!res.success) {
+      queryClient.setQueryData<Shift[]>(shiftQueryKey, snapshot);
+      toast({ title: 'Erreur', description: 'Impossible de déplacer le service.', variant: 'destructive' });
+    }
+  };
+
+  /** Drop a staff chip from the legend onto a date — opens shift dialog pre-filled */
+  const handleDropNewStaff = (staffId: string, date: Date) => {
+    setEditingShift(null);
+    setDialogDefaultStaffId(staffId);
+    setDialogDate(date);
+    setDialogOpen(true);
+  };
+
   // ── Render ──
 
   return (
     <div className="flex flex-col h-full">
       {/* ── Top Bar ── */}
-      <div className="flex items-center justify-between px-4 md:px-6 py-2.5 border-b bg-background">
-        {/* Left — Month Navigation */}
+      <div className="flex items-center justify-between px-4 md:px-6 py-2.5 border-b bg-background gap-2">
+        {/* Left — Navigation */}
         <div className="flex items-center gap-2">
           <Button
             variant="ghost"
             size="icon"
             className="h-8 w-8"
-            onClick={() => setCurrentDate((d) => subMonths(d, 1))}
+            onClick={() => {
+              if (viewMode === 'month') setCurrentDate((d) => subMonths(d, 1));
+              else if (viewMode === 'week') setCurrentDate((d) => subWeeks(d, 1));
+              else setCurrentDate((d) => subDays(d, 1));
+            }}
           >
             <ChevronLeft className="w-4 h-4" />
           </Button>
 
           <h2 className="text-lg font-bold text-foreground min-w-[180px] text-center capitalize">
-            {format(currentDate, 'MMMM yyyy', { locale: fr })}
+            {viewMode === 'month' && format(currentDate, 'MMMM yyyy', { locale: fr })}
+            {viewMode === 'week' && (() => {
+              const ws = startOfWeek(currentDate, { weekStartsOn: 1 });
+              const we = endOfWeek(currentDate, { weekStartsOn: 1 });
+              return `${format(ws, 'd MMM', { locale: fr })} – ${format(we, 'd MMM yyyy', { locale: fr })}`;
+            })()}
+            {viewMode === 'day' && format(currentDate, 'EEEE d MMMM yyyy', { locale: fr })}
           </h2>
 
           <Button
             variant="ghost"
             size="icon"
             className="h-8 w-8"
-            onClick={() => setCurrentDate((d) => addMonths(d, 1))}
+            onClick={() => {
+              if (viewMode === 'month') setCurrentDate((d) => addMonths(d, 1));
+              else if (viewMode === 'week') setCurrentDate((d) => addWeeks(d, 1));
+              else setCurrentDate((d) => addDays(d, 1));
+            }}
           >
             <ChevronRight className="w-4 h-4" />
           </Button>
         </div>
 
-        {/* Center — Today button */}
-        <Button
-          variant="outline"
-          size="sm"
-          className="text-xs h-7"
-          onClick={() => setCurrentDate(new Date())}
-        >
-          Aujourd'hui
-        </Button>
+        {/* Center — View mode toggle + Today */}
+        <div className="flex items-center gap-2">
+          <div className="flex items-center bg-muted rounded-lg p-0.5">
+            {(['month', 'week', 'day'] as CalendarViewMode[]).map((mode) => (
+              <button
+                key={mode}
+                onClick={() => setViewMode(mode)}
+                className={cn(
+                  'px-3 py-1 text-xs font-medium rounded-md transition-colors',
+                  viewMode === mode
+                    ? 'bg-background text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground',
+                )}
+              >
+                {mode === 'month' ? 'Mois' : mode === 'week' ? 'Semaine' : 'Jour'}
+              </button>
+            ))}
+          </div>
+
+          <Button
+            variant="outline"
+            size="sm"
+            className="text-xs h-7"
+            onClick={() => setCurrentDate(new Date())}
+          >
+            Aujourd&apos;hui
+          </Button>
+        </div>
 
         {/* Right — Today's date */}
-        <div className="text-sm text-muted-foreground capitalize">
+        <div className="text-sm text-muted-foreground capitalize hidden md:block">
           {format(new Date(), 'EEEE d MMMM yyyy', { locale: fr })}
         </div>
       </div>
@@ -1229,67 +1312,109 @@ export function CalendarView() {
         </div>
       </div>
 
-      {/* ── Day Headers ── */}
-      <div className="grid grid-cols-7 border-b bg-muted/40">
-        {DAY_NAMES_SHORT.map((day, i) => (
-          <div
-            key={day}
-            className={cn(
-              'px-2 py-2 text-center text-xs font-semibold border-r border-border/50 last:border-r-0',
-              i >= 5 ? 'text-muted-foreground/50' : 'text-muted-foreground'
-            )}
-          >
-            <span className="hidden md:inline">{DAY_NAMES_FULL[i]}</span>
-            <span className="md:hidden">{day}</span>
+      {/* ── Monthly View ── */}
+      {viewMode === 'month' && (
+        <>
+          {/* Day Headers */}
+          <div className="grid grid-cols-7 border-b bg-muted/40">
+            {DAY_NAMES_SHORT.map((day, i) => (
+              <div
+                key={day}
+                className={cn(
+                  'px-2 py-2 text-center text-xs font-semibold border-r border-border/50 last:border-r-0',
+                  i >= 5 ? 'text-muted-foreground/50' : 'text-muted-foreground'
+                )}
+              >
+                <span className="hidden md:inline">{DAY_NAMES_FULL[i]}</span>
+                <span className="md:hidden">{day}</span>
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
 
-      {/* ── Calendar Grid ── */}
-      <div
-        className="flex-1 overflow-auto"
-        onDragLeave={(e) => {
-          // Clear dragOverDate only when mouse truly leaves the grid
-          const related = e.relatedTarget as Node | null;
-          if (!related || !e.currentTarget.contains(related)) {
-            setDragOverDate(null);
-          }
-        }}
-      >
-        <div className="grid grid-cols-7 min-h-full">
-          {calendarDays.map((date, index) => {
-            const dateKey = format(date, 'yyyy-MM-dd');
-            const isCurrentMonth = isSameMonth(date, currentDate);
-            const dayShifts = shifts[dateKey] || [];
+          {/* Calendar Grid */}
+          <div
+            className="flex-1 overflow-auto"
+            onDragLeave={(e) => {
+              const related = e.relatedTarget as Node | null;
+              if (!related || !e.currentTarget.contains(related)) {
+                setDragOverDate(null);
+              }
+            }}
+          >
+            <div className="grid grid-cols-7 min-h-full">
+              {calendarDays.map((date, index) => {
+                const dateKey = format(date, 'yyyy-MM-dd');
+                const isCurrentMonth = isSameMonth(date, currentDate);
+                const dayShifts = shifts[dateKey] || [];
 
-            const closed = isClosedDay(date);
-            const closingPeriod = getClosingPeriod(date);
-            const dropBlocked = !closed && !!draggingStaffId && hasShiftOnDate(draggingStaffId, dateKey);
+                const closed = isClosedDay(date);
+                const closingPeriod = getClosingPeriod(date);
+                const dropBlocked = !closed && !!draggingStaffId && hasShiftOnDate(draggingStaffId, dateKey);
 
-            return (
-              <CalendarDayCell
-                key={index}
-                date={date}
-                shifts={dayShifts}
-                isCurrentMonth={isCurrentMonth}
-                isToday={isDateToday(date)}
-                isClosed={closed}
-                closedLabel={closingPeriod?.name}
-                isDragOver={dragOverDate === dateKey}
-                isDropBlocked={dropBlocked}
-                isDragging={!!draggingStaffId}
-                onCellClick={() => handleCellClick(date)}
-                onShiftClick={(shift) => handleShiftClick(shift, date)}
-                onDragStart={(e, shift) => handleDragStart(e, shift, date)}
-                onDragEnd={handleDragEnd}
-                onDragOver={(e) => handleDragOver(e, date)}
-                onDragLeave={handleDragLeave}
-                onDrop={(e) => handleDrop(e, date)}
-              />
-            );
-          })}
-        </div>
-      </div>
+                return (
+                  <CalendarDayCell
+                    key={index}
+                    date={date}
+                    shifts={dayShifts}
+                    isCurrentMonth={isCurrentMonth}
+                    isToday={isDateToday(date)}
+                    isClosed={closed}
+                    closedLabel={closingPeriod?.name}
+                    isDragOver={dragOverDate === dateKey}
+                    isDropBlocked={dropBlocked}
+                    isDragging={!!draggingStaffId}
+                    onCellClick={() => handleCellClick(date)}
+                    onShiftClick={(shift) => handleShiftClick(shift, date)}
+                    onDragStart={(e, shift) => handleDragStart(e, shift, date)}
+                    onDragEnd={handleDragEnd}
+                    onDragOver={(e) => handleDragOver(e, date)}
+                    onDragLeave={handleDragLeave}
+                    onDrop={(e) => handleDrop(e, date)}
+                  />
+                );
+              })}
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* ── Weekly View ── */}
+      {viewMode === 'week' && (
+        <WeeklyView
+          currentDate={currentDate}
+          shifts={shifts}
+          staff={staff}
+          servicePresets={servicePresets}
+          openingHours={openingHours}
+          closingPeriods={closingPeriods}
+          isClosedDay={isClosedDay}
+          getClosingPeriod={getClosingPeriod}
+          hasShiftOnDate={hasShiftOnDate}
+          onCellClick={handleCellClick}
+          onShiftClick={handleShiftClick}
+          onDragShift={handleDragShiftToDate}
+          onDropNewStaff={handleDropNewStaff}
+        />
+      )}
+
+      {/* ── Daily View ── */}
+      {viewMode === 'day' && (
+        <DailyView
+          currentDate={currentDate}
+          shifts={shifts}
+          staff={staff}
+          servicePresets={servicePresets}
+          openingHours={openingHours}
+          closingPeriods={closingPeriods}
+          isClosedDay={isClosedDay}
+          getClosingPeriod={getClosingPeriod}
+          hasShiftOnDate={hasShiftOnDate}
+          onCellClick={handleCellClick}
+          onShiftClick={handleShiftClick}
+          onDragShift={handleDragShiftToDate}
+          onDropNewStaff={handleDropNewStaff}
+        />
+      )}
 
       {/* ── Shift Dialog ── */}
       {/* Day Overview Dialog */}
