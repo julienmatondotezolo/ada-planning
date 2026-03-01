@@ -84,6 +84,7 @@ export default function StaffPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     fetchEmployees();
@@ -110,11 +111,13 @@ export default function StaffPage() {
   const openAdd = () => {
     setEditingId(null);
     setForm(EMPTY_FORM);
+    setError(null);
     setShowDialog(true);
   };
 
   const openEdit = (emp: Employee) => {
     setEditingId(emp.id);
+    setError(null);
     setForm({
       first_name: emp.first_name,
       last_name: emp.last_name,
@@ -131,21 +134,28 @@ export default function StaffPage() {
 
   const handleSave = async () => {
     setSaving(true);
+    setError(null);
     try {
       if (editingId) {
         const res = await staffApi.update(editingId, form);
         if (res.success && res.data) {
           setEmployees((prev) => prev.map((e) => (e.id === editingId ? res.data : e)));
+          setShowDialog(false);
+        } else {
+          setError(res.error || 'Échec de la mise à jour');
         }
       } else {
         const res = await staffApi.create(form);
         if (res.success && res.data) {
           setEmployees((prev) => [...prev, res.data]);
+          setShowDialog(false);
+        } else {
+          setError(res.error || 'Échec de la création');
         }
       }
-      setShowDialog(false);
     } catch (err) {
       console.error('Save failed:', err);
+      setError('Erreur réseau — vérifiez votre connexion');
     } finally {
       setSaving(false);
     }
@@ -308,6 +318,11 @@ export default function StaffPage() {
           </DialogHeader>
 
           <div className="space-y-4 pt-2">
+            {error && (
+              <div className="rounded-md bg-destructive/10 border border-destructive/20 px-3 py-2 text-sm text-destructive">
+                {error}
+              </div>
+            )}
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label>Prénom</Label>
