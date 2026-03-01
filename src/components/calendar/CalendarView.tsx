@@ -279,7 +279,7 @@ function CalendarDayCell({
               e.stopPropagation();
               onCellClick();
             }}
-            className="opacity-0 group-hover:opacity-100 hover:!opacity-100 p-0.5 rounded hover:bg-primary/10 transition-all"
+            className="p-0.5 rounded hover:bg-primary/10 transition-all"
           >
             <Plus className="w-3 h-3 text-primary" />
           </button>
