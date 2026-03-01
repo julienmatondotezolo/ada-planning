@@ -238,6 +238,42 @@ export const shiftPresetsApi = {
     }),
 };
 
+// ─── Closing Periods ────────────────────────────────────────────────────────
+
+export interface ClosingPeriod {
+  id: string;
+  restaurant_id: string;
+  name: string;
+  date_from: string; // YYYY-MM-DD
+  date_to: string;   // YYYY-MM-DD
+  comment?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export const closingPeriodsApi = {
+  getAll: () =>
+    apiFetch<ClosingPeriod[]>('closing-periods'),
+
+  getById: (id: string) =>
+    apiFetch<ClosingPeriod>(`closing-periods/${id}`),
+
+  create: (data: { name: string; date_from: string; date_to: string; comment?: string }) =>
+    apiFetch<ClosingPeriod>('closing-periods', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  update: (id: string, data: Partial<{ name: string; date_from: string; date_to: string; comment?: string }>) =>
+    apiFetch<ClosingPeriod>(`closing-periods/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+
+  delete: (id: string) =>
+    apiFetch<void>(`closing-periods/${id}`, { method: 'DELETE' }),
+};
+
 // ─── Templates ──────────────────────────────────────────────────────────────
 
 export const templatesApi = {

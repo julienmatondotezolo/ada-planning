@@ -5,7 +5,8 @@ import { AppShell } from '@/components/layout/AppShell';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRestaurantSettings, useMyRestaurant, useUpdateSettings } from '@/hooks/useSettings';
 import { useShiftPresets, useCreateShiftPreset, useUpdateShiftPreset, useDeleteShiftPreset } from '@/hooks/useShiftPresets';
-import type { RestaurantSettings, ShiftPreset, ShiftTimeRange } from '@/lib/api';
+import { useClosingPeriods, useCreateClosingPeriod, useUpdateClosingPeriod, useDeleteClosingPeriod } from '@/hooks/useClosingPeriods';
+import type { RestaurantSettings, ShiftPreset, ShiftTimeRange, ClosingPeriod } from '@/lib/api';
 import {
   Settings as SettingsIcon,
   Building,
@@ -19,6 +20,8 @@ import {
   Pencil,
   X,
   GripVertical,
+  CalendarOff,
+  Calendar,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
@@ -48,11 +51,12 @@ import {
   DialogTrigger,
 } from 'ada-design-system';
 
-type SettingsTab = 'restaurant' | 'shifts' | 'notifications' | 'account';
+type SettingsTab = 'restaurant' | 'shifts' | 'closings' | 'notifications' | 'account';
 
 const TABS: { id: SettingsTab; label: string; icon: React.ElementType }[] = [
   { id: 'restaurant', label: 'Restaurant', icon: Building },
   { id: 'shifts', label: 'Services', icon: Clock },
+  { id: 'closings', label: 'Fermetures', icon: CalendarOff },
   { id: 'notifications', label: 'Notifications', icon: Bell },
   { id: 'account', label: 'Mon compte', icon: User },
 ];
@@ -101,6 +105,7 @@ export default function SettingsPage() {
           <div className="flex-1 min-w-0">
             {activeTab === 'restaurant' && <RestaurantSettings userRole={user?.role} />}
             {activeTab === 'shifts' && <ShiftPresetsSettings userRole={user?.role} />}
+            {activeTab === 'closings' && <ClosingPeriodsSettings userRole={user?.role} />}
             {activeTab === 'notifications' && <NotificationSettings />}
             {activeTab === 'account' && <AccountSettings user={user} />}
           </div>
@@ -915,6 +920,352 @@ function ShiftPresetsSettings({ userRole }: { userRole?: string }) {
               >
                 <Save className="w-4 h-4 mr-2" />
                 {(createPreset.isPending || updatePreset.isPending) ? 'Enregistrement...' : editingPreset ? 'Modifier' : 'Créer'}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+/* ---------- Closing Periods Settings ---------- */
+
+function formatDateFR(dateStr: string): string {
+  const d = new Date(dateStr + 'T00:00:00');
+  return d.toLocaleDateString('fr-BE', { day: 'numeric', month: 'long', year: 'numeric' });
+}
+
+function daysBetween(from: string, to: string): number {
+  const a = new Date(from + 'T00:00:00');
+  const b = new Date(to + 'T00:00:00');
+  return Math.round((b.getTime() - a.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+}
+
+function ClosingPeriodsSettings({ userRole }: { userRole?: string }) {
+  const isStaff = !userRole || userRole === 'staff';
+  const { data: periods, isLoading } = useClosingPeriods();
+  const createPeriod = useCreateClosingPeriod();
+  const updatePeriod = useUpdateClosingPeriod();
+  const deletePeriod = useDeleteClosingPeriod();
+
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingPeriod, setEditingPeriod] = useState<ClosingPeriod | null>(null);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+
+  // Form state
+  const [formName, setFormName] = useState('');
+  const [formDateFrom, setFormDateFrom] = useState('');
+  const [formDateTo, setFormDateTo] = useState('');
+  const [formComment, setFormComment] = useState('');
+
+  const openCreateDialog = () => {
+    setEditingPeriod(null);
+    setFormName('');
+    setFormDateFrom('');
+    setFormDateTo('');
+    setFormComment('');
+    setDialogOpen(true);
+  };
+
+  const openEditDialog = (period: ClosingPeriod) => {
+    setEditingPeriod(period);
+    setFormName(period.name);
+    setFormDateFrom(period.date_from);
+    setFormDateTo(period.date_to);
+    setFormComment(period.comment || '');
+    setDialogOpen(true);
+  };
+
+  const handleSave = () => {
+    if (!formName.trim() || !formDateFrom || !formDateTo) return;
+
+    const data = {
+      name: formName.trim(),
+      date_from: formDateFrom,
+      date_to: formDateTo,
+      comment: formComment.trim() || undefined,
+    };
+
+    if (editingPeriod) {
+      updatePeriod.mutate(
+        { id: editingPeriod.id, data },
+        { onSuccess: () => setDialogOpen(false) }
+      );
+    } else {
+      createPeriod.mutate(data, {
+        onSuccess: () => setDialogOpen(false),
+      });
+    }
+  };
+
+  const handleDelete = (id: string) => {
+    deletePeriod.mutate(id, {
+      onSuccess: () => setDeleteConfirmId(null),
+    });
+  };
+
+  // Sort by date_from ascending
+  const sorted = useMemo(() => {
+    if (!periods) return [];
+    return [...periods].sort((a, b) => a.date_from.localeCompare(b.date_from));
+  }, [periods]);
+
+  // Check if a period is in the past
+  const isPast = (dateTo: string) => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return new Date(dateTo + 'T00:00:00') < today;
+  };
+
+  // Check if a period is currently active
+  const isActive = (dateFrom: string, dateTo: string) => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return new Date(dateFrom + 'T00:00:00') <= today && new Date(dateTo + 'T00:00:00') >= today;
+  };
+
+  if (isLoading) {
+    return (
+      <Card>
+        <CardContent className="p-6">
+          <Skeleton className="h-48 w-full" />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {isStaff && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 flex items-center gap-2">
+          <Shield className="w-4 h-4 shrink-0" />
+          Vous avez un accès en lecture seule. Contactez un manager pour modifier les périodes de fermeture.
+        </div>
+      )}
+
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <CalendarOff className="w-5 h-5 text-primary" />
+                Périodes de fermeture
+              </CardTitle>
+              <CardDescription>
+                Congés, vacances et jours de fermeture exceptionnelle. Ces périodes sont affichées sur le calendrier.
+              </CardDescription>
+            </div>
+            {!isStaff && (
+              <Button onClick={openCreateDialog} size="sm">
+                <Plus className="w-4 h-4 mr-2" />
+                Nouveau
+              </Button>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent className="p-0">
+          {sorted.length === 0 ? (
+            <div className="px-6 pb-6 text-center py-8">
+              <CalendarOff className="w-10 h-10 mx-auto text-muted-foreground/40 mb-3" />
+              <p className="text-sm text-muted-foreground">Aucune période de fermeture</p>
+              {!isStaff && (
+                <Button variant="outline" size="sm" className="mt-3" onClick={openCreateDialog}>
+                  <Plus className="w-4 h-4 mr-2" />
+                  Ajouter une période
+                </Button>
+              )}
+            </div>
+          ) : (
+            <div className="divide-y divide-border">
+              {sorted.map((period) => {
+                const past = isPast(period.date_to);
+                const active = isActive(period.date_from, period.date_to);
+                const days = daysBetween(period.date_from, period.date_to);
+
+                return (
+                  <div
+                    key={period.id}
+                    className={cn(
+                      'flex items-center gap-3 px-6 py-3 transition-colors group',
+                      past ? 'opacity-50' : 'hover:bg-muted/50',
+                    )}
+                  >
+                    {/* Calendar icon with status */}
+                    <div className={cn(
+                      'w-10 h-10 rounded-lg flex items-center justify-center shrink-0',
+                      active ? 'bg-destructive/10 text-destructive' : past ? 'bg-muted text-muted-foreground' : 'bg-primary/10 text-primary',
+                    )}>
+                      <CalendarOff className="w-5 h-5" />
+                    </div>
+
+                    {/* Info */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-sm text-foreground">{period.name}</span>
+                        {active && (
+                          <Badge variant="destructive" className="text-[10px] px-1.5 py-0">
+                            En cours
+                          </Badge>
+                        )}
+                        {past && (
+                          <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                            Passé
+                          </Badge>
+                        )}
+                        <Badge variant="outline" className="text-[10px] px-1.5 py-0 font-normal">
+                          {days} jour{days > 1 ? 's' : ''}
+                        </Badge>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        {formatDateFR(period.date_from)} → {formatDateFR(period.date_to)}
+                      </p>
+                      {period.comment && (
+                        <p className="text-xs text-muted-foreground/70 mt-0.5 italic">{period.comment}</p>
+                      )}
+                    </div>
+
+                    {/* Actions */}
+                    {!isStaff && (
+                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-muted-foreground hover:text-primary"
+                          onClick={() => openEditDialog(period)}
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </Button>
+
+                        {deleteConfirmId === period.id ? (
+                          <div className="flex items-center gap-1">
+                            <Button
+                              variant="destructive"
+                              size="sm"
+                              className="h-8 text-xs"
+                              onClick={() => handleDelete(period.id)}
+                              disabled={deletePeriod.isPending}
+                            >
+                              {deletePeriod.isPending ? '...' : 'Supprimer'}
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                              onClick={() => setDeleteConfirmId(null)}
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </Button>
+                          </div>
+                        ) : (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                            onClick={() => setDeleteConfirmId(period.id)}
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </Button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Create / Edit Dialog */}
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent className="sm:max-w-[480px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <CalendarOff className="w-5 h-5 text-primary" />
+              {editingPeriod ? 'Modifier la période' : 'Nouvelle période de fermeture'}
+            </DialogTitle>
+            <DialogDescription>
+              {editingPeriod
+                ? 'Modifiez les détails de cette période de fermeture.'
+                : 'Définissez une période pendant laquelle le restaurant sera fermé.'}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 mt-2">
+            {/* Name */}
+            <div>
+              <Label>Nom / Raison</Label>
+              <Input
+                placeholder="ex: Vacances d'été, Congé annuel, Fermeture exceptionnelle..."
+                value={formName}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormName(e.target.value)}
+                autoFocus
+              />
+            </div>
+
+            {/* Date range */}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>Date de début</Label>
+                <Input
+                  type="date"
+                  value={formDateFrom}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormDateFrom(e.target.value)}
+                />
+              </div>
+              <div>
+                <Label>Date de fin</Label>
+                <Input
+                  type="date"
+                  value={formDateTo}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormDateTo(e.target.value)}
+                  min={formDateFrom || undefined}
+                />
+              </div>
+            </div>
+
+            {/* Duration preview */}
+            {formDateFrom && formDateTo && formDateTo >= formDateFrom && (
+              <div className="rounded-lg border border-border bg-muted/30 p-3 flex items-center gap-2">
+                <Calendar className="w-4 h-4 text-primary shrink-0" />
+                <span className="text-sm">
+                  <strong>{daysBetween(formDateFrom, formDateTo)}</strong> jour{daysBetween(formDateFrom, formDateTo) > 1 ? 's' : ''} de fermeture
+                </span>
+                <span className="text-xs text-muted-foreground ml-auto">
+                  {formatDateFR(formDateFrom)} → {formatDateFR(formDateTo)}
+                </span>
+              </div>
+            )}
+
+            {/* Comment */}
+            <div>
+              <Label>Commentaire (optionnel)</Label>
+              <Input
+                placeholder="Notes supplémentaires..."
+                value={formComment}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormComment(e.target.value)}
+              />
+            </div>
+
+            {/* Actions */}
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="outline" onClick={() => setDialogOpen(false)}>
+                Annuler
+              </Button>
+              <Button
+                onClick={handleSave}
+                disabled={
+                  !formName.trim() ||
+                  !formDateFrom ||
+                  !formDateTo ||
+                  formDateTo < formDateFrom ||
+                  createPeriod.isPending ||
+                  updatePeriod.isPending
+                }
+              >
+                <Save className="w-4 h-4 mr-2" />
+                {(createPeriod.isPending || updatePeriod.isPending) ? 'Enregistrement...' : editingPeriod ? 'Modifier' : 'Créer'}
               </Button>
             </div>
           </div>

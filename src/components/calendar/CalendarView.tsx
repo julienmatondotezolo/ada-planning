@@ -49,7 +49,8 @@ import { toast } from '@/hooks/useToast';
 import { useEmployees, useShifts, shiftKeys } from '@/hooks/useStaff';
 import { useShiftPresets } from '@/hooks/useShiftPresets';
 import { useRestaurantSettings } from '@/hooks/useSettings';
-import { shiftsApi, type Employee, type Shift, type ShiftPreset, type DaySchedule } from '@/lib/api';
+import { useClosingPeriods } from '@/hooks/useClosingPeriods';
+import { shiftsApi, type Employee, type Shift, type ShiftPreset, type DaySchedule, type ClosingPeriod } from '@/lib/api';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -158,6 +159,7 @@ function CalendarDayCell({
   isCurrentMonth,
   isToday,
   isClosed,
+  closedLabel,
   isDragOver,
   isDropBlocked,
   isDragging,
@@ -174,6 +176,7 @@ function CalendarDayCell({
   isCurrentMonth: boolean;
   isToday: boolean;
   isClosed: boolean;
+  closedLabel?: string;
   isDragOver: boolean;
   isDropBlocked: boolean;
   isDragging: boolean;
@@ -251,8 +254,8 @@ function CalendarDayCell({
         </span>
 
         {isClosed && isCurrentMonth && (
-          <span className="text-[9px] font-medium text-muted-foreground/50 uppercase tracking-wide">
-            Fermé
+          <span className="text-[9px] font-medium text-muted-foreground/50 uppercase tracking-wide truncate max-w-[60px]" title={closedLabel || 'Fermé'}>
+            {closedLabel || 'Fermé'}
           </span>
         )}
 
@@ -784,6 +787,7 @@ export function CalendarView() {
   const { data: employeesRaw } = useEmployees({ active_only: true });
   const { data: presetsRaw } = useShiftPresets();
   const { data: settingsData } = useRestaurantSettings();
+  const { data: closingPeriodsRaw } = useClosingPeriods();
   const { data: shiftsRaw } = useShifts({
     start_date: format(monthStart, 'yyyy-MM-dd'),
     end_date: format(monthEnd, 'yyyy-MM-dd'),
@@ -880,14 +884,25 @@ export function CalendarView() {
 
   const calendarDays = generateGrid();
 
-  // Check if a day is closed based on opening hours from API
+  // Closing periods lookup
+  const closingPeriods = useMemo<ClosingPeriod[]>(() => closingPeriodsRaw ?? [], [closingPeriodsRaw]);
+
+  // Check if a date falls within a closing period
+  const getClosingPeriod = useCallback((date: Date): ClosingPeriod | null => {
+    const dateStr = format(date, 'yyyy-MM-dd');
+    return closingPeriods.find((p) => dateStr >= p.date_from && dateStr <= p.date_to) || null;
+  }, [closingPeriods]);
+
+  // Check if a day is closed based on opening hours OR closing periods
   const isClosedDay = useCallback((date: Date) => {
+    // Check closing periods first
+    if (getClosingPeriod(date)) return true;
+    // Then check regular weekly schedule
     const dayKey = JS_DAY_TO_FR_KEY[getDay(date)];
     const daySchedule = openingHours[dayKey];
-    // If no opening hours data, fall back to open
     if (!daySchedule) return false;
     return !daySchedule.enabled;
-  }, [openingHours]);
+  }, [openingHours, getClosingPeriod]);
 
   // ── Handlers ──
 
@@ -1248,6 +1263,7 @@ export function CalendarView() {
             const dayShifts = shifts[dateKey] || [];
 
             const closed = isClosedDay(date);
+            const closingPeriod = getClosingPeriod(date);
             const dropBlocked = !closed && !!draggingStaffId && hasShiftOnDate(draggingStaffId, dateKey);
 
             return (
@@ -1258,6 +1274,7 @@ export function CalendarView() {
                 isCurrentMonth={isCurrentMonth}
                 isToday={isDateToday(date)}
                 isClosed={closed}
+                closedLabel={closingPeriod?.name}
                 isDragOver={dragOverDate === dateKey}
                 isDropBlocked={dropBlocked}
                 isDragging={!!draggingStaffId}
