@@ -1057,9 +1057,10 @@ export function CalendarView() {
     }
   };
 
-  const handleDragLeave = () => {
-    setDragOverDate(null);
-  };
+  // handleDragLeave is a no-op per cell — dragOver on the next cell
+  // updates dragOverDate, and handleDragEnd clears everything.
+  // We clear dragOverDate only when leaving the entire grid (below).
+  const handleDragLeave = () => {};
 
   const handleDragEnd = () => {
     setDraggingStaffId(null);
@@ -1069,6 +1070,7 @@ export function CalendarView() {
   const handleDrop = (e: React.DragEvent, targetDate: Date) => {
     e.preventDefault();
     setDragOverDate(null);
+    setDraggingStaffId(null);
 
     // Block drops on closed days
     if (isClosedDay(targetDate)) {
@@ -1198,7 +1200,16 @@ export function CalendarView() {
       </div>
 
       {/* ── Calendar Grid ── */}
-      <div className="flex-1 overflow-auto">
+      <div
+        className="flex-1 overflow-auto"
+        onDragLeave={(e) => {
+          // Clear dragOverDate only when mouse truly leaves the grid
+          const related = e.relatedTarget as Node | null;
+          if (!related || !e.currentTarget.contains(related)) {
+            setDragOverDate(null);
+          }
+        }}
+      >
         <div className="grid grid-cols-7 min-h-full">
           {calendarDays.map((date, index) => {
             const dateKey = format(date, 'yyyy-MM-dd');
