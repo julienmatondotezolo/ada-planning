@@ -307,6 +307,7 @@ function ShiftDialog({
   staff,
   servicePresets,
   defaultStaffId,
+  existingShifts,
   onSave,
   onDelete,
 }: {
@@ -317,6 +318,7 @@ function ShiftDialog({
   staff: StaffMember[];
   servicePresets: ShiftPreset[];
   defaultStaffId?: string;
+  existingShifts: ShiftAssignment[];
   onSave: (data: {
     staffId: string;
     startTime: string;
@@ -353,6 +355,12 @@ function ShiftDialog({
 
   const isEditing = !!shift;
   const selectedStaffMember = staff.find((s) => s.id === selectedStaff);
+
+  // Filter out employees already assigned on this day (allow current employee when editing)
+  const availableStaff = staff.filter((s) => {
+    if (isEditing && s.id === shift.staffId) return true; // keep current assignment
+    return !existingShifts.some((es) => es.staffId === s.id);
+  });
 
   const handleServiceChange = (presetId: string) => {
     setSelectedService(presetId);
@@ -412,7 +420,12 @@ function ShiftDialog({
                 </SelectValue>
               </SelectTrigger>
               <SelectContent>
-                {staff.map((s) => (
+                {availableStaff.length === 0 && (
+                  <div className="px-3 py-2 text-xs text-muted-foreground text-center">
+                    Tous les employés sont déjà planifiés ce jour
+                  </div>
+                )}
+                {availableStaff.map((s) => (
                   <SelectItem key={s.id} value={s.id}>
                     <div className="flex items-center gap-2">
                       <div
@@ -630,7 +643,7 @@ function DayOverviewDialog({
                     </div>
                   </div>
 
-                  {/* Actions */}
+                  {/* Actions — always visible (touch-friendly) */}
                   <div className="flex items-center gap-1 shrink-0">
                     {isConfirming ? (
                       <>
@@ -659,7 +672,7 @@ function DayOverviewDialog({
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
+                          className="h-7 w-7"
                           onClick={() => onEditShift(shift)}
                         >
                           <Edit3 className="w-3.5 h-3.5" />
@@ -667,7 +680,7 @@ function DayOverviewDialog({
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive"
+                          className="h-7 w-7 text-destructive hover:text-destructive"
                           onClick={() => setConfirmDeleteId(shift.id)}
                         >
                           <Trash2 className="w-3.5 h-3.5" />
@@ -1093,6 +1106,16 @@ export function CalendarView() {
         const staffMember = staff.find((s) => s.id === data.staffId);
         if (!staffMember) return;
 
+        // Block if this employee already has a shift on this day
+        if (hasShiftOnDate(data.staffId, targetDateKey)) {
+          toast({
+            title: 'Déjà planifié',
+            description: `${staffMember.name} a déjà un service ce jour.`,
+            variant: 'destructive',
+          });
+          return;
+        }
+
         setEditingShift(null);
         setDialogDefaultStaffId(staffMember.id);
         setDialogDate(targetDate);
@@ -1101,8 +1124,19 @@ export function CalendarView() {
       }
 
       // Handle move from another cell
-      const { shiftId, sourceDate } = data;
+      const { shiftId, sourceDate, staffId: draggedStaffId } = data;
       if (sourceDate === targetDateKey) return; // Same cell, no-op
+
+      // Block if this employee already has a shift on the target day
+      if (draggedStaffId && hasShiftOnDate(draggedStaffId, targetDateKey)) {
+        const staffMember = staff.find((s) => s.id === draggedStaffId);
+        toast({
+          title: 'Déjà planifié',
+          description: `${staffMember?.name || 'Cet employé'} a déjà un service ce jour.`,
+          variant: 'destructive',
+        });
+        return;
+      }
 
       // ── Optimistic move ──
       const snapshot = optimisticUpdate((old) =>
@@ -1265,6 +1299,7 @@ export function CalendarView() {
         staff={staff}
         servicePresets={servicePresets}
         defaultStaffId={dialogDefaultStaffId}
+        existingShifts={shifts[format(dialogDate, 'yyyy-MM-dd')] || []}
         onSave={handleSave}
         onDelete={editingShift ? handleDelete : undefined}
       />
