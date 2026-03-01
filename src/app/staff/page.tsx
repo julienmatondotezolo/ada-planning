@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { AppShell } from '@/components/layout/AppShell';
-// Header removed — navigation handled by AppShell sidebar
+import { OwnerGuard } from '@/components/auth/OwnerGuard';
 import { staffApi, type Employee } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
 import {
@@ -172,6 +172,7 @@ export default function StaffPage() {
 
   return (
     <AppShell>
+      <OwnerGuard>
       <div className="flex-1 overflow-auto p-4 md:p-6">
         {/* Page header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
@@ -390,6 +391,7 @@ export default function StaffPage() {
           </div>
         </DialogContent>
       </Dialog>
+    </OwnerGuard>
     </AppShell>
   );
 }

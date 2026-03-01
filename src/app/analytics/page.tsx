@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from 'react';
 import { AppShell } from '@/components/layout/AppShell';
+import { OwnerGuard } from '@/components/auth/OwnerGuard';
 import { useAuth } from '@/contexts/AuthContext';
 import { apiFetch, type Employee, staffApi } from '@/lib/api';
 import { useQuery } from '@tanstack/react-query';
@@ -134,6 +135,7 @@ export default function AnalyticsPage() {
 
   return (
     <AppShell>
+      <OwnerGuard>
       <div className="flex-1 overflow-auto p-4 md:p-6">
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
@@ -361,6 +363,7 @@ export default function AnalyticsPage() {
           </CardContent>
         </Card>
       </div>
+    </OwnerGuard>
     </AppShell>
   );
 }

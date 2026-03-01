@@ -24,24 +24,28 @@ const NAVIGATION_ITEMS = [
     label: 'Calendrier',
     icon: Calendar,
     href: '/',
+    ownerOnly: false,
   },
   {
     id: 'staff',
     label: 'Personnel',
     icon: Users,
     href: '/staff',
+    ownerOnly: true,
   },
   {
     id: 'analytics',
     label: 'Analytiques',
     icon: BarChart3,
     href: '/analytics',
+    ownerOnly: true,
   },
   {
     id: 'settings',
     label: 'Paramètres',
     icon: Settings,
     href: '/settings',
+    ownerOnly: false,
   },
 ];
 
@@ -213,7 +217,7 @@ export function Sidebar() {
       {/* Main navigation */}
       <nav className="flex-1 overflow-y-auto py-3 px-2 cursor-default">
         <ul className="space-y-1">
-          {NAVIGATION_ITEMS.map((item) => {
+          {NAVIGATION_ITEMS.filter((item) => !item.ownerOnly || user?.role === 'owner').map((item) => {
             const active = isActive(item.href);
             return (
               <li key={item.id}>

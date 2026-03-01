@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 const AUTH_URL = process.env.NEXT_PUBLIC_AUTH_URL || 'https://auth.adasystems.app';
+const SKIP_AUTH_VALIDATION = process.env.SKIP_AUTH_VALIDATION === 'true';
 
 // In-memory validation cache (per server instance)
 // Prevents hammering AdaAuth /auth/validate on every single request
@@ -20,6 +21,11 @@ function buildAuthRedirect(request: NextRequest, pathname: string): NextResponse
 }
 
 async function validateToken(token: string): Promise<boolean> {
+  // Dev mode: skip remote validation entirely
+  if (SKIP_AUTH_VALIDATION) {
+    return true;
+  }
+
   // Check cache first
   const cached = validationCache.get(token);
   if (cached && Date.now() < cached.expiresAt) {
@@ -101,6 +107,8 @@ export const config = {
     '/staff/:path*',
     '/schedules/:path*',
     '/settings/:path*',
+    '/analytics/:path*',
+    '/notifications/:path*',
     '/login',
     '/auth/:path*',
     '/unauthorized',
