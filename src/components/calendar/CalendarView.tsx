@@ -1056,12 +1056,9 @@ export function CalendarView() {
     const dateKey = format(date, 'yyyy-MM-dd');
     const blocked = isClosedDay(date) || (draggingStaffId ? hasShiftOnDate(draggingStaffId, dateKey) : false);
 
-    if (blocked) {
-      // Show "not allowed" cursor but still track hover for visual feedback
-      e.preventDefault();
-      e.dataTransfer.dropEffect = 'none';
-    } else {
-      e.preventDefault();
+    // Always preventDefault so the drop event fires (needed for toast feedback on blocked drops)
+    e.preventDefault();
+    if (!blocked) {
       e.dataTransfer.dropEffect = e.dataTransfer.effectAllowed === 'copy' ? 'copy' : 'move';
     }
 
