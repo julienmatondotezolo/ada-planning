@@ -3,8 +3,8 @@
 import { useState, useCallback, useRef, useMemo } from 'react';
 import { format, startOfWeek, addDays, isToday as isDateToday } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { Plus } from 'lucide-react';
-import { Avatar, AvatarFallback, Badge } from 'ada-design-system';
+import { Lock } from 'lucide-react';
+import { Badge } from 'ada-design-system';
 import { cn } from '@/lib/utils';
 import { toast } from '@/hooks/useToast';
 import {
@@ -17,10 +17,61 @@ import {
   timeToMinutes,
   minutesToTop,
   minutesToHeight,
-  snapTo15,
-  pxToMinutes,
-  minutesToTimeStr,
 } from './types';
+
+// ─── Overlap layout: compute column index + total columns per shift group ────
+
+interface LayoutedShift extends ShiftAssignment {
+  colIndex: number;
+  colTotal: number;
+}
+
+function layoutOverlappingShifts(shifts: ShiftAssignment[]): LayoutedShift[] {
+  if (shifts.length === 0) return [];
+
+  // Sort by start time, then by end time (longer first)
+  const sorted = [...shifts].sort((a, b) => {
+    const d = timeToMinutes(a.startTime) - timeToMinutes(b.startTime);
+    return d !== 0 ? d : timeToMinutes(b.endTime) - timeToMinutes(a.endTime);
+  });
+
+  // Assign columns using a greedy algorithm
+  const columns: { endMin: number; shift: ShiftAssignment }[][] = [];
+
+  for (const shift of sorted) {
+    const startMin = timeToMinutes(shift.startTime);
+    let placed = false;
+
+    for (let col = 0; col < columns.length; col++) {
+      const lastInCol = columns[col][columns[col].length - 1];
+      if (lastInCol.endMin <= startMin) {
+        columns[col].push({ endMin: timeToMinutes(shift.endTime), shift });
+        placed = true;
+        break;
+      }
+    }
+
+    if (!placed) {
+      columns.push([{ endMin: timeToMinutes(shift.endTime), shift }]);
+    }
+  }
+
+  // Build result with column info
+  const result: LayoutedShift[] = [];
+  const totalCols = columns.length;
+
+  for (let colIdx = 0; colIdx < columns.length; colIdx++) {
+    for (const entry of columns[colIdx]) {
+      result.push({
+        ...entry.shift,
+        colIndex: colIdx,
+        colTotal: totalCols,
+      });
+    }
+  }
+
+  return result;
+}
 
 // ─── Time Block (shift rendered in the time grid) ────────────────────────────
 
@@ -29,7 +80,7 @@ function TimeBlock({
   onClick,
   onDragStart,
 }: {
-  shift: ShiftAssignment;
+  shift: LayoutedShift;
   onClick: () => void;
   onDragStart: (e: React.DragEvent) => void;
 }) {
@@ -37,6 +88,12 @@ function TimeBlock({
   const endMin = timeToMinutes(shift.endTime);
   const top = minutesToTop(startMin);
   const height = Math.max(minutesToHeight(startMin, endMin), 24);
+
+  // Multi-column layout: each shift gets a fraction of the column width
+  const colWidth = 100 / shift.colTotal;
+  const left = shift.colIndex * colWidth;
+  // Slight overlap for visual grouping
+  const width = shift.colTotal > 1 ? colWidth + 1 : 100;
 
   return (
     <button
@@ -47,19 +104,28 @@ function TimeBlock({
         onClick();
       }}
       className={cn(
-        'absolute left-1 right-1 rounded-md text-white text-[11px] font-medium',
+        'absolute rounded-md text-white text-[11px] font-medium',
         'cursor-grab active:cursor-grabbing transition-shadow',
         'hover:brightness-110 hover:shadow-lg active:scale-[0.99]',
-        'overflow-hidden px-2 py-1 z-10',
+        'overflow-hidden px-1.5 py-1 z-10',
+        shift.colTotal > 1 && 'border-r border-white/30',
       )}
       style={{
         top: `${top}px`,
         height: `${height}px`,
+        left: `calc(${left}% + 2px)`,
+        width: `calc(${width}% - 4px)`,
         backgroundColor: shift.color,
       }}
       title={`${shift.name} • ${shift.position}\n${fmtTime(shift.startTime)} – ${fmtTime(shift.endTime)}`}
     >
       <div className="flex items-center gap-1 leading-tight">
+        {/* Avatar circle for multi-column mode */}
+        {shift.colTotal > 1 && (
+          <span className="w-4 h-4 rounded-full bg-white/25 flex items-center justify-center text-[8px] font-bold shrink-0">
+            {shift.initials}
+          </span>
+        )}
         <span className="font-bold truncate">{shift.name}</span>
       </div>
       {height >= 40 && (
@@ -123,6 +189,17 @@ export function WeeklyView({
   }, []);
 
   const totalHeight = hours.length * HOUR_HEIGHT_PX;
+
+  // Pre-compute layouted shifts per day
+  const layoutedShifts = useMemo(() => {
+    const result: Record<string, LayoutedShift[]> = {};
+    for (const date of weekDays) {
+      const dateKey = format(date, 'yyyy-MM-dd');
+      const dayShifts = shifts[dateKey] || [];
+      result[dateKey] = layoutOverlappingShifts(dayShifts);
+    }
+    return result;
+  }, [shifts, weekDays]);
 
   // ── Drag handlers ──
 
@@ -218,30 +295,48 @@ export function WeeklyView({
           const isToday = isDateToday(date);
           const closed = isClosedDay(date);
           const closingPeriod = getClosingPeriod(date);
+          const dateKey = format(date, 'yyyy-MM-dd');
+          const dayShifts = shifts[dateKey] || [];
 
           return (
             <div
               key={date.toISOString()}
               className={cn(
                 'flex-1 px-2 py-2 text-center border-r border-border/50 last:border-r-0 min-w-0',
-                closed && 'opacity-50',
+                closed && closingPeriod && 'bg-red-50/60',
+                closed && !closingPeriod && 'opacity-50',
               )}
             >
-              <div className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">
+              <div className={cn(
+                'text-[11px] font-medium uppercase tracking-wide',
+                closed && closingPeriod ? 'text-red-700/60' : 'text-muted-foreground',
+              )}>
                 {format(date, 'EEE', { locale: fr })}
               </div>
               <div
                 className={cn(
                   'text-lg font-bold leading-tight mt-0.5',
-                  isToday && 'bg-primary text-primary-foreground w-8 h-8 rounded-full flex items-center justify-center mx-auto text-sm',
-                  !isToday && 'text-foreground',
+                  // Closing period — red circle
+                  closed && closingPeriod && 'text-red-700 w-8 h-8 rounded-full border-[1.5px] border-red-700 flex items-center justify-center mx-auto text-sm',
+                  // Today (not closed)
+                  isToday && !closed && 'bg-primary text-primary-foreground w-8 h-8 rounded-full flex items-center justify-center mx-auto text-sm',
+                  // Regular
+                  !isToday && !closed && 'text-foreground',
+                  // Regular closed
+                  closed && !closingPeriod && 'text-muted-foreground',
                 )}
               >
                 {format(date, 'd')}
               </div>
               {closingPeriod && (
+                <div className="flex items-center justify-center gap-1 mt-1">
+                  <span className="text-[9px] font-medium text-red-700 truncate max-w-[60px]">{closingPeriod.name}</span>
+                  <Lock className="w-2.5 h-2.5 text-red-600 shrink-0" />
+                </div>
+              )}
+              {!closed && dayShifts.length > 0 && (
                 <Badge variant="secondary" className="text-[9px] px-1 py-0 mt-1">
-                  {closingPeriod.name}
+                  {dayShifts.length} service{dayShifts.length > 1 ? 's' : ''}
                 </Badge>
               )}
             </div>
@@ -270,8 +365,9 @@ export function WeeklyView({
           {/* Day columns */}
           {weekDays.map((date) => {
             const dateKey = format(date, 'yyyy-MM-dd');
-            const dayShifts = shifts[dateKey] || [];
+            const dayLayouted = layoutedShifts[dateKey] || [];
             const closed = isClosedDay(date);
+            const closingPeriod = getClosingPeriod(date);
             const isToday = isDateToday(date);
             const isDragOver = dragOverCol === dateKey;
             const blocked = closed || (draggingStaffId ? hasShiftOnDate(draggingStaffId, dateKey) : false);
@@ -281,7 +377,8 @@ export function WeeklyView({
                 key={dateKey}
                 className={cn(
                   'flex-1 relative border-r border-border/50 last:border-r-0 min-w-0',
-                  closed && 'bg-muted/30 cursor-not-allowed',
+                  closed && closingPeriod && 'bg-red-50/40',
+                  closed && !closingPeriod && 'bg-muted/30 cursor-not-allowed',
                   !closed && isToday && 'bg-primary/[0.02]',
                   !closed && 'cursor-pointer',
                   draggingStaffId && !blocked && 'ring-1 ring-inset ring-emerald-400/20',
@@ -311,8 +408,8 @@ export function WeeklyView({
                   />
                 ))}
 
-                {/* Shift blocks */}
-                {dayShifts.map((shift) => (
+                {/* Shift blocks — multi-column layout */}
+                {dayLayouted.map((shift) => (
                   <TimeBlock
                     key={shift.id}
                     shift={shift}
@@ -325,11 +422,23 @@ export function WeeklyView({
                 {isToday && <NowLine />}
 
                 {/* Closed overlay */}
-                {closed && (
+                {closed && !closingPeriod && (
                   <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                     <span className="text-xs font-semibold text-muted-foreground/40 uppercase tracking-wide -rotate-45">
                       Fermé
                     </span>
+                  </div>
+                )}
+
+                {/* Closing period overlay */}
+                {closed && closingPeriod && (
+                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                    <div className="flex flex-col items-center gap-1 opacity-20">
+                      <Lock className="w-8 h-8 text-red-700" />
+                      <span className="text-xs font-semibold text-red-700 uppercase tracking-wide">
+                        {closingPeriod.name}
+                      </span>
+                    </div>
                   </div>
                 )}
               </div>

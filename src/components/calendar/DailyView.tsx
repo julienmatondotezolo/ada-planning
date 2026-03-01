@@ -3,7 +3,7 @@
 import { useState, useCallback, useRef, useMemo } from 'react';
 import { format, isToday as isDateToday } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { CalendarOff } from 'lucide-react';
+import { CalendarOff, Lock } from 'lucide-react';
 import { Avatar, AvatarFallback, Badge } from 'ada-design-system';
 import { cn } from '@/lib/utils';
 import { toast } from '@/hooks/useToast';
@@ -203,15 +203,37 @@ export function DailyView({
     setDragOverCol(null);
   }, []);
 
-  // Closed state
+  // Closed state — red theme for closing periods
   if (closed) {
+    const isClosingPeriod = !!closingPeriod;
     return (
-      <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground p-8">
-        <CalendarOff className="w-16 h-16 mb-4 opacity-30" />
-        <h3 className="text-lg font-semibold mb-1">Restaurant fermé</h3>
-        <p className="text-sm text-center">
-          {closingPeriod
-            ? `${closingPeriod.name} — ${format(new Date(closingPeriod.date_from + 'T00:00:00'), 'd MMM', { locale: fr })} au ${format(new Date(closingPeriod.date_to + 'T00:00:00'), 'd MMM yyyy', { locale: fr })}`
+      <div className={cn(
+        'flex-1 flex flex-col items-center justify-center p-8',
+        isClosingPeriod ? 'bg-red-50/40' : '',
+      )}>
+        {isClosingPeriod ? (
+          <Lock className="w-16 h-16 mb-4 text-red-600/30" />
+        ) : (
+          <CalendarOff className="w-16 h-16 mb-4 text-muted-foreground/30" />
+        )}
+        <h3 className={cn(
+          'text-lg font-semibold mb-1',
+          isClosingPeriod ? 'text-red-700' : 'text-muted-foreground',
+        )}>
+          Restaurant fermé
+        </h3>
+        {isClosingPeriod && (
+          <div className="flex items-center gap-2 mb-2 px-4 py-1.5 rounded-full border border-red-700/40 bg-white">
+            <span className="text-sm font-medium text-red-700">{closingPeriod!.name}</span>
+            <Lock className="w-3.5 h-3.5 text-red-600" />
+          </div>
+        )}
+        <p className={cn(
+          'text-sm text-center',
+          isClosingPeriod ? 'text-red-700/60' : 'text-muted-foreground',
+        )}>
+          {isClosingPeriod
+            ? `${format(new Date(closingPeriod!.date_from + 'T00:00:00'), 'd MMM', { locale: fr })} au ${format(new Date(closingPeriod!.date_to + 'T00:00:00'), 'd MMM yyyy', { locale: fr })}`
             : `Le ${format(currentDate, 'EEEE', { locale: fr })} est un jour de fermeture habituel.`
           }
         </p>

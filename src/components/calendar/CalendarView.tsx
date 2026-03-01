@@ -31,6 +31,7 @@ import {
   User,
   Users,
   CalendarDays,
+  Lock,
 } from 'lucide-react';
 import {
   Avatar,
@@ -209,8 +210,9 @@ function CalendarDayCell({
       className={cn(
         'relative flex flex-col border-b border-r border-border/50 min-h-[100px] md:min-h-[120px] transition-colors',
         isCurrentMonth ? 'bg-background' : 'bg-muted/30',
-        // Closed days
-        isClosed && isCurrentMonth && 'bg-muted/40 opacity-50 cursor-not-allowed',
+        // Closed days — red tint for closing periods, muted for regular closed days
+        isClosed && isCurrentMonth && closedLabel && 'bg-red-50/60 cursor-not-allowed',
+        isClosed && isCurrentMonth && !closedLabel && 'bg-muted/40 opacity-50 cursor-not-allowed',
         isClosed && !isCurrentMonth && 'bg-muted/50 opacity-30',
         // During drag: valid cells get green border
         isDragging && !blocked && isCurrentMonth && 'ring-2 ring-inset ring-emerald-400/20',
@@ -254,19 +256,22 @@ function CalendarDayCell({
           className={cn(
             'text-xs font-semibold leading-none',
             !isCurrentMonth && 'text-muted-foreground/40',
-            isCurrentMonth && !isToday && 'text-foreground',
-            isToday &&
+            // Closing period days — red circle around number
+            isClosed && isCurrentMonth && closedLabel &&
+              'text-red-700 w-6 h-6 rounded-full border-[1.5px] border-red-700 flex items-center justify-center text-[11px]',
+            // Regular closed days (weekly schedule)
+            isClosed && isCurrentMonth && !closedLabel && 'text-muted-foreground',
+            // Normal open days
+            !isClosed && isCurrentMonth && !isToday && 'text-foreground',
+            isToday && !isClosed &&
               'bg-primary text-primary-foreground w-6 h-6 rounded-full flex items-center justify-center text-[11px]',
+            // Today + closed
+            isToday && isClosed && closedLabel &&
+              'text-red-700 w-6 h-6 rounded-full border-[1.5px] border-red-700 flex items-center justify-center text-[11px]',
           )}
         >
           {dayNum}
         </span>
-
-        {isClosed && isCurrentMonth && (
-          <span className="text-[9px] font-medium text-muted-foreground/50 uppercase tracking-wide truncate max-w-[60px]" title={closedLabel || 'Fermé'}>
-            {closedLabel || 'Fermé'}
-          </span>
-        )}
 
         {!isClosed && isCurrentMonth && (
           <button
@@ -280,6 +285,25 @@ function CalendarDayCell({
           </button>
         )}
       </div>
+
+      {/* Closing period badge — red pill with lock icon */}
+      {isClosed && isCurrentMonth && closedLabel && (
+        <div className="px-1.5 pt-1">
+          <div className="flex items-center gap-1.5 px-2 py-1 rounded-full border border-red-700/60 bg-white">
+            <span className="text-[10px] font-medium text-red-700 truncate flex-1">{closedLabel}</span>
+            <Lock className="w-3 h-3 text-red-600 shrink-0" />
+          </div>
+        </div>
+      )}
+
+      {/* Regular closed day label */}
+      {isClosed && isCurrentMonth && !closedLabel && (
+        <div className="px-2 pt-1">
+          <span className="text-[9px] font-medium text-muted-foreground/50 uppercase tracking-wide">
+            Fermé
+          </span>
+        </div>
+      )}
 
       {/* Shifts */}
       <div className="flex-1 px-1.5 pb-1 pt-1 space-y-0.5 overflow-hidden group">
