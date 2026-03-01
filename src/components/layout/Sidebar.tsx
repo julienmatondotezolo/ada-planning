@@ -2,18 +2,21 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { usePathname } from 'next/navigation';
-import { 
-  Calendar, 
-  Users, 
+import {
+  Calendar,
+  Users,
   Settings,
   PanelLeftClose,
   PanelLeft,
   LogOut,
   Bell,
+  BarChart3,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { AdaLogo, Avatar, AvatarFallback } from 'ada-design-system';
 import { useAuth } from '@/contexts/AuthContext';
+import { useQuery } from '@tanstack/react-query';
+import { apiFetch } from '@/lib/api';
 
 const NAVIGATION_ITEMS = [
   {
@@ -29,6 +32,12 @@ const NAVIGATION_ITEMS = [
     href: '/staff',
   },
   {
+    id: 'analytics',
+    label: 'Analytiques',
+    icon: BarChart3,
+    href: '/analytics',
+  },
+  {
     id: 'settings',
     label: 'Paramètres',
     icon: Settings,
@@ -42,6 +51,18 @@ export function Sidebar() {
   const pathname = usePathname();
   const { user, logout } = useAuth();
   const userMenuRef = useRef<HTMLDivElement>(null);
+  const sidebarRef = useRef<HTMLDivElement>(null);
+
+  // Fetch unread notification count
+  const { data: unreadCount } = useQuery<number>({
+    queryKey: ['notifications-unread-count'],
+    queryFn: async () => {
+      const res = await apiFetch<{ unread_count: number; count?: number }>('notifications/unread-count');
+      return res.success ? (res.data.unread_count ?? res.data.count ?? 0) : 0;
+    },
+    refetchInterval: 30_000, // poll every 30s
+    staleTime: 10_000,
+  });
 
   // Close user menu on outside click
   useEffect(() => {
@@ -64,30 +85,41 @@ export function Sidebar() {
     setShowUserMenu(false);
   };
 
-  const getUserInitials = (user: any) => {
-    if (!user) return 'U';
-    const first = user.first_name || user.email?.charAt(0) || '';
-    const last = user.last_name || '';
+  const getUserInitials = (u: any) => {
+    if (!u) return 'U';
+    const first = u.first_name || u.email?.charAt(0) || '';
+    const last = u.last_name || '';
     return (first.charAt(0) + last.charAt(0)).toUpperCase() || 'U';
   };
 
-  const getUserDisplayName = (user: any) => {
-    if (!user) return 'User';
-    if (user.first_name && user.last_name) return `${user.first_name} ${user.last_name}`;
-    if (user.first_name) return user.first_name;
-    return user.email?.split('@')[0] || 'User';
+  const getUserDisplayName = (u: any) => {
+    if (!u) return 'User';
+    if (u.first_name && u.last_name) return `${u.first_name} ${u.last_name}`;
+    if (u.first_name) return u.first_name;
+    return u.email?.split('@')[0] || 'User';
+  };
+
+  // Click on empty sidebar area toggles collapse
+  const handleSidebarClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    // Only toggle if clicking directly on the sidebar background (not on a button/link/menu)
+    const target = e.target as HTMLElement;
+    if (target === sidebarRef.current || target === e.currentTarget) {
+      setCollapsed((prev) => !prev);
+    }
   };
 
   return (
     <div
+      ref={sidebarRef}
+      onClick={handleSidebarClick}
       className={cn(
-        'h-full bg-white border-r border-gray-200 flex flex-col transition-all duration-200 ease-in-out shrink-0',
+        'h-full bg-white border-r border-gray-200 flex flex-col transition-all duration-200 ease-in-out shrink-0 cursor-pointer',
         collapsed ? 'w-[68px]' : 'w-[240px]'
       )}
     >
       {/* Logo + collapse toggle */}
       <div className={cn(
-        'flex items-center border-b border-gray-200 h-14 shrink-0',
+        'flex items-center border-b border-gray-200 h-14 shrink-0 cursor-default',
         collapsed ? 'justify-center px-2' : 'justify-between px-4'
       )}>
         {!collapsed && (
@@ -97,7 +129,7 @@ export function Sidebar() {
           </div>
         )}
         <button
-          onClick={() => setCollapsed(!collapsed)}
+          onClick={(e) => { e.stopPropagation(); setCollapsed(!collapsed); }}
           className="p-1.5 rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
           title={collapsed ? 'Ouvrir le menu' : 'Réduire le menu'}
         >
@@ -107,11 +139,11 @@ export function Sidebar() {
 
       {/* User profile */}
       <div ref={userMenuRef} className={cn(
-        'border-b border-gray-200 relative',
+        'border-b border-gray-200 relative cursor-default',
         collapsed ? 'px-2 py-3' : 'px-3 py-3'
       )}>
         <button
-          onClick={() => setShowUserMenu(!showUserMenu)}
+          onClick={(e) => { e.stopPropagation(); setShowUserMenu(!showUserMenu); }}
           className={cn(
             'flex items-center rounded-lg hover:bg-gray-50 transition-colors w-full',
             collapsed ? 'justify-center p-1.5' : 'gap-3 px-2 py-1.5'
@@ -153,25 +185,33 @@ export function Sidebar() {
       </div>
 
       {/* Notifications */}
-      <div className={cn('border-b border-gray-200', collapsed ? 'px-2 py-2' : 'px-2 py-2')}>
+      <div className={cn('border-b border-gray-200 cursor-default', collapsed ? 'px-2 py-2' : 'px-2 py-2')}>
         <a
           href="/notifications"
+          onClick={(e) => e.stopPropagation()}
           className={cn(
-            'flex items-center rounded-lg text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-colors relative',
-            collapsed ? 'justify-center p-2.5' : 'gap-3 px-3 py-2.5'
+            'flex items-center rounded-lg transition-colors relative',
+            collapsed ? 'justify-center p-2.5' : 'gap-3 px-3 py-2.5',
+            pathname === '/notifications'
+              ? 'bg-blue-50 text-blue-600'
+              : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900',
           )}
           title={collapsed ? 'Notifications' : undefined}
         >
           <div className="relative shrink-0">
             <Bell className="w-5 h-5" />
-            <span className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full" />
+            {(unreadCount ?? 0) > 0 && (
+              <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 px-1 flex items-center justify-center bg-red-500 text-white text-[10px] font-bold rounded-full">
+                {(unreadCount ?? 0) > 99 ? '99+' : unreadCount}
+              </span>
+            )}
           </div>
           {!collapsed && <span className="text-sm font-medium">Notifications</span>}
         </a>
       </div>
 
       {/* Main navigation */}
-      <nav className="flex-1 overflow-y-auto py-3 px-2">
+      <nav className="flex-1 overflow-y-auto py-3 px-2 cursor-default">
         <ul className="space-y-1">
           {NAVIGATION_ITEMS.map((item) => {
             const active = isActive(item.href);
@@ -179,6 +219,7 @@ export function Sidebar() {
               <li key={item.id}>
                 <a
                   href={item.href}
+                  onClick={(e) => e.stopPropagation()}
                   className={cn(
                     'flex items-center rounded-lg transition-colors',
                     collapsed ? 'justify-center p-2.5' : 'gap-3 px-3 py-2.5',
@@ -200,9 +241,9 @@ export function Sidebar() {
       </nav>
 
       {/* Logout */}
-      <div className="border-t border-gray-200 p-2">
+      <div className="border-t border-gray-200 p-2 cursor-default">
         <button
-          onClick={handleLogout}
+          onClick={(e) => { e.stopPropagation(); handleLogout(); }}
           className={cn(
             'flex items-center rounded-lg text-gray-500 hover:bg-red-50 hover:text-red-600 transition-colors w-full',
             collapsed ? 'justify-center p-2.5' : 'gap-3 px-3 py-2.5',

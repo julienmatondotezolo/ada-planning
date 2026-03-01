@@ -274,6 +274,66 @@ export const closingPeriodsApi = {
     apiFetch<void>(`closing-periods/${id}`, { method: 'DELETE' }),
 };
 
+// ─── Notifications ──────────────────────────────────────────────────────────
+
+export interface Notification {
+  id: string;
+  restaurant_id: string;
+  type: string;
+  title: string;
+  message?: string;
+  read: boolean;
+  metadata?: Record<string, any>;
+  created_at: string;
+}
+
+export const notificationsApi = {
+  getAll: (params?: { limit?: number; offset?: number; unread_only?: boolean }) => {
+    const qs = new URLSearchParams();
+    if (params?.limit) qs.set('limit', String(params.limit));
+    if (params?.offset) qs.set('offset', String(params.offset));
+    if (params?.unread_only) qs.set('unread_only', 'true');
+    const query = qs.toString();
+    return apiFetch<Notification[]>(`notifications${query ? `?${query}` : ''}`);
+  },
+
+  getUnreadCount: () =>
+    apiFetch<{ count: number }>('notifications/unread-count'),
+
+  markRead: (id: string) =>
+    apiFetch<void>(`notifications/${id}/read`, { method: 'PUT' }),
+
+  markAllRead: () =>
+    apiFetch<void>('notifications/read-all', { method: 'PUT' }),
+};
+
+// ─── Analytics ──────────────────────────────────────────────────────────────
+
+export interface LaborCostData {
+  period: string;
+  total_cost: number;
+  total_hours: number;
+  breakdown: {
+    employee_id: string;
+    employee_name: string;
+    hours: number;
+    hourly_rate: number;
+    cost: number;
+  }[];
+  daily_totals: {
+    date: string;
+    cost: number;
+    hours: number;
+  }[];
+}
+
+export const analyticsApi = {
+  getLaborCost: (params: { period: string; start_date: string; end_date: string }) => {
+    const qs = new URLSearchParams(params);
+    return apiFetch<LaborCostData>(`analytics/labor-cost?${qs.toString()}`);
+  },
+};
+
 // ─── Templates ──────────────────────────────────────────────────────────────
 
 export const templatesApi = {
