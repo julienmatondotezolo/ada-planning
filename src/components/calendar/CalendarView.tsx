@@ -88,6 +88,7 @@ interface ShiftAssignment {
   initials: string;
   startTime: string;
   endTime: string;
+  status?: string;
 }
 
 // ─── Staff Color Assignment ──────────────────────────────────────────────────
@@ -138,9 +139,10 @@ function ShiftPill({
   onDragStart?: (e: React.DragEvent) => void;
   onDragEnd?: () => void;
 }) {
+  const isDeclined = shift.status === 'declined';
   return (
     <button
-      draggable={draggable}
+      draggable={draggable && !isDeclined}
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
       onClick={(e) => {
@@ -149,18 +151,20 @@ function ShiftPill({
       }}
       className={cn(
         'group/pill flex items-center gap-1 rounded text-white font-medium',
-        'cursor-grab active:cursor-grabbing transition-all duration-150',
-        'hover:brightness-110 hover:shadow-md active:scale-[0.97]',
+        'transition-all duration-150',
         'focus:outline-none focus:ring-2 focus:ring-white/50',
+        isDeclined
+          ? 'opacity-50 cursor-pointer line-through grayscale'
+          : 'cursor-grab active:cursor-grabbing hover:brightness-110 hover:shadow-md active:scale-[0.97]',
         compact
           ? 'px-1 py-0 text-[9px] leading-tight h-[18px]'
           : 'px-1.5 py-0.5 text-[10px] leading-tight w-full h-[20px]'
       )}
-      style={{ backgroundColor: shift.color }}
-      title={`${shift.name} • ${shift.position}\n${fmtTime(shift.startTime)} - ${fmtTime(shift.endTime)}`}
+      style={{ backgroundColor: isDeclined ? '#9ca3af' : shift.color }}
+      title={`${shift.name} • ${shift.position}\n${fmtTime(shift.startTime)} - ${fmtTime(shift.endTime)}${isDeclined ? '\n⚠️ Refusé par l\'employé' : ''}`}
     >
-      <span className="font-bold truncate">{shift.name}</span>
-      <span className={cn("opacity-80 shrink-0 ml-auto", compact ? "text-[8px]" : "text-[9px]")}>
+      <span className={cn("font-bold truncate", isDeclined && "line-through")}>{shift.name}</span>
+      <span className={cn("opacity-80 shrink-0 ml-auto", compact ? "text-[8px]" : "text-[9px]", isDeclined && "line-through")}>
         {fmtTime(shift.startTime)}-{fmtTime(shift.endTime)}
       </span>
     </button>
@@ -938,6 +942,7 @@ export function CalendarView() {
         initials,
         startTime: apiShift.start_time || '',
         endTime: apiShift.end_time || '',
+        status: apiShift.status || 'draft',
       });
     });
     return shiftMap;
@@ -1386,6 +1391,8 @@ export function CalendarView() {
       if (res.success && res.data) {
         setSendResult(res.data.details);
         toast({ title: 'Emails envoyés', description: `${res.data.details.filter((d) => d.status === 'sent').length} email(s) envoyé(s) avec succès.` });
+        // Refetch shifts so notified_at is updated — prevents re-sending
+        queryClient.invalidateQueries({ queryKey: shiftQueryKey });
       } else {
         toast({ title: 'Erreur', description: "Impossible d'envoyer les notifications.", variant: 'destructive' });
       }
@@ -1736,10 +1743,10 @@ export function CalendarView() {
                     <Button
                       className="flex-1 bg-[#4d6aff] hover:bg-[#3d57e0] text-white gap-2"
                       onClick={handleSendWeeklyNotifications}
-                      disabled={weeklyShiftSummary.filter((e) => e.hasChanges && e.email).length === 0}
+                      disabled={sendingEmails || weeklyShiftSummary.filter((e) => e.hasChanges && e.email).length === 0}
                     >
                       <Send className="w-4 h-4" />
-                      Envoyer {weeklyShiftSummary.filter((e) => e.hasChanges && e.email).length} email(s)
+                      {sendingEmails ? 'Envoi en cours...' : `Envoyer ${weeklyShiftSummary.filter((e) => e.hasChanges && e.email).length} email(s)`}
                     </Button>
                   </div>
                 </>

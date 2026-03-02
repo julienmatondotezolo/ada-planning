@@ -92,6 +92,7 @@ function HorizontalTimeBlock({
   const endMin = timeToMinutes(shift.endTime);
   const left = minutesToLeft(startMin);
   const width = Math.max(minutesToWidth(startMin, endMin), 40);
+  const isDeclined = shift.status === 'declined';
 
   // Multi-row layout within a day row
   const subRowHeight = rowHeight / shift.rowTotal;
@@ -100,7 +101,7 @@ function HorizontalTimeBlock({
 
   return (
     <button
-      draggable
+      draggable={!isDeclined}
       onDragStart={onDragStart}
       onClick={(e) => {
         e.stopPropagation();
@@ -108,19 +109,20 @@ function HorizontalTimeBlock({
       }}
       className={cn(
         'absolute rounded-md text-white text-[11px] font-medium',
-        'cursor-grab active:cursor-grabbing transition-shadow',
-        'hover:brightness-110 hover:shadow-lg active:scale-[0.99]',
-        'overflow-hidden px-1.5 py-0.5 z-10',
+        'transition-shadow overflow-hidden px-1.5 py-0.5 z-10',
         shift.rowTotal > 1 && 'border-b border-white/30',
+        isDeclined
+          ? 'opacity-50 cursor-pointer grayscale'
+          : 'cursor-grab active:cursor-grabbing hover:brightness-110 hover:shadow-lg active:scale-[0.99]',
       )}
       style={{
         left: `${left}px`,
         width: `${width}px`,
         top: `${top + 1}px`,
         height: `${height}px`,
-        backgroundColor: shift.color,
+        backgroundColor: isDeclined ? '#9ca3af' : shift.color,
       }}
-      title={`${shift.name} • ${shift.position}\n${fmtTime(shift.startTime)} – ${fmtTime(shift.endTime)}`}
+      title={`${shift.name} • ${shift.position}\n${fmtTime(shift.startTime)} – ${fmtTime(shift.endTime)}${isDeclined ? '\n⚠️ Refusé par l\'employé' : ''}`}
     >
       <div className="flex items-center gap-1 leading-tight h-full">
         {shift.rowTotal > 1 && (
@@ -128,8 +130,8 @@ function HorizontalTimeBlock({
             {shift.initials}
           </span>
         )}
-        <span className="font-bold truncate">{shift.name}</span>
-        <span className="text-[9px] opacity-80 shrink-0 ml-auto">
+        <span className={cn("font-bold truncate", isDeclined && "line-through")}>{shift.name}</span>
+        <span className={cn("text-[9px] opacity-80 shrink-0 ml-auto", isDeclined && "line-through")}>
           {fmtTime(shift.startTime)}–{fmtTime(shift.endTime)}
         </span>
       </div>

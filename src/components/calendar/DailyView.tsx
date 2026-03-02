@@ -36,10 +36,11 @@ function DayHorizontalBlock({
   const endMin = timeToMinutes(shift.endTime);
   const left = minutesToLeft(startMin);
   const width = Math.max(minutesToWidth(startMin, endMin), 40);
+  const isDeclined = shift.status === 'declined';
 
   return (
     <button
-      draggable
+      draggable={!isDeclined}
       onDragStart={onDragStart}
       onClick={(e) => {
         e.stopPropagation();
@@ -47,21 +48,22 @@ function DayHorizontalBlock({
       }}
       className={cn(
         'absolute rounded-md text-white text-[11px] font-medium',
-        'cursor-grab active:cursor-grabbing transition-shadow',
-        'hover:brightness-110 hover:shadow-lg active:scale-[0.99]',
-        'overflow-hidden px-2 py-1 z-10',
+        'transition-shadow overflow-hidden px-2 py-1 z-10',
         'top-1 bottom-1',
+        isDeclined
+          ? 'opacity-50 cursor-pointer grayscale'
+          : 'cursor-grab active:cursor-grabbing hover:brightness-110 hover:shadow-lg active:scale-[0.99]',
       )}
       style={{
         left: `${left}px`,
         width: `${width}px`,
-        backgroundColor: shift.color,
+        backgroundColor: isDeclined ? '#9ca3af' : shift.color,
       }}
-      title={`${shift.name} • ${shift.position}\n${fmtTime(shift.startTime)} – ${fmtTime(shift.endTime)}`}
+      title={`${shift.name} • ${shift.position}\n${fmtTime(shift.startTime)} – ${fmtTime(shift.endTime)}${isDeclined ? '\n⚠️ Refusé par l\'employé' : ''}`}
     >
       <div className="flex items-center gap-1.5 leading-tight h-full">
-        <span className="font-bold truncate">{shift.name}</span>
-        <span className="text-[9px] opacity-80 shrink-0 ml-auto">
+        <span className={cn("font-bold truncate", isDeclined && "line-through")}>{shift.name}</span>
+        <span className={cn("text-[9px] opacity-80 shrink-0 ml-auto", isDeclined && "line-through")}>
           {fmtTime(shift.startTime)}–{fmtTime(shift.endTime)}
         </span>
       </div>

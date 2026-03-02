@@ -17,6 +17,7 @@ export interface ShiftAssignment {
   initials: string;
   startTime: string;
   endTime: string;
+  status?: string;
 }
 
 export type CalendarViewMode = 'month' | 'week' | 'day';
