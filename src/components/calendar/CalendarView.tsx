@@ -1339,7 +1339,8 @@ export function CalendarView() {
   // ── Weekly shift summary for confirm & send ──
   const weeklyShiftSummary = useMemo(() => {
     // Group all visible shifts by employee
-    const byEmployee = new Map<string, { name: string; email?: string; color: string; hasChanges: boolean; lastNotifiedAt: string | null; shifts: { date: string; startTime: string; endTime: string; position: string }[] }>();
+    type ShiftEntry = { date: string; startTime: string; endTime: string; position: string; status: string };
+    const byEmployee = new Map<string, { name: string; email?: string; color: string; hasChanges: boolean; lastNotifiedAt: string | null; responseStatus: 'none' | 'pending' | 'confirmed' | 'declined' | 'mixed'; shifts: ShiftEntry[] }>();
     
     for (const [dateKey, dayShifts] of Object.entries(shifts)) {
       for (const s of dayShifts) {
@@ -1351,6 +1352,7 @@ export function CalendarView() {
             color: s.color,
             hasChanges: false,
             lastNotifiedAt: null,
+            responseStatus: 'none',
             shifts: [],
           });
         }
@@ -1360,6 +1362,7 @@ export function CalendarView() {
           startTime: s.startTime,
           endTime: s.endTime,
           position: s.position || '',
+          status: s.status || 'draft',
         });
         // Check if this shift has changes (no notified_at or updated after notified)
         const raw = shiftsRaw?.find((rs) => rs.id === s.id);
@@ -1377,10 +1380,19 @@ export function CalendarView() {
       }
     }
 
-    // Sort each employee's shifts by date
-    Array.from(byEmployee.values()).forEach((entry) => {
+    // Compute response status per employee
+    for (const entry of byEmployee.values()) {
       entry.shifts.sort((a, b) => a.date.localeCompare(b.date));
-    });
+      if (!entry.lastNotifiedAt) {
+        entry.responseStatus = 'none'; // never sent
+      } else {
+        const statuses = new Set(entry.shifts.map(s => s.status));
+        if (statuses.has('declined') && statuses.has('confirmed')) entry.responseStatus = 'mixed';
+        else if (statuses.has('declined')) entry.responseStatus = 'declined';
+        else if (statuses.has('confirmed')) entry.responseStatus = 'confirmed';
+        else entry.responseStatus = 'pending'; // sent but no response yet
+      }
+    }
 
     return Array.from(byEmployee.entries()).map(([id, data]) => ({ id, ...data }));
   }, [shifts, employeesRaw, shiftsRaw]);
@@ -1719,28 +1731,54 @@ export function CalendarView() {
                     {weeklyShiftSummary.map((emp) => (
                       <div key={emp.id} className={cn(
                         'border rounded-lg p-3 transition-opacity',
-                        !emp.hasChanges && !emp.lastNotifiedAt && 'opacity-50'
+                        emp.responseStatus === 'none' && !emp.hasChanges && 'opacity-50'
                       )}>
                         <div className="flex items-center justify-between mb-2">
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2 flex-wrap">
                             <div
                               className="w-3 h-3 rounded-full shrink-0"
                               style={{ backgroundColor: emp.color }}
                             />
                             <span className="font-semibold text-sm">{emp.name}</span>
+                            {/* Notification status badge */}
                             {emp.hasChanges ? (
                               <Badge className="text-[10px] bg-orange-100 text-orange-700 border-orange-200">
                                 Modifié
                               </Badge>
-                            ) : (
+                            ) : emp.lastNotifiedAt ? (
                               <Badge variant="outline" className="text-[10px] text-green-600 border-green-200">
-                                Déjà notifié
+                                ✉️ Envoyé
+                              </Badge>
+                            ) : (
+                              <Badge variant="outline" className="text-[10px] text-muted-foreground">
+                                Pas encore envoyé
+                              </Badge>
+                            )}
+                            {/* Response status badge */}
+                            {emp.responseStatus === 'confirmed' && (
+                              <Badge className="text-[10px] bg-green-100 text-green-700 border-green-200">
+                                ✅ Accepté
+                              </Badge>
+                            )}
+                            {emp.responseStatus === 'declined' && (
+                              <Badge className="text-[10px] bg-red-100 text-red-700 border-red-200">
+                                ❌ Refusé
+                              </Badge>
+                            )}
+                            {emp.responseStatus === 'pending' && (
+                              <Badge className="text-[10px] bg-blue-100 text-blue-700 border-blue-200">
+                                ⏳ En attente
+                              </Badge>
+                            )}
+                            {emp.responseStatus === 'mixed' && (
+                              <Badge className="text-[10px] bg-amber-100 text-amber-700 border-amber-200">
+                                ⚠️ Réponse partielle
                               </Badge>
                             )}
                           </div>
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2 shrink-0">
                             {emp.email ? (
-                              <Badge variant="outline" className="text-xs gap-1">
+                              <Badge variant="outline" className="text-xs gap-1 hidden sm:flex">
                                 <Mail className="w-3 h-3" />
                                 {emp.email}
                               </Badge>
@@ -1781,6 +1819,9 @@ export function CalendarView() {
                                 <span className="capitalize font-medium text-foreground min-w-[110px]">{dayName}</span>
                                 <span>{s.startTime} – {s.endTime}</span>
                                 {s.position && <span className="text-muted-foreground">· {s.position}</span>}
+                                {s.status === 'confirmed' && <span className="text-green-600 text-[10px]">✅</span>}
+                                {s.status === 'declined' && <span className="text-red-600 text-[10px]">❌</span>}
+                                {s.status === 'scheduled' && emp.lastNotifiedAt && <span className="text-blue-500 text-[10px]">⏳</span>}
                               </div>
                             );
                           })}
