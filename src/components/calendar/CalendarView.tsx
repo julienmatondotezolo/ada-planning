@@ -37,6 +37,7 @@ import {
   Loader2,
   CheckCircle2,
   AlertCircle,
+  RefreshCw,
 } from 'lucide-react';
 import {
   Avatar,
@@ -960,6 +961,7 @@ export function CalendarView() {
   // Confirm & Send state
   const [confirmSendOpen, setConfirmSendOpen] = useState(false);
   const [sendingEmails, setSendingEmails] = useState(false);
+  const [resendingEmployeeId, setResendingEmployeeId] = useState<string | null>(null);
   const [sendResult, setSendResult] = useState<{ employee_name: string; email: string; shifts_count: number; status: string }[] | null>(null);
 
   const { user } = useAuth();
@@ -1337,7 +1339,7 @@ export function CalendarView() {
   // ── Weekly shift summary for confirm & send ──
   const weeklyShiftSummary = useMemo(() => {
     // Group all visible shifts by employee
-    const byEmployee = new Map<string, { name: string; email?: string; color: string; hasChanges: boolean; shifts: { date: string; startTime: string; endTime: string; position: string }[] }>();
+    const byEmployee = new Map<string, { name: string; email?: string; color: string; hasChanges: boolean; lastNotifiedAt: string | null; shifts: { date: string; startTime: string; endTime: string; position: string }[] }>();
     
     for (const [dateKey, dayShifts] of Object.entries(shifts)) {
       for (const s of dayShifts) {
@@ -1348,6 +1350,7 @@ export function CalendarView() {
             email: emp?.email,
             color: s.color,
             hasChanges: false,
+            lastNotifiedAt: null,
             shifts: [],
           });
         }
@@ -1360,8 +1363,16 @@ export function CalendarView() {
         });
         // Check if this shift has changes (no notified_at or updated after notified)
         const raw = shiftsRaw?.find((rs) => rs.id === s.id);
-        if (raw && (!raw.notified_at || (raw.updated_at && new Date(raw.updated_at) > new Date(raw.notified_at)))) {
-          entry.hasChanges = true;
+        if (raw) {
+          // Track most recent notified_at across all shifts for this employee
+          if (raw.notified_at) {
+            if (!entry.lastNotifiedAt || new Date(raw.notified_at) > new Date(entry.lastNotifiedAt)) {
+              entry.lastNotifiedAt = raw.notified_at;
+            }
+          }
+          if (!raw.notified_at || (raw.updated_at && new Date(raw.updated_at) > new Date(raw.notified_at))) {
+            entry.hasChanges = true;
+          }
         }
       }
     }
@@ -1400,6 +1411,36 @@ export function CalendarView() {
       toast({ title: 'Erreur', description: "Impossible d'envoyer les notifications.", variant: 'destructive' });
     } finally {
       setSendingEmails(false);
+    }
+  };
+
+  const handleResendToEmployee = async (employeeId: string) => {
+    setResendingEmployeeId(employeeId);
+    try {
+      const startDate = format(fetchStart, 'yyyy-MM-dd');
+      const endDate = format(fetchEnd, 'yyyy-MM-dd');
+
+      const res = await apiFetch<{
+        success: boolean;
+        details: { employee_name: string; email: string; shifts_count: number; status: string }[];
+      }>(`planning/notify-weekly`, {
+        method: 'POST',
+        body: JSON.stringify({ start_date: startDate, end_date: endDate, employee_ids: [employeeId], force: true }),
+      });
+
+      if (res.success && res.data) {
+        const detail = res.data.details[0];
+        if (detail?.status === 'sent') {
+          toast({ title: 'Email renvoyé', description: `Email renvoyé à ${detail.employee_name}.` });
+        } else {
+          toast({ title: 'Échec', description: `Impossible de renvoyer l'email à ${detail?.employee_name || 'l\'employé'}.`, variant: 'destructive' });
+        }
+        queryClient.invalidateQueries({ queryKey: shiftQueryKey });
+      }
+    } catch {
+      toast({ title: 'Erreur', description: "Impossible de renvoyer l'email.", variant: 'destructive' });
+    } finally {
+      setResendingEmployeeId(null);
     }
   };
 
@@ -1678,7 +1719,7 @@ export function CalendarView() {
                     {weeklyShiftSummary.map((emp) => (
                       <div key={emp.id} className={cn(
                         'border rounded-lg p-3 transition-opacity',
-                        !emp.hasChanges && 'opacity-50'
+                        !emp.hasChanges && !emp.lastNotifiedAt && 'opacity-50'
                       )}>
                         <div className="flex items-center justify-between mb-2">
                           <div className="flex items-center gap-2">
@@ -1697,17 +1738,40 @@ export function CalendarView() {
                               </Badge>
                             )}
                           </div>
-                          {emp.email ? (
-                            <Badge variant="outline" className="text-xs gap-1">
-                              <Mail className="w-3 h-3" />
-                              {emp.email}
-                            </Badge>
-                          ) : (
-                            <Badge variant="destructive" className="text-xs">
-                              Pas d&apos;email
-                            </Badge>
-                          )}
+                          <div className="flex items-center gap-2">
+                            {emp.email ? (
+                              <Badge variant="outline" className="text-xs gap-1">
+                                <Mail className="w-3 h-3" />
+                                {emp.email}
+                              </Badge>
+                            ) : (
+                              <Badge variant="destructive" className="text-xs">
+                                Pas d&apos;email
+                              </Badge>
+                            )}
+                            {emp.email && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 px-2 text-[10px] gap-1 text-muted-foreground hover:text-foreground"
+                                disabled={resendingEmployeeId === emp.id || sendingEmails}
+                                onClick={() => handleResendToEmployee(emp.id)}
+                              >
+                                {resendingEmployeeId === emp.id ? (
+                                  <Loader2 className="w-3 h-3 animate-spin" />
+                                ) : (
+                                  <RefreshCw className="w-3 h-3" />
+                                )}
+                                Renvoyer
+                              </Button>
+                            )}
+                          </div>
                         </div>
+                        {emp.lastNotifiedAt && (
+                          <p className="text-[10px] text-muted-foreground pl-5 mb-1">
+                            ✉️ Dernier envoi : {format(new Date(emp.lastNotifiedAt), "EEEE d MMM 'à' HH:mm", { locale: fr })}
+                          </p>
+                        )}
                         <div className="space-y-1">
                           {emp.shifts.map((s, i) => {
                             const d = new Date(s.date + 'T00:00:00');
