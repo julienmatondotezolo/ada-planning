@@ -51,7 +51,8 @@ export const JS_DAY_TO_FR_KEY = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeud
 // Time grid constants
 export const HOUR_START = 6; // 06:00
 export const HOUR_END = 24;  // 00:00 (midnight)
-export const HOUR_HEIGHT_PX = 60; // pixels per hour row
+export const HOUR_HEIGHT_PX = 60; // pixels per hour row (vertical layout)
+export const HOUR_WIDTH_PX = 80; // pixels per hour column (horizontal/rotated layout)
 
 export function timeToMinutes(time: string): number {
   const [h, m] = time.split(':').map(Number);
@@ -64,6 +65,15 @@ export function minutesToTop(minutes: number): number {
 
 export function minutesToHeight(startMin: number, endMin: number): number {
   return ((endMin - startMin) / 60) * HOUR_HEIGHT_PX;
+}
+
+// Horizontal layout helpers (for rotated weekly/daily views)
+export function minutesToLeft(minutes: number): number {
+  return ((minutes - HOUR_START * 60) / 60) * HOUR_WIDTH_PX;
+}
+
+export function minutesToWidth(startMin: number, endMin: number): number {
+  return ((endMin - startMin) / 60) * HOUR_WIDTH_PX;
 }
 
 /** Snap minutes to nearest 15-min increment */

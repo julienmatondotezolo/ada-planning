@@ -13,17 +13,17 @@ import {
   fmtTime,
   HOUR_START,
   HOUR_END,
-  HOUR_HEIGHT_PX,
+  HOUR_WIDTH_PX,
   timeToMinutes,
-  minutesToTop,
-  minutesToHeight,
+  minutesToLeft,
+  minutesToWidth,
 } from './types';
 
-// ─── Overlap layout: compute column index + total columns per shift group ────
+// ─── Overlap layout: compute row index + total rows per shift group ─────────
 
 interface LayoutedShift extends ShiftAssignment {
-  colIndex: number;
-  colTotal: number;
+  rowIndex: number;
+  rowTotal: number;
 }
 
 function layoutOverlappingShifts(shifts: ShiftAssignment[]): LayoutedShift[] {
@@ -35,37 +35,37 @@ function layoutOverlappingShifts(shifts: ShiftAssignment[]): LayoutedShift[] {
     return d !== 0 ? d : timeToMinutes(b.endTime) - timeToMinutes(a.endTime);
   });
 
-  // Assign columns using a greedy algorithm
-  const columns: { endMin: number; shift: ShiftAssignment }[][] = [];
+  // Assign rows using a greedy algorithm
+  const rows: { endMin: number; shift: ShiftAssignment }[][] = [];
 
   for (const shift of sorted) {
     const startMin = timeToMinutes(shift.startTime);
     let placed = false;
 
-    for (let col = 0; col < columns.length; col++) {
-      const lastInCol = columns[col][columns[col].length - 1];
-      if (lastInCol.endMin <= startMin) {
-        columns[col].push({ endMin: timeToMinutes(shift.endTime), shift });
+    for (let row = 0; row < rows.length; row++) {
+      const lastInRow = rows[row][rows[row].length - 1];
+      if (lastInRow.endMin <= startMin) {
+        rows[row].push({ endMin: timeToMinutes(shift.endTime), shift });
         placed = true;
         break;
       }
     }
 
     if (!placed) {
-      columns.push([{ endMin: timeToMinutes(shift.endTime), shift }]);
+      rows.push([{ endMin: timeToMinutes(shift.endTime), shift }]);
     }
   }
 
-  // Build result with column info
+  // Build result with row info
   const result: LayoutedShift[] = [];
-  const totalCols = columns.length;
+  const totalRows = rows.length;
 
-  for (let colIdx = 0; colIdx < columns.length; colIdx++) {
-    for (const entry of columns[colIdx]) {
+  for (let rowIdx = 0; rowIdx < rows.length; rowIdx++) {
+    for (const entry of rows[rowIdx]) {
       result.push({
         ...entry.shift,
-        colIndex: colIdx,
-        colTotal: totalCols,
+        rowIndex: rowIdx,
+        rowTotal: totalRows,
       });
     }
   }
@@ -73,27 +73,30 @@ function layoutOverlappingShifts(shifts: ShiftAssignment[]): LayoutedShift[] {
   return result;
 }
 
-// ─── Time Block (shift rendered in the time grid) ────────────────────────────
+// ─── Time Block (shift rendered horizontally) ────────────────────────────────
 
-function TimeBlock({
+const ROW_HEIGHT = 64; // px per day row base height
+
+function HorizontalTimeBlock({
   shift,
+  rowHeight,
   onClick,
   onDragStart,
 }: {
   shift: LayoutedShift;
+  rowHeight: number;
   onClick: () => void;
   onDragStart: (e: React.DragEvent) => void;
 }) {
   const startMin = timeToMinutes(shift.startTime);
   const endMin = timeToMinutes(shift.endTime);
-  const top = minutesToTop(startMin);
-  const height = Math.max(minutesToHeight(startMin, endMin), 24);
+  const left = minutesToLeft(startMin);
+  const width = Math.max(minutesToWidth(startMin, endMin), 40);
 
-  // Multi-column layout: each shift gets a fraction of the column width
-  const colWidth = 100 / shift.colTotal;
-  const left = shift.colIndex * colWidth;
-  // Slight overlap for visual grouping
-  const width = shift.colTotal > 1 ? colWidth + 1 : 100;
+  // Multi-row layout within a day row
+  const subRowHeight = rowHeight / shift.rowTotal;
+  const top = shift.rowIndex * subRowHeight;
+  const height = subRowHeight - 2; // 2px gap
 
   return (
     <button
@@ -107,59 +110,53 @@ function TimeBlock({
         'absolute rounded-md text-white text-[11px] font-medium',
         'cursor-grab active:cursor-grabbing transition-shadow',
         'hover:brightness-110 hover:shadow-lg active:scale-[0.99]',
-        'overflow-hidden px-1.5 py-1 z-10',
-        shift.colTotal > 1 && 'border-r border-white/30',
+        'overflow-hidden px-1.5 py-0.5 z-10',
+        shift.rowTotal > 1 && 'border-b border-white/30',
       )}
       style={{
-        top: `${top}px`,
+        left: `${left}px`,
+        width: `${width}px`,
+        top: `${top + 1}px`,
         height: `${height}px`,
-        left: `calc(${left}% + 2px)`,
-        width: `calc(${width}% - 4px)`,
         backgroundColor: shift.color,
       }}
       title={`${shift.name} • ${shift.position}\n${fmtTime(shift.startTime)} – ${fmtTime(shift.endTime)}`}
     >
-      <div className="flex items-center gap-1 leading-tight">
-        {/* Avatar circle for multi-column mode */}
-        {shift.colTotal > 1 && (
+      <div className="flex items-center gap-1 leading-tight h-full">
+        {shift.rowTotal > 1 && (
           <span className="w-4 h-4 rounded-full bg-white/25 flex items-center justify-center text-[8px] font-bold shrink-0">
             {shift.initials}
           </span>
         )}
         <span className="font-bold truncate">{shift.name}</span>
+        <span className="text-[9px] opacity-80 shrink-0 ml-auto">
+          {fmtTime(shift.startTime)}–{fmtTime(shift.endTime)}
+        </span>
       </div>
-      {height >= 40 && (
-        <div className="text-[10px] opacity-80 mt-0.5">
-          {fmtTime(shift.startTime)} – {fmtTime(shift.endTime)}
-        </div>
-      )}
-      {height >= 56 && shift.position && (
-        <div className="text-[9px] opacity-60 mt-0.5 truncate">{shift.position}</div>
-      )}
     </button>
   );
 }
 
-// ─── Current Time Indicator ──────────────────────────────────────────────────
+// ─── Vertical "Now" line ─────────────────────────────────────────────────────
 
-function NowLine() {
+function NowLineVertical() {
   const now = new Date();
   const minutes = now.getHours() * 60 + now.getMinutes();
   if (minutes < HOUR_START * 60 || minutes > HOUR_END * 60) return null;
-  const top = minutesToTop(minutes);
+  const left = minutesToLeft(minutes);
 
   return (
     <div
-      className="absolute left-0 right-0 z-20 pointer-events-none flex items-center"
-      style={{ top: `${top}px` }}
+      className="absolute top-0 bottom-0 z-20 pointer-events-none flex flex-col items-center"
+      style={{ left: `${left}px` }}
     >
-      <div className="w-2.5 h-2.5 rounded-full bg-destructive -ml-1 shrink-0" />
-      <div className="flex-1 border-t-2 border-destructive" />
+      <div className="w-2.5 h-2.5 rounded-full bg-destructive -mt-1 shrink-0" />
+      <div className="flex-1 border-l-2 border-destructive" />
     </div>
   );
 }
 
-// ─── Weekly View Component ───────────────────────────────────────────────────
+// ─── Weekly View Component (rotated: dates on LEFT, hours on TOP) ────────────
 
 export function WeeklyView({
   currentDate,
@@ -173,7 +170,7 @@ export function WeeklyView({
   onDragShift,
   onDropNewStaff,
 }: TimeViewProps) {
-  const [dragOverCol, setDragOverCol] = useState<string | null>(null);
+  const [dragOverRow, setDragOverRow] = useState<string | null>(null);
   const [draggingStaffId, setDraggingStaffId] = useState<string | null>(null);
   const gridRef = useRef<HTMLDivElement>(null);
 
@@ -183,12 +180,12 @@ export function WeeklyView({
     return Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
   }, [weekStart.getTime()]);
 
-  // Hours for the time axis
+  // Hours for the time axis (columns)
   const hours = useMemo(() => {
     return Array.from({ length: HOUR_END - HOUR_START }, (_, i) => HOUR_START + i);
   }, []);
 
-  const totalHeight = hours.length * HOUR_HEIGHT_PX;
+  const totalWidth = hours.length * HOUR_WIDTH_PX;
 
   // Pre-compute layouted shifts per day
   const layoutedShifts = useMemo(() => {
@@ -200,6 +197,18 @@ export function WeeklyView({
     }
     return result;
   }, [shifts, weekDays]);
+
+  // Compute row heights based on overlap count
+  const rowHeights = useMemo(() => {
+    const result: Record<string, number> = {};
+    for (const date of weekDays) {
+      const dateKey = format(date, 'yyyy-MM-dd');
+      const layouted = layoutedShifts[dateKey] || [];
+      const maxRows = layouted.length > 0 ? Math.max(...layouted.map((s) => s.rowTotal)) : 1;
+      result[dateKey] = Math.max(ROW_HEIGHT, maxRows * 32);
+    }
+    return result;
+  }, [layoutedShifts, weekDays]);
 
   // ── Drag handlers ──
 
@@ -218,12 +227,12 @@ export function WeeklyView({
 
   const handleDragOver = useCallback((e: React.DragEvent, dateKey: string) => {
     e.preventDefault();
-    if (dragOverCol !== dateKey) setDragOverCol(dateKey);
-  }, [dragOverCol]);
+    if (dragOverRow !== dateKey) setDragOverRow(dateKey);
+  }, [dragOverRow]);
 
   const handleDrop = useCallback((e: React.DragEvent, targetDate: Date) => {
     e.preventDefault();
-    setDragOverCol(null);
+    setDragOverRow(null);
     setDraggingStaffId(null);
 
     const targetDateKey = format(targetDate, 'yyyy-MM-dd');
@@ -245,138 +254,70 @@ export function WeeklyView({
       if (data.isNew) {
         const staffMember = staff.find((s) => s.id === data.staffId);
         if (!staffMember) return;
-
-        if (hasShiftOnDate(data.staffId, targetDateKey)) {
-          toast({
-            title: 'Déjà planifié',
-            description: `${staffMember.name} a déjà un service ce jour.`,
-            variant: 'destructive',
-          });
-          return;
-        }
-
         onDropNewStaff(data.staffId, targetDate);
         return;
       }
 
       // Move existing shift
-      const { shiftId, sourceDate, staffId: draggedStaffId } = data;
+      const { shiftId, sourceDate } = data;
       if (sourceDate === targetDateKey) return;
-
-      if (draggedStaffId && hasShiftOnDate(draggedStaffId, targetDateKey)) {
-        const staffMember = staff.find((s) => s.id === draggedStaffId);
-        toast({
-          title: 'Déjà planifié',
-          description: `${staffMember?.name || 'Cet employé'} a déjà un service ce jour.`,
-          variant: 'destructive',
-        });
-        return;
-      }
 
       onDragShift(shiftId, targetDateKey);
     } catch {
       // invalid data
     }
-  }, [isClosedDay, hasShiftOnDate, staff, onDragShift, onDropNewStaff]);
+  }, [isClosedDay, staff, onDragShift, onDropNewStaff]);
 
   const handleDragEnd = useCallback(() => {
     setDraggingStaffId(null);
-    setDragOverCol(null);
+    setDragOverRow(null);
   }, []);
 
   return (
     <div className="flex flex-col flex-1 overflow-hidden">
-      {/* ── Day headers ── */}
-      <div className="flex border-b bg-muted/40 shrink-0">
-        {/* Time gutter spacer */}
-        <div className="w-14 shrink-0 border-r border-border/50" />
-
-        {weekDays.map((date) => {
-          const isToday = isDateToday(date);
-          const closed = isClosedDay(date);
-          const closingPeriod = getClosingPeriod(date);
-          const dateKey = format(date, 'yyyy-MM-dd');
-          const dayShifts = shifts[dateKey] || [];
-
-          return (
-            <div
-              key={date.toISOString()}
-              className={cn(
-                'flex-1 px-2 py-2 text-center border-r border-border/50 last:border-r-0 min-w-0',
-                closed && closingPeriod && 'bg-red-50/60',
-                closed && !closingPeriod && 'opacity-50',
-              )}
-            >
-              <div className={cn(
-                'text-[11px] font-medium uppercase tracking-wide',
-                closed && closingPeriod ? 'text-red-700/60' : 'text-muted-foreground',
-              )}>
-                {format(date, 'EEE', { locale: fr })}
-              </div>
-              <div
-                className={cn(
-                  'text-lg font-bold leading-tight mt-0.5',
-                  // Closing period — red circle
-                  closed && closingPeriod && 'text-red-700 w-8 h-8 rounded-full border-[1.5px] border-red-700 flex items-center justify-center mx-auto text-sm',
-                  // Today (not closed)
-                  isToday && !closed && 'bg-primary text-primary-foreground w-8 h-8 rounded-full flex items-center justify-center mx-auto text-sm',
-                  // Regular
-                  !isToday && !closed && 'text-foreground',
-                  // Regular closed
-                  closed && !closingPeriod && 'text-muted-foreground',
-                )}
-              >
-                {format(date, 'd')}
-              </div>
-              {closingPeriod && (
-                <div className="flex items-center justify-center gap-1 mt-1">
-                  <span className="text-[9px] font-medium text-red-700 truncate max-w-[60px]">{closingPeriod.name}</span>
-                  <Lock className="w-2.5 h-2.5 text-red-600 shrink-0" />
-                </div>
-              )}
-              {!closed && dayShifts.length > 0 && (
-                <Badge variant="secondary" className="text-[9px] px-1 py-0 mt-1">
-                  {dayShifts.length} service{dayShifts.length > 1 ? 's' : ''}
-                </Badge>
-              )}
-            </div>
-          );
-        })}
-      </div>
-
-      {/* ── Time grid ── */}
       <div className="flex-1 overflow-auto" ref={gridRef}>
-        <div className="flex" style={{ minHeight: `${totalHeight}px` }}>
-          {/* Time gutter */}
-          <div className="w-14 shrink-0 border-r border-border/50 relative">
-            {hours.map((hour) => (
-              <div
-                key={hour}
-                className="absolute left-0 right-0 flex items-start justify-end pr-2 -translate-y-1/2"
-                style={{ top: `${(hour - HOUR_START) * HOUR_HEIGHT_PX}px` }}
-              >
-                <span className="text-[10px] font-medium text-muted-foreground">
-                  {hour.toString().padStart(2, '0')}:00
-                </span>
-              </div>
-            ))}
+        <div className="flex flex-col" style={{ minWidth: `${totalWidth + 140}px` }}>
+          {/* ── Hour header row ── */}
+          <div className="flex border-b bg-muted/40 shrink-0 sticky top-0 z-30">
+            {/* Day label gutter — sticky left */}
+            <div className="w-[140px] shrink-0 border-r border-border/50 bg-muted/40 sticky left-0 z-40" />
+
+            {/* Hour columns */}
+            <div className="relative flex-1" style={{ minWidth: `${totalWidth}px`, height: '36px' }}>
+              {hours.map((hour) => (
+                <div
+                  key={hour}
+                  className="absolute top-0 bottom-0 flex items-center justify-center border-l border-border/50"
+                  style={{
+                    left: `${(hour - HOUR_START) * HOUR_WIDTH_PX}px`,
+                    width: `${HOUR_WIDTH_PX}px`,
+                  }}
+                >
+                  <span className="text-[10px] font-medium text-muted-foreground">
+                    {hour.toString().padStart(2, '0')}:00
+                  </span>
+                </div>
+              ))}
+            </div>
           </div>
 
-          {/* Day columns */}
+          {/* ── Day rows ── */}
           {weekDays.map((date) => {
             const dateKey = format(date, 'yyyy-MM-dd');
             const dayLayouted = layoutedShifts[dateKey] || [];
+            const dayShifts = shifts[dateKey] || [];
             const closed = isClosedDay(date);
             const closingPeriod = getClosingPeriod(date);
             const isToday = isDateToday(date);
-            const isDragOver = dragOverCol === dateKey;
-            const blocked = closed || (draggingStaffId ? hasShiftOnDate(draggingStaffId, dateKey) : false);
+            const isDragOver = dragOverRow === dateKey;
+            const blocked = closed;
+            const rowH = rowHeights[dateKey] || ROW_HEIGHT;
 
             return (
               <div
                 key={dateKey}
                 className={cn(
-                  'flex-1 relative border-r border-border/50 last:border-r-0 min-w-0',
+                  'flex border-b border-border/50',
                   closed && closingPeriod && 'bg-red-50/40',
                   closed && !closingPeriod && 'bg-muted/30 cursor-not-allowed',
                   !closed && isToday && 'bg-primary/[0.02]',
@@ -385,62 +326,111 @@ export function WeeklyView({
                   draggingStaffId && !blocked && isDragOver && 'ring-emerald-500/40 bg-emerald-50/10',
                   draggingStaffId && blocked && 'opacity-40',
                 )}
+                style={{ height: `${rowH}px` }}
                 onClick={() => !closed && onCellClick(date)}
                 onDragOver={(e) => handleDragOver(e, dateKey)}
                 onDragLeave={() => {}}
                 onDrop={(e) => handleDrop(e, date)}
               >
-                {/* Hour gridlines */}
-                {hours.map((hour) => (
-                  <div
-                    key={hour}
-                    className="absolute left-0 right-0 border-t border-border/30"
-                    style={{ top: `${(hour - HOUR_START) * HOUR_HEIGHT_PX}px` }}
-                  />
-                ))}
-
-                {/* Half-hour gridlines */}
-                {hours.map((hour) => (
-                  <div
-                    key={`${hour}-half`}
-                    className="absolute left-0 right-0 border-t border-border/15"
-                    style={{ top: `${(hour - HOUR_START) * HOUR_HEIGHT_PX + HOUR_HEIGHT_PX / 2}px` }}
-                  />
-                ))}
-
-                {/* Shift blocks — multi-column layout */}
-                {dayLayouted.map((shift) => (
-                  <TimeBlock
-                    key={shift.id}
-                    shift={shift}
-                    onClick={() => onShiftClick(shift, date)}
-                    onDragStart={(e) => handleShiftDragStart(e, shift, date)}
-                  />
-                ))}
-
-                {/* Now line (only on today) */}
-                {isToday && <NowLine />}
-
-                {/* Closed overlay */}
-                {closed && !closingPeriod && (
-                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                    <span className="text-xs font-semibold text-muted-foreground/40 uppercase tracking-wide -rotate-45">
-                      Fermé
+                {/* Day label (left gutter) — sticky left */}
+                <div className={cn(
+                  'w-[140px] shrink-0 border-r border-border/50 px-3 py-2 flex flex-col justify-center sticky left-0 z-20',
+                  closed && closingPeriod ? 'bg-red-50/60' : 'bg-background',
+                  closed && !closingPeriod && 'opacity-50',
+                )}>
+                  <div className="flex items-center gap-2">
+                    <span className={cn(
+                      'text-[11px] font-medium uppercase tracking-wide',
+                      closed && closingPeriod ? 'text-red-700/60' : 'text-muted-foreground',
+                    )}>
+                      {format(date, 'EEE', { locale: fr })}
+                    </span>
+                    <span
+                      className={cn(
+                        'text-sm font-bold leading-tight',
+                        closed && closingPeriod && 'text-red-700 w-7 h-7 rounded-full border-[1.5px] border-red-700 flex items-center justify-center text-xs',
+                        isToday && !closed && 'bg-primary text-primary-foreground w-7 h-7 rounded-full flex items-center justify-center text-xs',
+                        !isToday && !closed && 'text-foreground',
+                        closed && !closingPeriod && 'text-muted-foreground',
+                      )}
+                    >
+                      {format(date, 'd')}
+                    </span>
+                    <span className={cn(
+                      'text-[10px]',
+                      closed && closingPeriod ? 'text-red-700/50' : 'text-muted-foreground/60',
+                    )}>
+                      {format(date, 'MMM', { locale: fr })}
                     </span>
                   </div>
-                )}
+                  {closingPeriod && (
+                    <div className="flex items-center gap-1 mt-1">
+                      <span className="text-[9px] font-medium text-red-700 truncate">{closingPeriod.name}</span>
+                      <Lock className="w-2.5 h-2.5 text-red-600 shrink-0" />
+                    </div>
+                  )}
+                  {!closed && dayShifts.length > 0 && (
+                    <Badge variant="secondary" className="text-[9px] px-1 py-0 mt-1 w-fit">
+                      {dayShifts.length} service{dayShifts.length > 1 ? 's' : ''}
+                    </Badge>
+                  )}
+                </div>
 
-                {/* Closing period overlay */}
-                {closed && closingPeriod && (
-                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                    <div className="flex flex-col items-center gap-1 opacity-20">
-                      <Lock className="w-8 h-8 text-red-700" />
-                      <span className="text-xs font-semibold text-red-700 uppercase tracking-wide">
-                        {closingPeriod.name}
+                {/* Time grid area (horizontal) */}
+                <div className="relative flex-1" style={{ minWidth: `${totalWidth}px` }}>
+                  {/* Hour gridlines (vertical) */}
+                  {hours.map((hour) => (
+                    <div
+                      key={hour}
+                      className="absolute top-0 bottom-0 border-l border-border/30"
+                      style={{ left: `${(hour - HOUR_START) * HOUR_WIDTH_PX}px` }}
+                    />
+                  ))}
+
+                  {/* Half-hour gridlines */}
+                  {hours.map((hour) => (
+                    <div
+                      key={`${hour}-half`}
+                      className="absolute top-0 bottom-0 border-l border-border/15"
+                      style={{ left: `${(hour - HOUR_START) * HOUR_WIDTH_PX + HOUR_WIDTH_PX / 2}px` }}
+                    />
+                  ))}
+
+                  {/* Shift blocks — positioned horizontally */}
+                  {dayLayouted.map((shift) => (
+                    <HorizontalTimeBlock
+                      key={shift.id}
+                      shift={shift}
+                      rowHeight={rowH}
+                      onClick={() => onShiftClick(shift, date)}
+                      onDragStart={(e) => handleShiftDragStart(e, shift, date)}
+                    />
+                  ))}
+
+                  {/* Vertical now line (only on today) */}
+                  {isToday && <NowLineVertical />}
+
+                  {/* Closed overlay */}
+                  {closed && !closingPeriod && (
+                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                      <span className="text-xs font-semibold text-muted-foreground/40 uppercase tracking-wide">
+                        Fermé
                       </span>
                     </div>
-                  </div>
-                )}
+                  )}
+
+                  {/* Closing period overlay */}
+                  {closed && closingPeriod && (
+                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                      <div className="flex items-center gap-2 opacity-20">
+                        <Lock className="w-6 h-6 text-red-700" />
+                        <span className="text-xs font-semibold text-red-700 uppercase tracking-wide">
+                          {closingPeriod.name}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
             );
           })}

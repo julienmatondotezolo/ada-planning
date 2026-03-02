@@ -32,6 +32,11 @@ import {
   Users,
   CalendarDays,
   Lock,
+  Send,
+  Mail,
+  Loader2,
+  CheckCircle2,
+  AlertCircle,
 } from 'lucide-react';
 import {
   Avatar,
@@ -57,9 +62,11 @@ import { useEmployees, useShifts, shiftKeys } from '@/hooks/useStaff';
 import { useShiftPresets } from '@/hooks/useShiftPresets';
 import { useRestaurantSettings } from '@/hooks/useSettings';
 import { useClosingPeriods } from '@/hooks/useClosingPeriods';
-import { shiftsApi, type Employee, type Shift, type ShiftPreset, type DaySchedule, type ClosingPeriod } from '@/lib/api';
+import { shiftsApi, apiFetch, type Employee, type Shift, type ShiftPreset, type DaySchedule, type ClosingPeriod } from '@/lib/api';
+import { useAuth } from '@/contexts/AuthContext';
 import { WeeklyView } from './WeeklyView';
 import { DailyView } from './DailyView';
+import { timeToMinutes } from './types';
 import type { CalendarViewMode, TimeViewProps } from './types';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -141,21 +148,20 @@ function ShiftPill({
         onClick?.();
       }}
       className={cn(
-        'group/pill flex items-center gap-1.5 rounded-md text-white text-xs font-medium',
+        'group/pill flex items-center gap-1 rounded text-white font-medium',
         'cursor-grab active:cursor-grabbing transition-all duration-150',
         'hover:brightness-110 hover:shadow-md active:scale-[0.97]',
         'focus:outline-none focus:ring-2 focus:ring-white/50',
-        compact ? 'px-1.5 py-0.5' : 'px-2 py-1 w-full'
+        compact
+          ? 'px-1 py-0 text-[9px] leading-tight h-[18px]'
+          : 'px-1.5 py-0.5 text-[10px] leading-tight w-full h-[20px]'
       )}
       style={{ backgroundColor: shift.color }}
       title={`${shift.name} • ${shift.position}\n${fmtTime(shift.startTime)} - ${fmtTime(shift.endTime)}`}
     >
-      {!compact && (
-        <GripVertical className="w-3 h-3 opacity-0 group-hover/pill:opacity-60 shrink-0 transition-opacity" />
-      )}
-      <span className="font-bold truncate hover:underline cursor-pointer">{shift.name}</span>
-      <span className={cn("opacity-80 shrink-0", compact ? "text-[9px]" : "text-[10px] ml-auto")}>
-        {fmtTime(shift.startTime)} - {fmtTime(shift.endTime)}
+      <span className="font-bold truncate">{shift.name}</span>
+      <span className={cn("opacity-80 shrink-0 ml-auto", compact ? "text-[8px]" : "text-[9px]")}>
+        {fmtTime(shift.startTime)}-{fmtTime(shift.endTime)}
       </span>
     </button>
   );
@@ -199,7 +205,7 @@ function CalendarDayCell({
   onDrop: (e: React.DragEvent) => void;
 }) {
   const dayNum = format(date, 'd');
-  const maxVisible = 3;
+  const maxVisible = 5;
   const overflow = shifts.length - maxVisible;
 
   // During drag: blocked cells get dimmed, valid cells stay bright
@@ -306,28 +312,31 @@ function CalendarDayCell({
       )}
 
       {/* Shifts */}
-      <div className="flex-1 px-1.5 pb-1 pt-1 space-y-0.5 overflow-hidden group">
-        {shifts.slice(0, maxVisible).map((shift) => (
-          <ShiftPill
-            key={shift.id}
-            shift={shift}
-            onClick={() => onShiftClick(shift)}
-            onDragStart={(e) => onDragStart(e, shift)}
-            onDragEnd={onDragEnd}
-          />
-        ))}
+      <div className="flex-1 px-1 pb-1 pt-1 overflow-hidden group">
+        <div className="flex flex-wrap gap-0.5">
+          {shifts.slice(0, maxVisible).map((shift) => (
+            <ShiftPill
+              key={shift.id}
+              shift={shift}
+              compact
+              onClick={() => onShiftClick(shift)}
+              onDragStart={(e) => onDragStart(e, shift)}
+              onDragEnd={onDragEnd}
+            />
+          ))}
 
-        {overflow > 0 && (
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onCellClick();
-            }}
-            className="w-full text-[10px] text-muted-foreground hover:text-foreground font-medium py-0.5 transition-colors"
-          >
-            +{overflow} autre{overflow > 1 ? 's' : ''}
-          </button>
-        )}
+          {overflow > 0 && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onCellClick();
+              }}
+              className="text-[9px] text-muted-foreground hover:text-foreground font-medium px-1 py-0.5 transition-colors"
+            >
+              +{overflow} autre{overflow > 1 ? 's' : ''}
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -392,11 +401,8 @@ function ShiftDialog({
   const isEditing = !!shift;
   const selectedStaffMember = staff.find((s) => s.id === selectedStaff);
 
-  // Filter out employees already assigned on this day (allow current employee when editing)
-  const availableStaff = staff.filter((s) => {
-    if (isEditing && s.id === shift.staffId) return true; // keep current assignment
-    return !existingShifts.some((es) => es.staffId === s.id);
-  });
+  // All staff are available — employees can have multiple shifts per day (overlap validated on save)
+  const availableStaff = staff;
 
   const handleServiceChange = (presetId: string) => {
     setSelectedService(presetId);
@@ -812,7 +818,18 @@ function MonthStats({ shifts }: { shifts: Record<string, ShiftAssignment[]> }) {
 
 export function CalendarView() {
   const [currentDate, setCurrentDate] = useState(new Date());
-  const [viewMode, setViewMode] = useState<CalendarViewMode>('month');
+  const [viewMode, setViewMode] = useState<CalendarViewMode>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('ada-planning-view-mode');
+      if (saved === 'month' || saved === 'week' || saved === 'day') return saved;
+    }
+    return 'month';
+  });
+
+  // Persist view mode to localStorage
+  useEffect(() => {
+    localStorage.setItem('ada-planning-view-mode', viewMode);
+  }, [viewMode]);
 
   // ── Date range based on view mode ──
   const monthStart = startOfMonth(currentDate);
@@ -897,9 +914,32 @@ export function CalendarView() {
   const [dragOverDate, setDragOverDate] = useState<string | null>(null);
   const [draggingStaffId, setDraggingStaffId] = useState<string | null>(null);
 
-  // Check if a specific employee already has a shift on a given date
+  // Confirm & Send state
+  const [confirmSendOpen, setConfirmSendOpen] = useState(false);
+  const [sendingEmails, setSendingEmails] = useState(false);
+  const [sendResult, setSendResult] = useState<{ employee_name: string; email: string; shifts_count: number; status: string }[] | null>(null);
+
+  const { user } = useAuth();
+
+  // Check if a specific employee's shift would overlap with existing shifts on a date
+  // Returns true if there's a time conflict (used for drag-drop blocking in month view)
   const hasShiftOnDate = useCallback((staffId: string, dateKey: string) => {
-    return (shifts[dateKey] || []).some((s) => s.staffId === staffId);
+    // In month view drag-drop, we don't know the exact time yet, so we can't check overlap.
+    // Always allow — overlap will be validated when the shift dialog opens or in weekly/daily views.
+    return false;
+  }, [shifts]);
+
+  // Check if a new time range overlaps with existing shifts for the same employee on a date
+  const hasOverlappingShift = useCallback((staffId: string, dateKey: string, startTime: string, endTime: string, excludeShiftId?: string) => {
+    const dayShifts = (shifts[dateKey] || []).filter((s) => s.staffId === staffId && s.id !== excludeShiftId);
+    const newStart = timeToMinutes(startTime);
+    const newEnd = timeToMinutes(endTime);
+    return dayShifts.some((s) => {
+      const existStart = timeToMinutes(s.startTime);
+      const existEnd = timeToMinutes(s.endTime);
+      // Overlaps if one starts before the other ends and vice versa
+      return newStart < existEnd && newEnd > existStart;
+    });
   }, [shifts]);
 
   // Generate calendar grid (Monday-first)
@@ -1030,6 +1070,16 @@ export function CalendarView() {
   }) => {
     const staffMember = staff.find((s) => s.id === data.staffId);
     if (!staffMember) return;
+
+    // Validate: no overlapping shifts for the same employee on the same date
+    if (hasOverlappingShift(data.staffId, data.date, data.startTime, data.endTime, editingShift?.id)) {
+      toast({
+        title: 'Chevauchement d\'horaires',
+        description: `${staffMember.name} a déjà un service qui chevauche cet horaire ce jour.`,
+        variant: 'destructive',
+      });
+      return;
+    }
 
     if (editingShift) {
       // ── Optimistic update ──
@@ -1169,16 +1219,6 @@ export function CalendarView() {
         const staffMember = staff.find((s) => s.id === data.staffId);
         if (!staffMember) return;
 
-        // Block if this employee already has a shift on this day
-        if (hasShiftOnDate(data.staffId, targetDateKey)) {
-          toast({
-            title: 'Déjà planifié',
-            description: `${staffMember.name} a déjà un service ce jour.`,
-            variant: 'destructive',
-          });
-          return;
-        }
-
         setEditingShift(null);
         setDialogDefaultStaffId(staffMember.id);
         setDialogDate(targetDate);
@@ -1189,17 +1229,6 @@ export function CalendarView() {
       // Handle move from another cell
       const { shiftId, sourceDate, staffId: draggedStaffId } = data;
       if (sourceDate === targetDateKey) return; // Same cell, no-op
-
-      // Block if this employee already has a shift on the target day
-      if (draggedStaffId && hasShiftOnDate(draggedStaffId, targetDateKey)) {
-        const staffMember = staff.find((s) => s.id === draggedStaffId);
-        toast({
-          title: 'Déjà planifié',
-          description: `${staffMember?.name || 'Cet employé'} a déjà un service ce jour.`,
-          variant: 'destructive',
-        });
-        return;
-      }
 
       // ── Optimistic move ──
       const snapshot = optimisticUpdate((old) =>
@@ -1240,6 +1269,73 @@ export function CalendarView() {
     setDialogDefaultStaffId(staffId);
     setDialogDate(date);
     setDialogOpen(true);
+  };
+
+  // ── Weekly shift summary for confirm & send ──
+  const weeklyShiftSummary = useMemo(() => {
+    // Group all visible shifts by employee
+    const byEmployee = new Map<string, { name: string; email?: string; color: string; hasChanges: boolean; shifts: { date: string; startTime: string; endTime: string; position: string }[] }>();
+    
+    for (const [dateKey, dayShifts] of Object.entries(shifts)) {
+      for (const s of dayShifts) {
+        if (!byEmployee.has(s.staffId)) {
+          const emp = employeesRaw?.find((e) => e.id === s.staffId);
+          byEmployee.set(s.staffId, {
+            name: s.name,
+            email: emp?.email,
+            color: s.color,
+            hasChanges: false,
+            shifts: [],
+          });
+        }
+        const entry = byEmployee.get(s.staffId)!;
+        entry.shifts.push({
+          date: dateKey,
+          startTime: s.startTime,
+          endTime: s.endTime,
+          position: s.position || '',
+        });
+        // Check if this shift has changes (no notified_at or updated after notified)
+        const raw = shiftsRaw?.find((rs) => rs.id === s.id);
+        if (raw && (!raw.notified_at || (raw.updated_at && new Date(raw.updated_at) > new Date(raw.notified_at)))) {
+          entry.hasChanges = true;
+        }
+      }
+    }
+
+    // Sort each employee's shifts by date
+    Array.from(byEmployee.values()).forEach((entry) => {
+      entry.shifts.sort((a, b) => a.date.localeCompare(b.date));
+    });
+
+    return Array.from(byEmployee.entries()).map(([id, data]) => ({ id, ...data }));
+  }, [shifts, employeesRaw, shiftsRaw]);
+
+  const handleSendWeeklyNotifications = async () => {
+    setSendingEmails(true);
+    try {
+      const startDate = format(fetchStart, 'yyyy-MM-dd');
+      const endDate = format(fetchEnd, 'yyyy-MM-dd');
+      
+      const res = await apiFetch<{
+        success: boolean;
+        details: { employee_name: string; email: string; shifts_count: number; status: string }[];
+      }>(`planning/notify-weekly`, {
+        method: 'POST',
+        body: JSON.stringify({ start_date: startDate, end_date: endDate }),
+      });
+
+      if (res.success && res.data) {
+        setSendResult(res.data.details);
+        toast({ title: 'Emails envoyés', description: `${res.data.details.filter((d) => d.status === 'sent').length} email(s) envoyé(s) avec succès.` });
+      } else {
+        toast({ title: 'Erreur', description: "Impossible d'envoyer les notifications.", variant: 'destructive' });
+      }
+    } catch {
+      toast({ title: 'Erreur', description: "Impossible d'envoyer les notifications.", variant: 'destructive' });
+    } finally {
+      setSendingEmails(false);
+    }
   };
 
   // ── Render ──
@@ -1316,9 +1412,18 @@ export function CalendarView() {
           </Button>
         </div>
 
-        {/* Right — Today's date */}
-        <div className="text-sm text-muted-foreground capitalize hidden md:block">
-          {format(new Date(), 'EEEE d MMMM yyyy', { locale: fr })}
+        {/* Right — Confirm & Send */}
+        <div className="flex items-center gap-3">
+          {user?.role === 'owner' && (
+            <Button
+              size="sm"
+              className="bg-[#4d6aff] hover:bg-[#3d57e0] text-white text-xs h-8 gap-1.5"
+              onClick={() => { setSendResult(null); setConfirmSendOpen(true); }}
+            >
+              <Send className="w-3.5 h-3.5" />
+              Confirmer et envoyer
+            </Button>
+          )}
         </div>
       </div>
 
@@ -1466,6 +1571,171 @@ export function CalendarView() {
         onSave={handleSave}
         onDelete={editingShift ? handleDelete : undefined}
       />
+
+      {/* Confirm & Send Weekly Dialog */}
+      <Dialog open={confirmSendOpen} onOpenChange={(open) => { if (!sendingEmails) setConfirmSendOpen(open); }}>
+        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Send className="w-5 h-5 text-[#4d6aff]" />
+              {sendResult ? 'Résultat de l\'envoi' : 'Confirmer et envoyer'}
+            </DialogTitle>
+            <DialogDescription>
+              {sendResult
+                ? 'Voici le résultat de l\'envoi des notifications.'
+                : 'Vérifiez le planning avant d\'envoyer les notifications par email à vos employés.'}
+            </DialogDescription>
+          </DialogHeader>
+
+          {/* STEP 1: Review */}
+          {!sendResult && !sendingEmails && (
+            <div className="space-y-4">
+              {weeklyShiftSummary.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <CalendarDays className="w-10 h-10 mx-auto mb-2 opacity-50" />
+                  <p>Aucun shift planifié pour cette période.</p>
+                </div>
+              ) : (
+                <>
+                  {weeklyShiftSummary.filter((e) => e.hasChanges).length === 0 ? (
+                    <div className="text-center py-6 text-muted-foreground">
+                      <CheckCircle2 className="w-10 h-10 mx-auto mb-2 text-green-400" />
+                      <p className="font-medium">Tous les employés sont déjà notifiés.</p>
+                      <p className="text-xs mt-1">Aucun changement détecté depuis le dernier envoi.</p>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">
+                      Seuls les employés avec des modifications recevront un email :
+                    </p>
+                  )}
+
+                  <div className="space-y-3">
+                    {weeklyShiftSummary.map((emp) => (
+                      <div key={emp.id} className={cn(
+                        'border rounded-lg p-3 transition-opacity',
+                        !emp.hasChanges && 'opacity-50'
+                      )}>
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center gap-2">
+                            <div
+                              className="w-3 h-3 rounded-full shrink-0"
+                              style={{ backgroundColor: emp.color }}
+                            />
+                            <span className="font-semibold text-sm">{emp.name}</span>
+                            {emp.hasChanges ? (
+                              <Badge className="text-[10px] bg-orange-100 text-orange-700 border-orange-200">
+                                Modifié
+                              </Badge>
+                            ) : (
+                              <Badge variant="outline" className="text-[10px] text-green-600 border-green-200">
+                                Déjà notifié
+                              </Badge>
+                            )}
+                          </div>
+                          {emp.email ? (
+                            <Badge variant="outline" className="text-xs gap-1">
+                              <Mail className="w-3 h-3" />
+                              {emp.email}
+                            </Badge>
+                          ) : (
+                            <Badge variant="destructive" className="text-xs">
+                              Pas d&apos;email
+                            </Badge>
+                          )}
+                        </div>
+                        <div className="space-y-1">
+                          {emp.shifts.map((s, i) => {
+                            const d = new Date(s.date + 'T00:00:00');
+                            const dayName = format(d, 'EEEE d MMM', { locale: fr });
+                            return (
+                              <div key={i} className="flex items-center gap-2 text-xs text-muted-foreground pl-5">
+                                <span className="capitalize font-medium text-foreground min-w-[110px]">{dayName}</span>
+                                <span>{s.startTime} – {s.endTime}</span>
+                                {s.position && <span className="text-muted-foreground">· {s.position}</span>}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {weeklyShiftSummary.some((e) => e.hasChanges && !e.email) && (
+                    <div className="flex items-center gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-700">
+                      <AlertCircle className="w-4 h-4 shrink-0" />
+                      <span>Les employés sans email ne recevront pas de notification.</span>
+                    </div>
+                  )}
+
+                  <div className="flex gap-2 pt-2">
+                    <Button
+                      variant="outline"
+                      className="flex-1"
+                      onClick={() => setConfirmSendOpen(false)}
+                    >
+                      Annuler
+                    </Button>
+                    <Button
+                      className="flex-1 bg-[#4d6aff] hover:bg-[#3d57e0] text-white gap-2"
+                      onClick={handleSendWeeklyNotifications}
+                      disabled={weeklyShiftSummary.filter((e) => e.hasChanges && e.email).length === 0}
+                    >
+                      <Send className="w-4 h-4" />
+                      Envoyer {weeklyShiftSummary.filter((e) => e.hasChanges && e.email).length} email(s)
+                    </Button>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
+          {/* STEP 2: Sending */}
+          {sendingEmails && (
+            <div className="flex flex-col items-center py-12 gap-4">
+              <Loader2 className="w-10 h-10 animate-spin text-[#4d6aff]" />
+              <p className="text-sm text-muted-foreground">Envoi des emails en cours...</p>
+            </div>
+          )}
+
+          {/* STEP 3: Results */}
+          {sendResult && !sendingEmails && (
+            <div className="space-y-4">
+              <div className="space-y-2">
+                {sendResult.filter((r) => r.status !== 'no_changes').map((r, i) => (
+                  <div key={i} className="flex items-center justify-between py-2 px-3 border rounded-lg">
+                    <div className="flex items-center gap-2">
+                      {r.status === 'sent' && <CheckCircle2 className="w-4 h-4 text-green-500" />}
+                      {r.status === 'failed' && <AlertCircle className="w-4 h-4 text-red-500" />}
+                      {r.status === 'no_email' && <Mail className="w-4 h-4 text-gray-400" />}
+                      <span className="text-sm font-medium">{r.employee_name}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-muted-foreground">{r.shifts_count} shift(s)</span>
+                      <Badge
+                        variant={r.status === 'sent' ? 'default' : r.status === 'failed' ? 'destructive' : 'outline'}
+                        className="text-xs"
+                      >
+                        {r.status === 'sent' ? 'Envoyé' : r.status === 'failed' ? 'Échoué' : 'Pas d\'email'}
+                      </Badge>
+                    </div>
+                  </div>
+                ))}
+                {sendResult.some((r) => r.status === 'no_changes') && (
+                  <p className="text-xs text-muted-foreground text-center pt-1">
+                    {sendResult.filter((r) => r.status === 'no_changes').length} employé(s) déjà notifié(s) — pas de renvoi.
+                  </p>
+                )}
+              </div>
+              <Button
+                className="w-full"
+                onClick={() => { setSendResult(null); setConfirmSendOpen(false); }}
+              >
+                Fermer
+              </Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

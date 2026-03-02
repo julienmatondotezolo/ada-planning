@@ -87,6 +87,7 @@ export interface Shift {
   status?: string;
   created_at?: string;
   updated_at?: string;
+  notified_at?: string | null;
   employee?: Employee;
 }
 
