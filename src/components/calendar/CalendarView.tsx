@@ -964,6 +964,11 @@ export function CalendarView() {
   const [resendingEmployeeId, setResendingEmployeeId] = useState<string | null>(null);
   const [sendResult, setSendResult] = useState<{ employee_name: string; email: string; shifts_count: number; status: string }[] | null>(null);
 
+  // Manage Shifts / notification overview state
+  const [manageOpen, setManageOpen] = useState(false);
+  const [manageData, setManageData] = useState<any[] | null>(null);
+  const [manageLoading, setManageLoading] = useState(false);
+
   const { user } = useAuth();
 
   // Check if dragging an employee's shift would overlap with existing shifts on a date
@@ -1456,6 +1461,25 @@ export function CalendarView() {
     }
   };
 
+  const handleOpenManage = async () => {
+    setManageOpen(true);
+    setManageLoading(true);
+    try {
+      const startDate = format(fetchStart, 'yyyy-MM-dd');
+      const endDate = format(fetchEnd, 'yyyy-MM-dd');
+      const res = await apiFetch<{ success: boolean; employees: any[] }>(
+        `planning/notification-status?start_date=${startDate}&end_date=${endDate}`
+      );
+      if (res.success && res.data) {
+        setManageData(res.data.employees);
+      }
+    } catch {
+      toast({ title: 'Erreur', description: 'Impossible de charger le statut des notifications.', variant: 'destructive' });
+    } finally {
+      setManageLoading(false);
+    }
+  };
+
   // ── Render ──
 
   return (
@@ -1530,8 +1554,19 @@ export function CalendarView() {
           </Button>
         </div>
 
-        {/* Right — Confirm & Send */}
-        <div className="flex items-center gap-3">
+        {/* Right — Manage + Confirm & Send */}
+        <div className="flex items-center gap-2">
+          {user?.role === 'owner' && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-xs h-8 gap-1.5"
+              onClick={handleOpenManage}
+            >
+              <Mail className="w-3.5 h-3.5" />
+              Suivi des envois
+            </Button>
+          )}
           {user?.role === 'owner' && (
             <Button
               size="sm"
@@ -1902,6 +1937,113 @@ export function CalendarView() {
               >
                 Fermer
               </Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Manage / Notification Status Dialog */}
+      <Dialog open={manageOpen} onOpenChange={setManageOpen}>
+        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Mail className="w-5 h-5 text-[#4d6aff]" />
+              Suivi des envois
+            </DialogTitle>
+            <DialogDescription>
+              Statut des notifications envoyées pour cette période.
+            </DialogDescription>
+          </DialogHeader>
+
+          {manageLoading ? (
+            <div className="flex flex-col items-center py-12 gap-4">
+              <Loader2 className="w-10 h-10 animate-spin text-[#4d6aff]" />
+              <p className="text-sm text-muted-foreground">Chargement...</p>
+            </div>
+          ) : !manageData || manageData.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              <Mail className="w-10 h-10 mx-auto mb-2 opacity-50" />
+              <p>Aucun envoi pour cette période.</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {/* Summary stats */}
+              <div className="grid grid-cols-4 gap-2 text-center">
+                <div className="bg-muted/50 rounded-lg p-2">
+                  <p className="text-lg font-bold">{manageData.length}</p>
+                  <p className="text-[10px] text-muted-foreground">Employés</p>
+                </div>
+                <div className="bg-green-50 rounded-lg p-2">
+                  <p className="text-lg font-bold text-green-600">{manageData.filter(e => e.response === 'accepted').length}</p>
+                  <p className="text-[10px] text-green-600">Accepté</p>
+                </div>
+                <div className="bg-red-50 rounded-lg p-2">
+                  <p className="text-lg font-bold text-red-600">{manageData.filter(e => e.response === 'declined').length}</p>
+                  <p className="text-[10px] text-red-600">Refusé</p>
+                </div>
+                <div className="bg-blue-50 rounded-lg p-2">
+                  <p className="text-lg font-bold text-blue-600">{manageData.filter(e => e.response === 'pending').length}</p>
+                  <p className="text-[10px] text-blue-600">En attente</p>
+                </div>
+              </div>
+
+              {/* Per-employee details */}
+              <div className="space-y-2">
+                {manageData.map((emp: any) => (
+                  <div key={emp.employee_id} className="border rounded-lg p-3">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: emp.color || '#6b7280' }} />
+                        <span className="font-semibold text-sm">{emp.name}</span>
+                        {emp.response === 'accepted' && (
+                          <Badge className="text-[10px] bg-green-100 text-green-700 border-green-200">✅ Accepté</Badge>
+                        )}
+                        {emp.response === 'declined' && (
+                          <Badge className="text-[10px] bg-red-100 text-red-700 border-red-200">❌ Refusé</Badge>
+                        )}
+                        {emp.response === 'pending' && (
+                          <Badge className="text-[10px] bg-blue-100 text-blue-700 border-blue-200">⏳ En attente</Badge>
+                        )}
+                        {emp.response === 'none' && (
+                          <Badge variant="outline" className="text-[10px] text-muted-foreground">Pas envoyé</Badge>
+                        )}
+                        {emp.response === 'mixed' && (
+                          <Badge className="text-[10px] bg-amber-100 text-amber-700 border-amber-200">⚠️ Partiel</Badge>
+                        )}
+                      </div>
+                      {emp.email && (
+                        <span className="text-[10px] text-muted-foreground hidden sm:block">{emp.email}</span>
+                      )}
+                    </div>
+                    {emp.last_notified_at && (
+                      <p className="text-[10px] text-muted-foreground pl-5 mb-1">
+                        ✉️ Envoyé : {format(new Date(emp.last_notified_at), "EEEE d MMM 'à' HH:mm", { locale: fr })}
+                      </p>
+                    )}
+                    {emp.responded_at && (
+                      <p className="text-[10px] text-muted-foreground pl-5 mb-1">
+                        💬 Répondu : {format(new Date(emp.responded_at), "EEEE d MMM 'à' HH:mm", { locale: fr })}
+                      </p>
+                    )}
+                    <div className="space-y-1">
+                      {emp.shifts.map((s: any, i: number) => {
+                        const d = new Date(s.date + 'T00:00:00');
+                        const dayName = format(d, 'EEEE d MMM', { locale: fr });
+                        return (
+                          <div key={i} className="flex items-center gap-2 text-xs text-muted-foreground pl-5">
+                            <span className="capitalize font-medium text-foreground min-w-[110px]">{dayName}</span>
+                            <span>{s.start_time?.substring(0, 5)} – {s.end_time?.substring(0, 5)}</span>
+                            {s.position && <span>· {s.position}</span>}
+                            {s.status === 'confirmed' && <span className="text-green-600">✅</span>}
+                            {s.status === 'declined' && <span className="text-red-600">❌</span>}
+                            {s.status === 'scheduled' && emp.last_notified_at && <span className="text-blue-500">⏳</span>}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
         </DialogContent>
