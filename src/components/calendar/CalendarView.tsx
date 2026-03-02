@@ -311,31 +311,68 @@ function CalendarDayCell({
         </div>
       )}
 
-      {/* Shifts */}
+      {/* Shifts — grouped by employee */}
       <div className="flex-1 px-1 pb-1 pt-1 overflow-hidden group">
         <div className="flex flex-wrap gap-0.5">
-          {shifts.slice(0, maxVisible).map((shift) => (
-            <ShiftPill
-              key={shift.id}
-              shift={shift}
-              compact
-              onClick={() => onShiftClick(shift)}
-              onDragStart={(e) => onDragStart(e, shift)}
-              onDragEnd={onDragEnd}
-            />
-          ))}
+          {(() => {
+            // Group shifts by staffId — merge into "Name N shifts" when >1
+            const byStaff = new Map<string, ShiftAssignment[]>();
+            for (const s of shifts) {
+              if (!byStaff.has(s.staffId)) byStaff.set(s.staffId, []);
+              byStaff.get(s.staffId)!.push(s);
+            }
+            const entries = Array.from(byStaff.entries());
+            const maxVisible = 5;
+            const visible = entries.slice(0, maxVisible);
+            const overflow = entries.length - maxVisible;
 
-          {overflow > 0 && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onCellClick();
-              }}
-              className="text-[9px] text-muted-foreground hover:text-foreground font-medium px-1 py-0.5 transition-colors"
-            >
-              +{overflow} autre{overflow > 1 ? 's' : ''}
-            </button>
-          )}
+            return (
+              <>
+                {visible.map(([staffId, staffShifts]) => {
+                  const first = staffShifts[0];
+                  if (staffShifts.length === 1) {
+                    return (
+                      <ShiftPill
+                        key={first.id}
+                        shift={first}
+                        compact
+                        onClick={() => onShiftClick(first)}
+                        onDragStart={(e) => onDragStart(e, first)}
+                        onDragEnd={onDragEnd}
+                      />
+                    );
+                  }
+                  // Merged card for multiple shifts of same employee
+                  return (
+                    <button
+                      key={staffId}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onCellClick();
+                      }}
+                      className="flex items-center gap-1 rounded px-1 py-0 text-[9px] leading-tight h-[18px] text-white font-medium cursor-pointer hover:brightness-110 transition-all"
+                      style={{ backgroundColor: first.color }}
+                      title={staffShifts.map((s) => `${fmtTime(s.startTime)}-${fmtTime(s.endTime)}`).join('\n')}
+                    >
+                      <span className="font-bold truncate">{first.name}</span>
+                      <span className="opacity-80 text-[8px] shrink-0">{staffShifts.length} shifts</span>
+                    </button>
+                  );
+                })}
+                {overflow > 0 && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onCellClick();
+                    }}
+                    className="text-[9px] text-muted-foreground hover:text-foreground font-medium px-1 py-0.5 transition-colors"
+                  >
+                    +{overflow} autre{overflow > 1 ? 's' : ''}
+                  </button>
+                )}
+              </>
+            );
+          })()}
         </div>
       </div>
     </div>
@@ -913,6 +950,7 @@ export function CalendarView() {
   const [dialogDefaultStaffId, setDialogDefaultStaffId] = useState<string | undefined>();
   const [dragOverDate, setDragOverDate] = useState<string | null>(null);
   const [draggingStaffId, setDraggingStaffId] = useState<string | null>(null);
+  const [draggingShiftTimes, setDraggingShiftTimes] = useState<{ startTime: string; endTime: string } | null>(null);
 
   // Confirm & Send state
   const [confirmSendOpen, setConfirmSendOpen] = useState(false);
@@ -921,13 +959,19 @@ export function CalendarView() {
 
   const { user } = useAuth();
 
-  // Check if a specific employee's shift would overlap with existing shifts on a date
-  // Returns true if there's a time conflict (used for drag-drop blocking in month view)
+  // Check if dragging an employee's shift would overlap with existing shifts on a date
   const hasShiftOnDate = useCallback((staffId: string, dateKey: string) => {
-    // In month view drag-drop, we don't know the exact time yet, so we can't check overlap.
-    // Always allow — overlap will be validated when the shift dialog opens or in weekly/daily views.
-    return false;
-  }, [shifts]);
+    if (!draggingShiftTimes) return false; // From legend (no times yet) — allow, dialog will validate
+    const dayShifts = (shifts[dateKey] || []).filter((s) => s.staffId === staffId);
+    if (dayShifts.length === 0) return false;
+    const newStart = timeToMinutes(draggingShiftTimes.startTime);
+    const newEnd = timeToMinutes(draggingShiftTimes.endTime);
+    return dayShifts.some((s) => {
+      const existStart = timeToMinutes(s.startTime);
+      const existEnd = timeToMinutes(s.endTime);
+      return newStart < existEnd && newEnd > existStart;
+    });
+  }, [shifts, draggingShiftTimes]);
 
   // Check if a new time range overlaps with existing shifts for the same employee on a date
   const hasOverlappingShift = useCallback((staffId: string, dateKey: string, startTime: string, endTime: string, excludeShiftId?: string) => {
@@ -1161,9 +1205,10 @@ export function CalendarView() {
   ) => {
     const dateKey = format(date, 'yyyy-MM-dd');
     setDraggingStaffId(shift.staffId);
+    setDraggingShiftTimes({ startTime: shift.startTime, endTime: shift.endTime });
     e.dataTransfer.setData(
       'text/plain',
-      JSON.stringify({ shiftId: shift.id, sourceDate: dateKey, staffId: shift.staffId })
+      JSON.stringify({ shiftId: shift.id, sourceDate: dateKey, staffId: shift.staffId, startTime: shift.startTime, endTime: shift.endTime })
     );
     e.dataTransfer.effectAllowed = 'move';
   };
@@ -1190,6 +1235,7 @@ export function CalendarView() {
 
   const handleDragEnd = () => {
     setDraggingStaffId(null);
+    setDraggingShiftTimes(null);
     setDragOverDate(null);
   };
 
@@ -1197,6 +1243,7 @@ export function CalendarView() {
     e.preventDefault();
     setDragOverDate(null);
     setDraggingStaffId(null);
+    setDraggingShiftTimes(null);
 
     // Block drops on closed days
     if (isClosedDay(targetDate)) {
@@ -1227,8 +1274,19 @@ export function CalendarView() {
       }
 
       // Handle move from another cell
-      const { shiftId, sourceDate, staffId: draggedStaffId } = data;
+      const { shiftId, sourceDate, staffId: draggedStaffId, startTime: dragStartTime, endTime: dragEndTime } = data;
       if (sourceDate === targetDateKey) return; // Same cell, no-op
+
+      // Block if shift times overlap with existing shifts for this employee on target date
+      if (dragStartTime && dragEndTime && hasOverlappingShift(draggedStaffId, targetDateKey, dragStartTime, dragEndTime, shiftId)) {
+        const staffMember = staff.find((s) => s.id === draggedStaffId);
+        toast({
+          title: 'Horaire en conflit',
+          description: `${staffMember?.name || 'Cet employé'} a déjà un service à ces heures.`,
+          variant: 'destructive',
+        });
+        return;
+      }
 
       // ── Optimistic move ──
       const snapshot = optimisticUpdate((old) =>

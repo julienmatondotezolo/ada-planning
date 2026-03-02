@@ -127,11 +127,11 @@ export function DailyView({
     }));
   }, [staff, dayShifts]);
 
-  // Show staff with shifts + a few unassigned
+  // Show ALL employees — those with shifts first, then the rest
   const visibleStaff = useMemo(() => {
     const withShifts = staffWithShifts.filter((s) => s.hasShift);
     const without = staffWithShifts.filter((s) => !s.hasShift);
-    return [...withShifts, ...without.slice(0, Math.max(4, 7 - withShifts.length))];
+    return [...withShifts, ...without];
   }, [staffWithShifts]);
 
   // ── Drag handlers ──

@@ -276,7 +276,7 @@ export function WeeklyView({
   return (
     <div className="flex flex-col flex-1 overflow-hidden">
       <div className="flex-1 overflow-auto" ref={gridRef}>
-        <div className="flex flex-col" style={{ minWidth: `${totalWidth + 140}px` }}>
+        <div className="flex flex-col min-h-full" style={{ minWidth: `${totalWidth + 140}px` }}>
           {/* ── Hour header row ── */}
           <div className="flex border-b bg-muted/40 shrink-0 sticky top-0 z-30">
             {/* Day label gutter — sticky left */}
@@ -301,7 +301,7 @@ export function WeeklyView({
             </div>
           </div>
 
-          {/* ── Day rows ── */}
+          {/* ── Day rows — fill remaining height ── */}
           {weekDays.map((date) => {
             const dateKey = format(date, 'yyyy-MM-dd');
             const dayLayouted = layoutedShifts[dateKey] || [];
@@ -317,7 +317,7 @@ export function WeeklyView({
               <div
                 key={dateKey}
                 className={cn(
-                  'flex border-b border-border/50',
+                  'flex border-b border-border/50 flex-1',
                   closed && closingPeriod && 'bg-red-50/40',
                   closed && !closingPeriod && 'bg-muted/30 cursor-not-allowed',
                   !closed && isToday && 'bg-primary/[0.02]',
@@ -326,7 +326,7 @@ export function WeeklyView({
                   draggingStaffId && !blocked && isDragOver && 'ring-emerald-500/40 bg-emerald-50/10',
                   draggingStaffId && blocked && 'opacity-40',
                 )}
-                style={{ height: `${rowH}px` }}
+                style={{ minHeight: `${rowH}px` }}
                 onClick={() => !closed && onCellClick(date)}
                 onDragOver={(e) => handleDragOver(e, dateKey)}
                 onDragLeave={() => {}}
@@ -410,8 +410,28 @@ export function WeeklyView({
                   {/* Vertical now line (only on today) */}
                   {isToday && <NowLineVertical />}
 
+                  {/* Drag overlay: blocked = cross, valid = green hint */}
+                  {draggingStaffId && blocked && (
+                    <div className="absolute inset-0 z-10 flex flex-col items-center justify-center pointer-events-none">
+                      <svg className="w-8 h-8 text-muted-foreground/50" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                        <line x1="4" y1="4" x2="20" y2="20" />
+                        <line x1="20" y1="4" x2="4" y2="20" />
+                      </svg>
+                      <span className="text-[9px] font-semibold text-muted-foreground/60 mt-0.5 uppercase tracking-wide">
+                        Indisponible
+                      </span>
+                    </div>
+                  )}
+                  {draggingStaffId && !blocked && isDragOver && (
+                    <div className="absolute inset-0 z-10 flex items-center justify-center pointer-events-none">
+                      <span className="text-[10px] font-bold text-white/80 bg-emerald-500/25 px-2.5 py-1 rounded-md uppercase tracking-wide">
+                        Déposer ici
+                      </span>
+                    </div>
+                  )}
+
                   {/* Closed overlay */}
-                  {closed && !closingPeriod && (
+                  {!draggingStaffId && closed && !closingPeriod && (
                     <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                       <span className="text-xs font-semibold text-muted-foreground/40 uppercase tracking-wide">
                         Fermé
@@ -420,7 +440,7 @@ export function WeeklyView({
                   )}
 
                   {/* Closing period overlay */}
-                  {closed && closingPeriod && (
+                  {!draggingStaffId && closed && closingPeriod && (
                     <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                       <div className="flex items-center gap-2 opacity-20">
                         <Lock className="w-6 h-6 text-red-700" />
