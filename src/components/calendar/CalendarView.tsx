@@ -1375,7 +1375,7 @@ export function CalendarView() {
           position: s.position || '',
           status: s.status || 'draft',
         });
-        // Check if this shift has changes (no notified_at or updated after notified)
+        // Check if this shift has schedule changes vs what was last notified
         const raw = shiftsRaw?.find((rs) => rs.id === s.id);
         if (raw) {
           // Track most recent notified_at across all shifts for this employee
@@ -1384,8 +1384,22 @@ export function CalendarView() {
               entry.lastNotifiedAt = raw.notified_at;
             }
           }
-          if (!raw.notified_at || (raw.updated_at && new Date(raw.updated_at) > new Date(raw.notified_at))) {
+          if (!raw.notified_at) {
+            // Never notified — always counts as a change
             entry.hasChanges = true;
+          } else if (raw.notified_date && raw.notified_start_time && raw.notified_end_time) {
+            // Compare actual schedule (date + time) vs what was sent
+            const currentDate = raw.date || raw.scheduled_date;
+            const currentStart = raw.start_time;
+            const currentEnd = raw.end_time;
+            if (currentDate !== raw.notified_date || currentStart !== raw.notified_start_time || currentEnd !== raw.notified_end_time) {
+              entry.hasChanges = true;
+            }
+          } else {
+            // Legacy: no snapshot stored yet, fall back to timestamp comparison
+            if (raw.updated_at && new Date(raw.updated_at) > new Date(raw.notified_at)) {
+              entry.hasChanges = true;
+            }
           }
         }
       }
