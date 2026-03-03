@@ -1406,7 +1406,7 @@ export function CalendarView() {
     }
 
     // Compute response status per employee
-    for (const entry of byEmployee.values()) {
+    for (const entry of Array.from(byEmployee.values())) {
       entry.shifts.sort((a, b) => a.date.localeCompare(b.date));
       if (!entry.lastNotifiedAt) {
         entry.responseStatus = 'none'; // never sent
