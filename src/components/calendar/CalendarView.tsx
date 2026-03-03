@@ -422,15 +422,15 @@ function ShiftDialog({
 }) {
   const [selectedStaff, setSelectedStaff] = useState(shift?.staffId || defaultStaffId || '');
   const [selectedService, setSelectedService] = useState('');
-  const [startTime, setStartTime] = useState(shift?.startTime || '17:00');
-  const [endTime, setEndTime] = useState(shift?.endTime || '23:00');
+  const [startTime, setStartTime] = useState(shift?.startTime || '');
+  const [endTime, setEndTime] = useState(shift?.endTime || '');
 
   // Reset form when dialog opens with new data
   useEffect(() => {
     if (open) {
       setSelectedStaff(shift?.staffId || defaultStaffId || '');
-      setStartTime(shift?.startTime || '17:00');
-      setEndTime(shift?.endTime || '23:00');
+      setStartTime(shift?.startTime || '');
+      setEndTime(shift?.endTime || '');
 
       // Try to match existing shift times to a service preset
       if (shift) {
@@ -639,7 +639,7 @@ function ShiftDialog({
             <Button
               size="sm"
               onClick={handleSave}
-              disabled={!selectedStaff}
+              disabled={!selectedStaff || !startTime || !endTime}
             >
               {isEditing ? 'Modifier' : 'Ajouter'}
             </Button>
@@ -673,8 +673,25 @@ function DayOverviewDialog({
 }) {
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
-  // Sort shifts by start time
-  const sorted = [...shifts].sort((a, b) => a.startTime.localeCompare(b.startTime));
+  // Group shifts by employee
+  const grouped = useMemo(() => {
+    const map = new Map<string, { staffMember: StaffMember | undefined; shifts: ShiftAssignment[] }>();
+    const sorted = [...shifts].sort((a, b) => a.startTime.localeCompare(b.startTime));
+    for (const shift of sorted) {
+      const existing = map.get(shift.staffId);
+      if (existing) {
+        existing.shifts.push(shift);
+      } else {
+        map.set(shift.staffId, {
+          staffMember: staff.find((s) => s.id === shift.staffId),
+          shifts: [shift],
+        });
+      }
+    }
+    return Array.from(map.values());
+  }, [shifts, staff]);
+
+  const totalShifts = shifts.length;
 
   return (
     <Dialog open={open} onOpenChange={(v) => { onOpenChange(v); setConfirmDeleteId(null); }}>
@@ -685,102 +702,113 @@ function DayOverviewDialog({
             <span className="capitalize">{format(date, 'EEEE d MMMM yyyy', { locale: fr })}</span>
           </DialogTitle>
           <DialogDescription>
-            {sorted.length} service{sorted.length !== 1 ? 's' : ''} planifié{sorted.length !== 1 ? 's' : ''}
+            {totalShifts} service{totalShifts !== 1 ? 's' : ''} planifié{totalShifts !== 1 ? 's' : ''}
           </DialogDescription>
         </DialogHeader>
 
         <div className="flex-1 overflow-y-auto -mx-6 px-6">
-          <div className="space-y-2 py-2">
-            {sorted.length === 0 && (
+          <div className="space-y-3 py-2">
+            {totalShifts === 0 && (
               <div className="text-center py-8 text-muted-foreground">
                 <CalendarDays className="w-10 h-10 mx-auto mb-2 opacity-30" />
                 <p className="text-sm">Aucun service planifié</p>
               </div>
             )}
 
-            {sorted.map((shift) => {
-              const staffMember = staff.find((s) => s.id === shift.staffId);
-              const isConfirming = confirmDeleteId === shift.id;
-
-              return (
-                <div
-                  key={shift.id}
-                  className="flex items-center gap-3 p-3 rounded-lg border border-border/60 bg-card hover:bg-muted/30 transition-colors group"
-                >
-                  {/* Avatar */}
+            {grouped.map(({ staffMember, shifts: empShifts }) => (
+              <div
+                key={empShifts[0].staffId}
+                className="rounded-xl border border-border/60 bg-card overflow-hidden"
+              >
+                {/* Employee header */}
+                <div className="flex items-center gap-3 px-3 pt-3 pb-2">
                   <Avatar className="w-9 h-9 shrink-0">
                     <AvatarFallback
                       className="text-xs font-bold text-white"
-                      style={{ backgroundColor: shift.color }}
+                      style={{ backgroundColor: empShifts[0].color }}
                     >
-                      {shift.initials}
+                      {empShifts[0].initials}
                     </AvatarFallback>
                   </Avatar>
-
-                  {/* Info */}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="font-semibold text-sm truncate">{shift.name}</span>
-                      {shift.position && (
-                        <Badge variant="secondary" className="text-[10px] px-1.5 py-0 shrink-0">
-                          {shift.position}
-                        </Badge>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-1 mt-0.5 text-xs text-muted-foreground">
-                      <Clock className="w-3 h-3" />
-                      <span className="font-medium">{fmtTime(shift.startTime)} — {fmtTime(shift.endTime)}</span>
-                    </div>
-                  </div>
-
-                  {/* Actions — always visible (touch-friendly) */}
-                  <div className="flex items-center gap-1 shrink-0">
-                    {isConfirming ? (
-                      <>
-                        <Button
-                          variant="destructive"
-                          size="sm"
-                          className="h-7 text-xs"
-                          onClick={() => {
-                            onDeleteShift(shift);
-                            setConfirmDeleteId(null);
-                          }}
-                        >
-                          Confirmer
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-7 text-xs"
-                          onClick={() => setConfirmDeleteId(null)}
-                        >
-                          Annuler
-                        </Button>
-                      </>
-                    ) : (
-                      <>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7"
-                          onClick={() => onEditShift(shift)}
-                        >
-                          <Edit3 className="w-3.5 h-3.5" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7 text-destructive hover:text-destructive"
-                          onClick={() => setConfirmDeleteId(shift.id)}
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </Button>
-                      </>
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="font-semibold text-sm truncate">{empShifts[0].name}</span>
+                    {empShifts[0].position && (
+                      <Badge variant="secondary" className="text-[10px] px-1.5 py-0 shrink-0">
+                        {empShifts[0].position}
+                      </Badge>
+                    )}
+                    {empShifts.length > 1 && (
+                      <Badge variant="outline" className="text-[10px] px-1.5 py-0 shrink-0">
+                        {empShifts.length} services
+                      </Badge>
                     )}
                   </div>
                 </div>
-              );
-            })}
+
+                {/* Shift rows */}
+                <div className="divide-y divide-border/40">
+                  {empShifts.map((shift) => {
+                    const isConfirming = confirmDeleteId === shift.id;
+                    return (
+                      <div
+                        key={shift.id}
+                        className="flex items-center gap-3 px-3 py-2 hover:bg-muted/30 transition-colors"
+                      >
+                        <div className="flex items-center gap-1.5 flex-1 text-xs text-muted-foreground">
+                          <Clock className="w-3 h-3 shrink-0" />
+                          <span className="font-medium text-foreground">{fmtTime(shift.startTime)} — {fmtTime(shift.endTime)}</span>
+                        </div>
+
+                        <div className="flex items-center gap-1 shrink-0">
+                          {isConfirming ? (
+                            <>
+                              <Button
+                                variant="destructive"
+                                size="sm"
+                                className="h-7 text-xs"
+                                onClick={() => {
+                                  onDeleteShift(shift);
+                                  setConfirmDeleteId(null);
+                                }}
+                              >
+                                Confirmer
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 text-xs"
+                                onClick={() => setConfirmDeleteId(null)}
+                              >
+                                Annuler
+                              </Button>
+                            </>
+                          ) : (
+                            <>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7"
+                                onClick={() => onEditShift(shift)}
+                              >
+                                <Edit3 className="w-3.5 h-3.5" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 text-destructive hover:text-destructive"
+                                onClick={() => setConfirmDeleteId(shift.id)}
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </Button>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
           </div>
         </div>
 
