@@ -2098,9 +2098,6 @@ export function CalendarView() {
                         {emp.response === 'none' && (
                           <Badge variant="outline" className="text-[10px] text-muted-foreground">Pas envoyé</Badge>
                         )}
-                        {emp.response === 'mixed' && (
-                          <Badge className="text-[10px] bg-amber-100 text-amber-700 border-amber-200 gap-1"><AlertTriangle className="w-2.5 h-2.5" /> Partiel</Badge>
-                        )}
                       </div>
                       {emp.email && (
                         <div className="flex items-center gap-1.5">
@@ -2138,13 +2135,17 @@ export function CalendarView() {
                       {emp.shifts.map((s: any, i: number) => {
                         const d = new Date(s.date + 'T00:00:00');
                         const dayName = format(d, 'EEEE d MMM', { locale: fr });
+                        const isDeclined = s.status === 'declined' || s.status === 'cancelled';
                         return (
-                          <div key={i} className="flex items-center gap-2 text-xs text-muted-foreground pl-5">
+                          <div key={i} className={cn(
+                            "flex items-center gap-2 text-xs text-muted-foreground pl-5",
+                            isDeclined && "line-through opacity-50"
+                          )}>
                             <span className="capitalize font-medium text-foreground min-w-[110px]">{dayName}</span>
                             <span>{s.start_time?.substring(0, 5)} – {s.end_time?.substring(0, 5)}</span>
                             {s.position && <span>· {s.position}</span>}
                             {s.status === 'confirmed' && <Check className="w-3 h-3 text-green-600" />}
-                            {s.status === 'declined' && <X className="w-3 h-3 text-red-600" />}
+                            {isDeclined && <X className="w-3 h-3 text-red-600" />}
                             {s.status === 'scheduled' && emp.last_notified_at && <Clock3 className="w-3 h-3 text-blue-500" />}
                           </div>
                         );
