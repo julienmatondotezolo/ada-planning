@@ -51,13 +51,12 @@ function CallbackHandler() {
         setStatus('success');
         setMessage('Authentication successful! Redirecting...');
         
-        // Small delay for user feedback, then redirect
+        // Small delay for user feedback, then hard redirect
+        // (router.push reuses cached RSC payload from before cookie was set,
+        //  so the layout still sees user=null — hard nav forces full server render)
         setTimeout(() => {
-          console.log('↗️ Redirecting to:', redirect);
-          
-          // Force router refresh to get new user data from server
-          router.refresh();
-          router.push(redirect);
+          console.log('↗️ Hard-redirecting to:', redirect);
+          window.location.href = redirect;
         }, 1000);
         
       } catch (error) {
