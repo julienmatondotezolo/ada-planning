@@ -715,29 +715,39 @@ function DayOverviewDialog({
               </div>
             )}
 
-            {grouped.map(({ staffMember, shifts: empShifts }) => (
+            {grouped.map(({ staffMember, shifts: empShifts }) => {
+              const allDeclined = empShifts.every((s) => s.status === 'declined' || s.status === 'cancelled');
+              return (
               <div
                 key={empShifts[0].staffId}
-                className="rounded-xl border border-border/60 bg-card overflow-hidden"
+                className={cn(
+                  "rounded-xl border border-border/60 bg-card overflow-hidden",
+                  allDeclined && "opacity-50 grayscale"
+                )}
               >
                 {/* Employee header */}
                 <div className="flex items-center gap-3 px-3 pt-3 pb-2">
                   <Avatar className="w-9 h-9 shrink-0">
                     <AvatarFallback
                       className="text-xs font-bold text-white"
-                      style={{ backgroundColor: empShifts[0].color }}
+                      style={{ backgroundColor: allDeclined ? '#9ca3af' : empShifts[0].color }}
                     >
                       {empShifts[0].initials}
                     </AvatarFallback>
                   </Avatar>
                   <div className="flex items-center gap-2 min-w-0">
-                    <span className="font-semibold text-sm truncate">{empShifts[0].name}</span>
+                    <span className={cn("font-semibold text-sm truncate", allDeclined && "line-through")}>{empShifts[0].name}</span>
                     {empShifts[0].position && (
                       <Badge variant="secondary" className="text-[10px] px-1.5 py-0 shrink-0">
                         {empShifts[0].position}
                       </Badge>
                     )}
-                    {empShifts.length > 1 && (
+                    {allDeclined && (
+                      <Badge className="text-[10px] px-1.5 py-0 shrink-0 bg-red-100 text-red-700 border-red-200 gap-1">
+                        <X className="w-2.5 h-2.5" /> Refusé
+                      </Badge>
+                    )}
+                    {!allDeclined && empShifts.length > 1 && (
                       <Badge variant="outline" className="text-[10px] px-1.5 py-0 shrink-0">
                         {empShifts.length} services
                       </Badge>
@@ -749,14 +759,18 @@ function DayOverviewDialog({
                 <div className="divide-y divide-border/40">
                   {empShifts.map((shift) => {
                     const isConfirming = confirmDeleteId === shift.id;
+                    const isShiftDeclined = shift.status === 'declined' || shift.status === 'cancelled';
                     return (
                       <div
                         key={shift.id}
-                        className="flex items-center gap-3 px-3 py-2 hover:bg-muted/30 transition-colors"
+                        className={cn(
+                          "flex items-center gap-3 px-3 py-2 hover:bg-muted/30 transition-colors",
+                          isShiftDeclined && "line-through"
+                        )}
                       >
                         <div className="flex items-center gap-1.5 flex-1 text-xs text-muted-foreground">
                           <Clock className="w-3 h-3 shrink-0" />
-                          <span className="font-medium text-foreground">{fmtTime(shift.startTime)} — {fmtTime(shift.endTime)}</span>
+                          <span className={cn("font-medium text-foreground", isShiftDeclined && "line-through")}>{fmtTime(shift.startTime)} — {fmtTime(shift.endTime)}</span>
                         </div>
 
                         <div className="flex items-center gap-1 shrink-0">
@@ -808,7 +822,8 @@ function DayOverviewDialog({
                   })}
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         </div>
 
