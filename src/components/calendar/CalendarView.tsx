@@ -38,6 +38,12 @@ import {
   CheckCircle2,
   AlertCircle,
   RefreshCw,
+  XCircle,
+  Clock3,
+  AlertTriangle,
+  MessageSquare,
+  Check,
+  X,
 } from 'lucide-react';
 import {
   Avatar,
@@ -1763,10 +1769,13 @@ export function CalendarView() {
                   )}
 
                   <div className="space-y-3">
-                    {weeklyShiftSummary.map((emp) => (
+                    {weeklyShiftSummary.map((emp) => {
+                      const alreadySent = !emp.hasChanges && !!emp.lastNotifiedAt;
+                      return (
                       <div key={emp.id} className={cn(
-                        'border rounded-lg p-3 transition-opacity',
-                        emp.responseStatus === 'none' && !emp.hasChanges && 'opacity-50'
+                        'border rounded-lg p-3 transition-all',
+                        alreadySent && 'opacity-40 grayscale pointer-events-none select-none',
+                        !emp.hasChanges && !emp.lastNotifiedAt && 'opacity-50'
                       )}>
                         <div className="flex items-center justify-between mb-2">
                           <div className="flex items-center gap-2 flex-wrap">
@@ -1781,8 +1790,9 @@ export function CalendarView() {
                                 Modifié
                               </Badge>
                             ) : emp.lastNotifiedAt ? (
-                              <Badge variant="outline" className="text-[10px] text-green-600 border-green-200">
-                                ✉️ Envoyé
+                              <Badge variant="outline" className="text-[10px] text-green-600 border-green-200 gap-1">
+                                <Mail className="w-2.5 h-2.5" />
+                                Envoyé
                               </Badge>
                             ) : (
                               <Badge variant="outline" className="text-[10px] text-muted-foreground">
@@ -1791,23 +1801,23 @@ export function CalendarView() {
                             )}
                             {/* Response status badge */}
                             {emp.responseStatus === 'confirmed' && (
-                              <Badge className="text-[10px] bg-green-100 text-green-700 border-green-200">
-                                ✅ Accepté
+                              <Badge className="text-[10px] bg-green-100 text-green-700 border-green-200 gap-1">
+                                <Check className="w-2.5 h-2.5" /> Accepté
                               </Badge>
                             )}
                             {emp.responseStatus === 'declined' && (
-                              <Badge className="text-[10px] bg-red-100 text-red-700 border-red-200">
-                                ❌ Refusé
+                              <Badge className="text-[10px] bg-red-100 text-red-700 border-red-200 gap-1">
+                                <X className="w-2.5 h-2.5" /> Refusé
                               </Badge>
                             )}
                             {emp.responseStatus === 'pending' && (
-                              <Badge className="text-[10px] bg-blue-100 text-blue-700 border-blue-200">
-                                ⏳ En attente
+                              <Badge className="text-[10px] bg-blue-100 text-blue-700 border-blue-200 gap-1">
+                                <Clock3 className="w-2.5 h-2.5" /> En attente
                               </Badge>
                             )}
                             {emp.responseStatus === 'mixed' && (
-                              <Badge className="text-[10px] bg-amber-100 text-amber-700 border-amber-200">
-                                ⚠️ Réponse partielle
+                              <Badge className="text-[10px] bg-amber-100 text-amber-700 border-amber-200 gap-1">
+                                <AlertTriangle className="w-2.5 h-2.5" /> Réponse partielle
                               </Badge>
                             )}
                           </div>
@@ -1822,7 +1832,7 @@ export function CalendarView() {
                                 Pas d&apos;email
                               </Badge>
                             )}
-                            {emp.email && (
+                            {emp.email && !alreadySent && (
                               <Button
                                 variant="ghost"
                                 size="sm"
@@ -1841,8 +1851,9 @@ export function CalendarView() {
                           </div>
                         </div>
                         {emp.lastNotifiedAt && (
-                          <p className="text-[10px] text-muted-foreground pl-5 mb-1">
-                            ✉️ Dernier envoi : {format(new Date(emp.lastNotifiedAt), "EEEE d MMM 'à' HH:mm", { locale: fr })}
+                          <p className="text-[10px] text-muted-foreground pl-5 mb-1 flex items-center gap-1">
+                            <Mail className="w-2.5 h-2.5 inline" />
+                            Dernier envoi : {format(new Date(emp.lastNotifiedAt), "EEEE d MMM 'à' HH:mm", { locale: fr })}
                           </p>
                         )}
                         <div className="space-y-1">
@@ -1854,15 +1865,16 @@ export function CalendarView() {
                                 <span className="capitalize font-medium text-foreground min-w-[110px]">{dayName}</span>
                                 <span>{s.startTime} – {s.endTime}</span>
                                 {s.position && <span className="text-muted-foreground">· {s.position}</span>}
-                                {s.status === 'confirmed' && <span className="text-green-600 text-[10px]">✅</span>}
-                                {s.status === 'declined' && <span className="text-red-600 text-[10px]">❌</span>}
-                                {s.status === 'scheduled' && emp.lastNotifiedAt && <span className="text-blue-500 text-[10px]">⏳</span>}
+                                {s.status === 'confirmed' && <Check className="w-3 h-3 text-green-600" />}
+                                {s.status === 'declined' && <X className="w-3 h-3 text-red-600" />}
+                                {s.status === 'scheduled' && emp.lastNotifiedAt && <Clock3 className="w-3 h-3 text-blue-500" />}
                               </div>
                             );
                           })}
                         </div>
                       </div>
-                    ))}
+                      );
+                    })}
                   </div>
 
                   {weeklyShiftSummary.some((e) => e.hasChanges && !e.email) && (
@@ -1996,19 +2008,19 @@ export function CalendarView() {
                         <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: emp.color || '#6b7280' }} />
                         <span className="font-semibold text-sm">{emp.name}</span>
                         {emp.response === 'accepted' && (
-                          <Badge className="text-[10px] bg-green-100 text-green-700 border-green-200">✅ Accepté</Badge>
+                          <Badge className="text-[10px] bg-green-100 text-green-700 border-green-200 gap-1"><Check className="w-2.5 h-2.5" /> Accepté</Badge>
                         )}
                         {emp.response === 'declined' && (
-                          <Badge className="text-[10px] bg-red-100 text-red-700 border-red-200">❌ Refusé</Badge>
+                          <Badge className="text-[10px] bg-red-100 text-red-700 border-red-200 gap-1"><X className="w-2.5 h-2.5" /> Refusé</Badge>
                         )}
                         {emp.response === 'pending' && (
-                          <Badge className="text-[10px] bg-blue-100 text-blue-700 border-blue-200">⏳ En attente</Badge>
+                          <Badge className="text-[10px] bg-blue-100 text-blue-700 border-blue-200 gap-1"><Clock3 className="w-2.5 h-2.5" /> En attente</Badge>
                         )}
                         {emp.response === 'none' && (
                           <Badge variant="outline" className="text-[10px] text-muted-foreground">Pas envoyé</Badge>
                         )}
                         {emp.response === 'mixed' && (
-                          <Badge className="text-[10px] bg-amber-100 text-amber-700 border-amber-200">⚠️ Partiel</Badge>
+                          <Badge className="text-[10px] bg-amber-100 text-amber-700 border-amber-200 gap-1"><AlertTriangle className="w-2.5 h-2.5" /> Partiel</Badge>
                         )}
                       </div>
                       {emp.email && (
@@ -2016,13 +2028,15 @@ export function CalendarView() {
                       )}
                     </div>
                     {emp.last_notified_at && (
-                      <p className="text-[10px] text-muted-foreground pl-5 mb-1">
-                        ✉️ Envoyé : {format(new Date(emp.last_notified_at), "EEEE d MMM 'à' HH:mm", { locale: fr })}
+                      <p className="text-[10px] text-muted-foreground pl-5 mb-1 flex items-center gap-1">
+                        <Mail className="w-2.5 h-2.5 inline" />
+                        Envoyé : {format(new Date(emp.last_notified_at), "EEEE d MMM 'à' HH:mm", { locale: fr })}
                       </p>
                     )}
                     {emp.responded_at && (
-                      <p className="text-[10px] text-muted-foreground pl-5 mb-1">
-                        💬 Répondu : {format(new Date(emp.responded_at), "EEEE d MMM 'à' HH:mm", { locale: fr })}
+                      <p className="text-[10px] text-muted-foreground pl-5 mb-1 flex items-center gap-1">
+                        <MessageSquare className="w-2.5 h-2.5 inline" />
+                        Répondu : {format(new Date(emp.responded_at), "EEEE d MMM 'à' HH:mm", { locale: fr })}
                       </p>
                     )}
                     <div className="space-y-1">
@@ -2034,9 +2048,9 @@ export function CalendarView() {
                             <span className="capitalize font-medium text-foreground min-w-[110px]">{dayName}</span>
                             <span>{s.start_time?.substring(0, 5)} – {s.end_time?.substring(0, 5)}</span>
                             {s.position && <span>· {s.position}</span>}
-                            {s.status === 'confirmed' && <span className="text-green-600">✅</span>}
-                            {s.status === 'declined' && <span className="text-red-600">❌</span>}
-                            {s.status === 'scheduled' && emp.last_notified_at && <span className="text-blue-500">⏳</span>}
+                            {s.status === 'confirmed' && <Check className="w-3 h-3 text-green-600" />}
+                            {s.status === 'declined' && <X className="w-3 h-3 text-red-600" />}
+                            {s.status === 'scheduled' && emp.last_notified_at && <Clock3 className="w-3 h-3 text-blue-500" />}
                           </div>
                         );
                       })}
