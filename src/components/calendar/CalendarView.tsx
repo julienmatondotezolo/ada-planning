@@ -1481,10 +1481,11 @@ export function CalendarView() {
     }
   };
 
-  const handleOpenManage = async () => {
-    setManageOpen(true);
+  const fetchManageData = async () => {
     setManageLoading(true);
     try {
+      // Refresh shifts first so we have latest data
+      await queryClient.invalidateQueries({ queryKey: shiftQueryKey });
       const startDate = format(fetchStart, 'yyyy-MM-dd');
       const endDate = format(fetchEnd, 'yyyy-MM-dd');
       const res = await apiFetch<{ success: boolean; employees: any[] }>(
@@ -1497,6 +1498,42 @@ export function CalendarView() {
       toast({ title: 'Erreur', description: 'Impossible de charger le statut des notifications.', variant: 'destructive' });
     } finally {
       setManageLoading(false);
+    }
+  };
+
+  const handleOpenManage = async () => {
+    setManageOpen(true);
+    await fetchManageData();
+  };
+
+  const handleResendFromManage = async (employeeId: string) => {
+    setResendingEmployeeId(employeeId);
+    try {
+      const startDate = format(fetchStart, 'yyyy-MM-dd');
+      const endDate = format(fetchEnd, 'yyyy-MM-dd');
+
+      const res = await apiFetch<{
+        success: boolean;
+        details: { employee_name: string; email: string; shifts_count: number; status: string }[];
+      }>(`planning/notify-weekly`, {
+        method: 'POST',
+        body: JSON.stringify({ start_date: startDate, end_date: endDate, employee_ids: [employeeId], force: true }),
+      });
+
+      if (res.success && res.data) {
+        const detail = res.data.details[0];
+        if (detail?.status === 'sent') {
+          toast({ title: 'Email renvoyé', description: `Email renvoyé à ${detail.employee_name}.` });
+        } else {
+          toast({ title: 'Échec', description: `Impossible de renvoyer l'email à ${detail?.employee_name || 'l\'employé'}.`, variant: 'destructive' });
+        }
+        // Refresh the manage dialog data
+        await fetchManageData();
+      }
+    } catch {
+      toast({ title: 'Erreur', description: "Impossible de renvoyer l'email.", variant: 'destructive' });
+    } finally {
+      setResendingEmployeeId(null);
     }
   };
 
@@ -2038,7 +2075,23 @@ export function CalendarView() {
                         )}
                       </div>
                       {emp.email && (
-                        <span className="text-[10px] text-muted-foreground hidden sm:block">{emp.email}</span>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[10px] text-muted-foreground hidden sm:block">{emp.email}</span>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 px-2 text-[10px] gap-1 text-muted-foreground hover:text-foreground"
+                            disabled={resendingEmployeeId === emp.employee_id}
+                            onClick={() => handleResendFromManage(emp.employee_id)}
+                          >
+                            {resendingEmployeeId === emp.employee_id ? (
+                              <Loader2 className="w-3 h-3 animate-spin" />
+                            ) : (
+                              <RefreshCw className="w-3 h-3" />
+                            )}
+                            Renvoyer
+                          </Button>
+                        </div>
                       )}
                     </div>
                     {emp.last_notified_at && (
