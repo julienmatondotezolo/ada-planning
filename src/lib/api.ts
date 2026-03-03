@@ -278,6 +278,42 @@ export const closingPeriodsApi = {
     apiFetch<void>(`closing-periods/${id}`, { method: 'DELETE' }),
 };
 
+// ─── Exclusive Opening Days ─────────────────────────────────────────────────
+
+export interface ExclusiveOpeningDay {
+  id: string;
+  restaurant_id: string;
+  name: string;
+  date_from: string; // YYYY-MM-DD
+  date_to: string;   // YYYY-MM-DD
+  comment?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export const exclusiveOpeningDaysApi = {
+  getAll: () =>
+    apiFetch<ExclusiveOpeningDay[]>('exclusive-opening-days'),
+
+  getById: (id: string) =>
+    apiFetch<ExclusiveOpeningDay>(`exclusive-opening-days/${id}`),
+
+  create: (data: { name: string; date_from: string; date_to: string; comment?: string }) =>
+    apiFetch<ExclusiveOpeningDay>('exclusive-opening-days', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  update: (id: string, data: Partial<{ name: string; date_from: string; date_to: string; comment?: string }>) =>
+    apiFetch<ExclusiveOpeningDay>(`exclusive-opening-days/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+
+  delete: (id: string) =>
+    apiFetch<void>(`exclusive-opening-days/${id}`, { method: 'DELETE' }),
+};
+
 // ─── Notifications ──────────────────────────────────────────────────────────
 
 export interface Notification {
