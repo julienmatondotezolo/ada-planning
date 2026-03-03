@@ -354,6 +354,7 @@ function CalendarDayCell({
                     );
                   }
                   // Merged card for multiple shifts of same employee
+                  const allDeclined = staffShifts.every((s) => s.status === 'declined' || s.status === 'cancelled');
                   return (
                     <button
                       key={staffId}
@@ -361,12 +362,17 @@ function CalendarDayCell({
                         e.stopPropagation();
                         onCellClick();
                       }}
-                      className="flex items-center gap-1 rounded px-1 py-0 text-[9px] leading-tight h-[18px] text-white font-medium cursor-pointer hover:brightness-110 transition-all"
-                      style={{ backgroundColor: first.color }}
-                      title={staffShifts.map((s) => `${fmtTime(s.startTime)}-${fmtTime(s.endTime)}`).join('\n')}
+                      className={cn(
+                        "flex items-center gap-1 rounded px-1 py-0 text-[9px] leading-tight h-[18px] text-white font-medium cursor-pointer transition-all",
+                        allDeclined
+                          ? "opacity-50 line-through grayscale"
+                          : "hover:brightness-110"
+                      )}
+                      style={{ backgroundColor: allDeclined ? '#9ca3af' : first.color }}
+                      title={staffShifts.map((s) => `${fmtTime(s.startTime)}-${fmtTime(s.endTime)}`).join('\n') + (allDeclined ? '\n⚠️ Refusé par l\'employé' : '')}
                     >
-                      <span className="font-bold truncate">{first.name}</span>
-                      <span className="opacity-80 text-[8px] shrink-0">{staffShifts.length} shifts</span>
+                      <span className={cn("font-bold truncate", allDeclined && "line-through")}>{first.name}</span>
+                      <span className={cn("opacity-80 text-[8px] shrink-0", allDeclined && "line-through")}>{staffShifts.length} shifts</span>
                     </button>
                   );
                 })}
