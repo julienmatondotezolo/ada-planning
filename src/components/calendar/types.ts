@@ -1,4 +1,4 @@
-import type { ShiftPreset, DaySchedule, ClosingPeriod } from '@/lib/api';
+import type { ShiftPreset, DaySchedule, ClosingPeriod, ExclusiveOpeningDay } from '@/lib/api';
 
 export interface StaffMember {
   id: string;
@@ -30,8 +30,10 @@ export interface TimeViewProps {
   servicePresets: ShiftPreset[];
   openingHours: Record<string, DaySchedule>;
   closingPeriods: ClosingPeriod[];
+  exclusiveOpeningDays: ExclusiveOpeningDay[];
   isClosedDay: (date: Date) => boolean;
   getClosingPeriod: (date: Date) => ClosingPeriod | null;
+  getExclusiveOpeningDay: (date: Date) => ExclusiveOpeningDay | null;
   hasShiftOnDate: (staffId: string, dateKey: string) => boolean;
   onCellClick: (date: Date) => void;
   onShiftClick: (shift: ShiftAssignment, date: Date) => void;

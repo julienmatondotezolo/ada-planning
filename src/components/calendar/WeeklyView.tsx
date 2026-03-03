@@ -3,7 +3,7 @@
 import { useState, useCallback, useRef, useMemo } from 'react';
 import { format, startOfWeek, addDays, isToday as isDateToday } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { Lock } from 'lucide-react';
+import { Lock, CalendarCheck } from 'lucide-react';
 import { Badge } from 'ada-design-system';
 import { cn } from '@/lib/utils';
 import { toast } from '@/hooks/useToast';
@@ -166,6 +166,7 @@ export function WeeklyView({
   staff,
   isClosedDay,
   getClosingPeriod,
+  getExclusiveOpeningDay,
   hasShiftOnDate,
   onCellClick,
   onShiftClick,
@@ -310,6 +311,7 @@ export function WeeklyView({
             const dayShifts = shifts[dateKey] || [];
             const closed = isClosedDay(date);
             const closingPeriod = getClosingPeriod(date);
+            const exclusiveOpeningDay = getExclusiveOpeningDay(date);
             const isToday = isDateToday(date);
             const isDragOver = dragOverRow === dateKey;
             const blocked = closed;
@@ -322,7 +324,8 @@ export function WeeklyView({
                   'flex border-b border-border/50 flex-1',
                   closed && closingPeriod && 'bg-red-50/40',
                   closed && !closingPeriod && 'bg-muted/30 cursor-not-allowed',
-                  !closed && isToday && 'bg-primary/[0.02]',
+                  !closed && exclusiveOpeningDay && 'bg-emerald-50/40',
+                  !closed && !exclusiveOpeningDay && isToday && 'bg-primary/[0.02]',
                   !closed && 'cursor-pointer',
                   draggingStaffId && !blocked && 'ring-1 ring-inset ring-emerald-400/20',
                   draggingStaffId && !blocked && isDragOver && 'ring-emerald-500/40 bg-emerald-50/10',
@@ -337,13 +340,13 @@ export function WeeklyView({
                 {/* Day label (left gutter) — sticky left */}
                 <div className={cn(
                   'w-[140px] shrink-0 border-r border-border/50 px-3 py-2 flex flex-col justify-center sticky left-0 z-20',
-                  closed && closingPeriod ? 'bg-red-50/60' : 'bg-background',
+                  closed && closingPeriod ? 'bg-red-50/60' : !closed && exclusiveOpeningDay ? 'bg-emerald-50/60' : 'bg-background',
                   closed && !closingPeriod && 'opacity-50',
                 )}>
                   <div className="flex items-center gap-2">
                     <span className={cn(
                       'text-[11px] font-medium uppercase tracking-wide',
-                      closed && closingPeriod ? 'text-red-700/60' : 'text-muted-foreground',
+                      closed && closingPeriod ? 'text-red-700/60' : !closed && exclusiveOpeningDay ? 'text-emerald-700/60' : 'text-muted-foreground',
                     )}>
                       {format(date, 'EEE', { locale: fr })}
                     </span>
@@ -351,8 +354,9 @@ export function WeeklyView({
                       className={cn(
                         'text-sm font-bold leading-tight',
                         closed && closingPeriod && 'text-red-700 w-7 h-7 rounded-full border-[1.5px] border-red-700 flex items-center justify-center text-xs',
-                        isToday && !closed && 'bg-primary text-primary-foreground w-7 h-7 rounded-full flex items-center justify-center text-xs',
-                        !isToday && !closed && 'text-foreground',
+                        !closed && exclusiveOpeningDay && !isToday && 'text-emerald-700 w-7 h-7 rounded-full border-[1.5px] border-emerald-600 flex items-center justify-center text-xs',
+                        isToday && !closed && !exclusiveOpeningDay && 'bg-primary text-primary-foreground w-7 h-7 rounded-full flex items-center justify-center text-xs',
+                        !isToday && !closed && !exclusiveOpeningDay && 'text-foreground',
                         closed && !closingPeriod && 'text-muted-foreground',
                       )}
                     >
@@ -360,12 +364,18 @@ export function WeeklyView({
                     </span>
                     <span className={cn(
                       'text-[10px]',
-                      closed && closingPeriod ? 'text-red-700/50' : 'text-muted-foreground/60',
+                      closed && closingPeriod ? 'text-red-700/50' : !closed && exclusiveOpeningDay ? 'text-emerald-700/50' : 'text-muted-foreground/60',
                     )}>
                       {format(date, 'MMM', { locale: fr })}
                     </span>
                   </div>
-                  {closingPeriod && (
+                  {exclusiveOpeningDay && !closed && (
+                    <div className="flex items-center gap-1 mt-1">
+                      <span className="text-[9px] font-medium text-emerald-700 truncate">{exclusiveOpeningDay.name}</span>
+                      <CalendarCheck className="w-2.5 h-2.5 text-emerald-600 shrink-0" />
+                    </div>
+                  )}
+                  {closingPeriod && closed && (
                     <div className="flex items-center gap-1 mt-1">
                       <span className="text-[9px] font-medium text-red-700 truncate">{closingPeriod.name}</span>
                       <Lock className="w-2.5 h-2.5 text-red-600 shrink-0" />
@@ -438,6 +448,18 @@ export function WeeklyView({
                       <span className="text-xs font-semibold text-muted-foreground/40 uppercase tracking-wide">
                         Fermé
                       </span>
+                    </div>
+                  )}
+
+                  {/* Exclusive opening day overlay */}
+                  {!draggingStaffId && !closed && exclusiveOpeningDay && (
+                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                      <div className="flex items-center gap-2 opacity-15">
+                        <CalendarCheck className="w-6 h-6 text-emerald-700" />
+                        <span className="text-xs font-semibold text-emerald-700 uppercase tracking-wide">
+                          {exclusiveOpeningDay.name}
+                        </span>
+                      </div>
                     </div>
                   )}
 

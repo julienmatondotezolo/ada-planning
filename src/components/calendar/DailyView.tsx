@@ -3,7 +3,7 @@
 import { useState, useCallback, useRef, useMemo } from 'react';
 import { format, isToday as isDateToday } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { CalendarOff, Lock } from 'lucide-react';
+import { CalendarOff, CalendarCheck, Lock } from 'lucide-react';
 import { Avatar, AvatarFallback, Badge } from 'ada-design-system';
 import { cn } from '@/lib/utils';
 import { toast } from '@/hooks/useToast';
@@ -98,6 +98,7 @@ export function DailyView({
   staff,
   isClosedDay,
   getClosingPeriod,
+  getExclusiveOpeningDay,
   hasShiftOnDate,
   onCellClick,
   onShiftClick,
@@ -110,6 +111,7 @@ export function DailyView({
   const dayShifts = shifts[dateKey] || [];
   const closed = isClosedDay(currentDate);
   const closingPeriod = getClosingPeriod(currentDate);
+  const exclusiveOpeningDay = getExclusiveOpeningDay(currentDate);
   const isToday = isDateToday(currentDate);
 
   // Hours for the time axis (columns)
@@ -229,6 +231,16 @@ export function DailyView({
 
   return (
     <div className="flex flex-col flex-1 overflow-hidden">
+      {/* Exclusive opening day banner */}
+      {exclusiveOpeningDay && (
+        <div className="flex items-center gap-2 px-4 py-2 bg-emerald-50 border-b border-emerald-200">
+          <CalendarCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+          <span className="text-sm font-medium text-emerald-700">{exclusiveOpeningDay.name}</span>
+          <span className="text-xs text-emerald-600/70">
+            {format(new Date(exclusiveOpeningDay.date_from + 'T00:00:00'), 'd MMM', { locale: fr })} au {format(new Date(exclusiveOpeningDay.date_to + 'T00:00:00'), 'd MMM yyyy', { locale: fr })}
+          </span>
+        </div>
+      )}
       <div className="flex-1 overflow-auto" ref={gridRef}>
         <div className="flex flex-col" style={{ minWidth: `${totalWidth + 160}px` }}>
           {/* ── Hour header row ── */}

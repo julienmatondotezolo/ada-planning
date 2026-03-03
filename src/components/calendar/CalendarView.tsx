@@ -32,6 +32,7 @@ import {
   Users,
   CalendarDays,
   Lock,
+  CalendarCheck,
   Send,
   Mail,
   Loader2,
@@ -69,7 +70,8 @@ import { useEmployees, useShifts, shiftKeys } from '@/hooks/useStaff';
 import { useShiftPresets } from '@/hooks/useShiftPresets';
 import { useRestaurantSettings } from '@/hooks/useSettings';
 import { useClosingPeriods } from '@/hooks/useClosingPeriods';
-import { shiftsApi, apiFetch, type Employee, type Shift, type ShiftPreset, type DaySchedule, type ClosingPeriod } from '@/lib/api';
+import { useExclusiveOpeningDays } from '@/hooks/useExclusiveOpeningDays';
+import { shiftsApi, apiFetch, type Employee, type Shift, type ShiftPreset, type DaySchedule, type ClosingPeriod, type ExclusiveOpeningDay } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
 import { WeeklyView } from './WeeklyView';
 import { DailyView } from './DailyView';
@@ -187,6 +189,7 @@ function CalendarDayCell({
   isToday,
   isClosed,
   closedLabel,
+  exclusiveOpeningLabel,
   isDragOver,
   isDropBlocked,
   isDragging,
@@ -204,6 +207,7 @@ function CalendarDayCell({
   isToday: boolean;
   isClosed: boolean;
   closedLabel?: string;
+  exclusiveOpeningLabel?: string;
   isDragOver: boolean;
   isDropBlocked: boolean;
   isDragging: boolean;
@@ -227,6 +231,8 @@ function CalendarDayCell({
       className={cn(
         'relative flex flex-col border-b border-r border-border/50 min-h-[100px] md:min-h-[120px] transition-colors',
         isCurrentMonth ? 'bg-background' : 'bg-muted/30',
+        // Exclusive opening days — green tint
+        !isClosed && isCurrentMonth && exclusiveOpeningLabel && 'bg-emerald-50/60',
         // Closed days — red tint for closing periods, muted for regular closed days
         isClosed && isCurrentMonth && closedLabel && 'bg-red-50/60 cursor-not-allowed',
         isClosed && isCurrentMonth && !closedLabel && 'bg-muted/40 opacity-50 cursor-not-allowed',
@@ -278,8 +284,11 @@ function CalendarDayCell({
               'text-red-700 w-6 h-6 rounded-full border-[1.5px] border-red-700 flex items-center justify-center text-[11px]',
             // Regular closed days (weekly schedule)
             isClosed && isCurrentMonth && !closedLabel && 'text-muted-foreground',
+            // Exclusive opening days — green circle around number
+            !isClosed && isCurrentMonth && exclusiveOpeningLabel && !isToday &&
+              'text-emerald-700 w-6 h-6 rounded-full border-[1.5px] border-emerald-600 flex items-center justify-center text-[11px]',
             // Normal open days
-            !isClosed && isCurrentMonth && !isToday && 'text-foreground',
+            !isClosed && isCurrentMonth && !exclusiveOpeningLabel && !isToday && 'text-foreground',
             isToday && !isClosed &&
               'bg-primary text-primary-foreground w-6 h-6 rounded-full flex items-center justify-center text-[11px]',
             // Today + closed
@@ -302,6 +311,16 @@ function CalendarDayCell({
           </button>
         )}
       </div>
+
+      {/* Exclusive opening day badge — green pill with calendar-check icon */}
+      {!isClosed && isCurrentMonth && exclusiveOpeningLabel && (
+        <div className="px-1.5 pt-1">
+          <div className="flex items-center gap-1.5 px-2 py-1 rounded-full border border-emerald-600/60 bg-white">
+            <span className="text-[10px] font-medium text-emerald-700 truncate flex-1">{exclusiveOpeningLabel}</span>
+            <CalendarCheck className="w-3 h-3 text-emerald-600 shrink-0" />
+          </div>
+        </div>
+      )}
 
       {/* Closing period badge — red pill with lock icon */}
       {isClosed && isCurrentMonth && closedLabel && (
@@ -953,6 +972,7 @@ export function CalendarView() {
   const { data: presetsRaw } = useShiftPresets();
   const { data: settingsData } = useRestaurantSettings();
   const { data: closingPeriodsRaw } = useClosingPeriods();
+  const { data: exclusiveOpeningDaysRaw } = useExclusiveOpeningDays();
   const { data: shiftsRaw } = useShifts({
     start_date: format(fetchStart, 'yyyy-MM-dd'),
     end_date: format(fetchEnd, 'yyyy-MM-dd'),
@@ -1089,22 +1109,34 @@ export function CalendarView() {
   // Closing periods lookup
   const closingPeriods = useMemo<ClosingPeriod[]>(() => closingPeriodsRaw ?? [], [closingPeriodsRaw]);
 
+  // Exclusive opening days lookup
+  const exclusiveOpeningDays = useMemo<ExclusiveOpeningDay[]>(() => exclusiveOpeningDaysRaw ?? [], [exclusiveOpeningDaysRaw]);
+
   // Check if a date falls within a closing period
   const getClosingPeriod = useCallback((date: Date): ClosingPeriod | null => {
     const dateStr = format(date, 'yyyy-MM-dd');
     return closingPeriods.find((p) => dateStr >= p.date_from && dateStr <= p.date_to) || null;
   }, [closingPeriods]);
 
+  // Check if a date falls within an exclusive opening day
+  const getExclusiveOpeningDay = useCallback((date: Date): ExclusiveOpeningDay | null => {
+    const dateStr = format(date, 'yyyy-MM-dd');
+    return exclusiveOpeningDays.find((d) => dateStr >= d.date_from && dateStr <= d.date_to) || null;
+  }, [exclusiveOpeningDays]);
+
   // Check if a day is closed based on opening hours OR closing periods
+  // Exclusive opening days have priority — they override closed status
   const isClosedDay = useCallback((date: Date) => {
-    // Check closing periods first
+    // Exclusive opening days have priority — always open
+    if (getExclusiveOpeningDay(date)) return false;
+    // Check closing periods
     if (getClosingPeriod(date)) return true;
     // Then check regular weekly schedule
     const dayKey = JS_DAY_TO_FR_KEY[getDay(date)];
     const daySchedule = openingHours[dayKey];
     if (!daySchedule) return false;
     return !daySchedule.enabled;
-  }, [openingHours, getClosingPeriod]);
+  }, [openingHours, getClosingPeriod, getExclusiveOpeningDay]);
 
   // ── Handlers ──
 
@@ -1737,6 +1769,7 @@ export function CalendarView() {
 
                 const closed = isClosedDay(date);
                 const closingPeriod = getClosingPeriod(date);
+                const exclusiveOpeningDay = getExclusiveOpeningDay(date);
                 const dropBlocked = !closed && !!draggingStaffId && hasShiftOnDate(draggingStaffId, dateKey);
 
                 return (
@@ -1748,6 +1781,7 @@ export function CalendarView() {
                     isToday={isDateToday(date)}
                     isClosed={closed}
                     closedLabel={closingPeriod?.name}
+                    exclusiveOpeningLabel={exclusiveOpeningDay?.name}
                     isDragOver={dragOverDate === dateKey}
                     isDropBlocked={dropBlocked}
                     isDragging={!!draggingStaffId}
@@ -1775,8 +1809,10 @@ export function CalendarView() {
           servicePresets={servicePresets}
           openingHours={openingHours}
           closingPeriods={closingPeriods}
+          exclusiveOpeningDays={exclusiveOpeningDays}
           isClosedDay={isClosedDay}
           getClosingPeriod={getClosingPeriod}
+          getExclusiveOpeningDay={getExclusiveOpeningDay}
           hasShiftOnDate={hasShiftOnDate}
           onCellClick={handleCellClick}
           onShiftClick={handleShiftClick}
@@ -1794,8 +1830,10 @@ export function CalendarView() {
           servicePresets={servicePresets}
           openingHours={openingHours}
           closingPeriods={closingPeriods}
+          exclusiveOpeningDays={exclusiveOpeningDays}
           isClosedDay={isClosedDay}
           getClosingPeriod={getClosingPeriod}
+          getExclusiveOpeningDay={getExclusiveOpeningDay}
           hasShiftOnDate={hasShiftOnDate}
           onCellClick={handleCellClick}
           onShiftClick={handleShiftClick}
