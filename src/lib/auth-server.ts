@@ -33,7 +33,7 @@ export async function getServerUser(): Promise<User | null> {
         'Content-Type': 'application/json',
         'User-Agent': 'AdaPlanning-ServerComponents/1.0'
       },
-      body: JSON.stringify({ access_token: token }),
+      body: JSON.stringify({ access_token: token, app_slug: 'ada-planning' }),
       // No cache — always validate fresh (stale cache causes ghost sessions)
       cache: 'no-store'
     });

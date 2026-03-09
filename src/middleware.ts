@@ -20,7 +20,7 @@ function buildAuthRedirect(request: NextRequest, pathname: string): NextResponse
   return response;
 }
 
-async function validateToken(token: string): Promise<boolean> {
+async function validateToken(token: string): Promise<boolean | 'APP_ACCESS_DENIED'> {
   // Dev mode: skip remote validation entirely
   if (SKIP_AUTH_VALIDATION) {
     return true;
@@ -39,7 +39,7 @@ async function validateToken(token: string): Promise<boolean> {
         'Content-Type': 'application/json',
         'User-Agent': 'AdaPlanning-Middleware/1.0',
       },
-      body: JSON.stringify({ access_token: token }),
+      body: JSON.stringify({ access_token: token, app_slug: 'ada-planning' }),
     });
 
     if (!response.ok) {
@@ -47,6 +47,11 @@ async function validateToken(token: string): Promise<boolean> {
       if (response.status === 429) {
         console.warn('⚠️ Middleware: Rate limited by AdaAuth — letting through');
         return true;
+      }
+      // 403 = app access denied
+      if (response.status === 403) {
+        validationCache.set(token, { valid: false, expiresAt: Date.now() + CACHE_TTL_MS });
+        return 'APP_ACCESS_DENIED';
       }
       validationCache.set(token, { valid: false, expiresAt: Date.now() + CACHE_TTL_MS });
       return false;
@@ -67,12 +72,15 @@ export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const token = request.cookies.get('ada_access_token')?.value;
 
-  // Auth routes — let through (callback needs to work without token)
-  if (pathname.startsWith('/auth') || pathname === '/login') {
-    if (token && pathname !== '/auth/callback') {
+  // Auth routes and unauthorized page — let through
+  if (pathname.startsWith('/auth') || pathname === '/login' || pathname === '/unauthorized') {
+    if (token && pathname !== '/auth/callback' && pathname !== '/unauthorized') {
       const isValid = await validateToken(token);
-      if (isValid) {
+      if (isValid === true) {
         return NextResponse.redirect(new URL('/', request.url));
+      }
+      if (isValid === 'APP_ACCESS_DENIED') {
+        return NextResponse.redirect(new URL('/unauthorized', request.url));
       }
       const response = NextResponse.next();
       response.cookies.delete('ada_access_token');
@@ -88,6 +96,10 @@ export async function middleware(request: NextRequest) {
 
   // Has token — validate it
   const isValid = await validateToken(token);
+  if (isValid === 'APP_ACCESS_DENIED') {
+    console.log('🚫 Middleware: App access denied — redirecting to unauthorized');
+    return NextResponse.redirect(new URL('/unauthorized', request.url));
+  }
   if (!isValid) {
     console.log('🚫 Middleware: Invalid/expired token — redirecting to login');
     return buildAuthRedirect(request, pathname);
