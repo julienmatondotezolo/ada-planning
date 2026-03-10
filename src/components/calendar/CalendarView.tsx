@@ -1694,7 +1694,7 @@ export function CalendarView() {
 
         {/* Right — Manage + Confirm & Send */}
         <div className="flex items-center gap-2">
-          {user?.role === 'owner' && (
+          {['admin', 'owner', 'manager'].includes(user?.role || '') && (
             <Button
               variant="outline"
               size="sm"
@@ -1705,7 +1705,7 @@ export function CalendarView() {
               Suivi des envois
             </Button>
           )}
-          {user?.role === 'owner' && (
+          {['admin', 'owner', 'manager'].includes(user?.role || '') && (
             <Button
               size="sm"
               className="bg-[#4d6aff] hover:bg-[#3d57e0] text-white text-xs h-8 gap-1.5"

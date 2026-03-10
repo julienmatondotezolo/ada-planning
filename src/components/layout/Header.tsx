@@ -6,10 +6,12 @@ import { fr } from 'date-fns/locale';
 import { useAuth } from '@/contexts/AuthContext';
 import { useState, useEffect, useRef } from 'react';
 import { Button, Avatar, AvatarFallback } from 'ada-design-system';
+import { LanguageSwitcher, useLocale } from '@/components/ui/language-switcher';
 
 export function Header() {
   const currentDate = new Date();
   const { user, logout } = useAuth();
+  const { locale, setLocale } = useLocale();
   const [showUserMenu, setShowUserMenu] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
 
@@ -50,8 +52,15 @@ export function Header() {
           {format(currentDate, 'EEEE d MMMM yyyy', { locale: fr })}
         </div>
 
-        {/* Right — notifications + user */}
-        <div className="flex items-center gap-2">
+        {/* Center/Right — language switcher + notifications + user */}
+        <div className="flex items-center gap-3">
+          <LanguageSwitcher 
+            currentLocale={locale}
+            onLocaleChange={setLocale}
+            variant="minimal"
+            size="sm"
+          />
+          
           <Button variant="ghost" size="icon" className="relative h-8 w-8">
             <Bell className="w-4 h-4" />
             <span className="absolute top-1 right-1 w-1.5 h-1.5 bg-destructive rounded-full" />
