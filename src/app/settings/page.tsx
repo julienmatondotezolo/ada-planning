@@ -437,7 +437,7 @@ function OpeningHoursCard({ initialOpeningHours, isStaff }: { initialOpeningHour
             <div
               key={key}
               className={cn(
-                'flex items-start gap-3 sm:gap-4 py-3 px-4 sm:px-0 border-b border-border/50 last:border-0 transition-colors',
+                'flex items-start gap-2 sm:gap-4 py-2 sm:py-3 px-3 sm:px-0 border-b border-border/50 last:border-0 transition-colors',
                 !day.enabled && 'opacity-50',
               )}
             >
@@ -446,7 +446,7 @@ function OpeningHoursCard({ initialOpeningHours, isStaff }: { initialOpeningHour
                 onClick={() => toggleDay(key)}
                 disabled={isStaff}
                 className={cn(
-                  'shrink-0 w-[88px] sm:w-[100px] py-1.5 rounded-lg text-sm font-semibold text-center transition-all border',
+                  'shrink-0 w-[72px] sm:w-[100px] py-1 sm:py-1.5 rounded-lg text-xs sm:text-sm font-semibold text-center transition-all border',
                   day.enabled
                     ? 'bg-primary/10 text-primary border-primary/20 hover:bg-primary/15'
                     : 'bg-muted text-muted-foreground border-border hover:bg-muted/80',
@@ -462,11 +462,11 @@ function OpeningHoursCard({ initialOpeningHours, isStaff }: { initialOpeningHour
                 {day.enabled ? (
                   <>
                     {day.slots.map((slot, slotIdx) => (
-                      <div key={slot.id} className="flex items-center gap-2">
-                        <div className="flex items-center gap-1.5 flex-1 min-w-0">
-                          <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide shrink-0 w-8">De</span>
+                      <div key={slot.id} className="flex flex-wrap sm:flex-nowrap items-center gap-1.5 sm:gap-2">
+                        <div className="flex items-center gap-1 sm:gap-1.5 flex-1 min-w-0">
+                          <span className="text-[10px] sm:text-[11px] font-medium text-muted-foreground uppercase tracking-wide shrink-0 w-6 sm:w-8">De</span>
                           <Select value={slot.from} onValueChange={(v: string) => updateSlotTime(key, slot.id, 'from', v)} disabled={isStaff}>
-                            <SelectTrigger className="h-9 text-sm flex-1 min-w-[100px]">
+                            <SelectTrigger className="h-8 sm:h-9 text-xs sm:text-sm flex-1 min-w-[70px] sm:min-w-[100px]">
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent className="max-h-[200px]">
@@ -477,11 +477,11 @@ function OpeningHoursCard({ initialOpeningHours, isStaff }: { initialOpeningHour
                           </Select>
                         </div>
 
-                        <div className="flex items-center gap-1.5 flex-1 min-w-0">
-                          <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide shrink-0 w-5">à</span>
+                        <div className="flex items-center gap-1 sm:gap-1.5 flex-1 min-w-0">
+                          <span className="text-[10px] sm:text-[11px] font-medium text-muted-foreground uppercase tracking-wide shrink-0 w-4 sm:w-5">à</span>
                           <Select value={slot.to} onValueChange={(v: string) => updateSlotTime(key, slot.id, 'to', v)} disabled={isStaff}>
                             <SelectTrigger className={cn(
-                              'h-9 text-sm flex-1 min-w-[100px]',
+                              'h-8 sm:h-9 text-xs sm:text-sm flex-1 min-w-[70px] sm:min-w-[100px]',
                               slot.from >= slot.to && slot.to !== '00:00' && 'border-destructive text-destructive'
                             )}>
                               <SelectValue />
@@ -499,21 +499,21 @@ function OpeningHoursCard({ initialOpeningHours, isStaff }: { initialOpeningHour
                             <Button
                               variant="ghost"
                               size="icon"
-                              className="h-9 w-9 shrink-0 text-muted-foreground hover:text-primary"
+                              className="h-8 w-8 sm:h-9 sm:w-9 shrink-0 text-muted-foreground hover:text-primary"
                               onClick={() => addSlot(key)}
                               title="Ajouter un créneau"
                             >
-                              <Plus className="w-4 h-4" />
+                              <Plus className="w-3.5 sm:w-4 h-3.5 sm:h-4" />
                             </Button>
                           ) : (
                             <Button
                               variant="ghost"
                               size="icon"
-                              className="h-9 w-9 shrink-0 text-muted-foreground hover:text-destructive"
+                              className="h-8 w-8 sm:h-9 sm:w-9 shrink-0 text-muted-foreground hover:text-destructive"
                               onClick={() => removeSlot(key, slot.id)}
                               title="Supprimer ce créneau"
                             >
-                              <Trash2 className="w-4 h-4" />
+                              <Trash2 className="w-3.5 sm:w-4 h-3.5 sm:h-4" />
                             </Button>
                           )
                         )}
@@ -521,7 +521,7 @@ function OpeningHoursCard({ initialOpeningHours, isStaff }: { initialOpeningHour
                     ))}
                   </>
                 ) : (
-                  <div className="flex items-center h-9 text-sm text-muted-foreground italic">
+                  <div className="flex items-center h-8 sm:h-9 text-xs sm:text-sm text-muted-foreground italic">
                     Fermé
                   </div>
                 )}
@@ -532,21 +532,21 @@ function OpeningHoursCard({ initialOpeningHours, isStaff }: { initialOpeningHour
 
         {/* Actions bar */}
         {!isStaff && (
-          <div className="flex items-center justify-between pt-4 px-4 sm:px-0">
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-muted-foreground">Copier les horaires :</span>
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 pt-3 sm:pt-4 px-3 sm:px-0">
+            <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+              <span className="text-[10px] sm:text-xs text-muted-foreground">Copier :</span>
               {DAYS_OF_WEEK.filter(({ key }) => schedule[key].enabled && schedule[key].slots.length > 0).slice(0, 3).map(({ key, short }) => (
                 <button
                   key={key}
                   onClick={() => copyToAll(key)}
-                  className="text-xs px-2 py-1 rounded border border-border hover:border-primary/50 hover:bg-primary/5 text-muted-foreground hover:text-primary transition-colors"
+                  className="text-[10px] sm:text-xs px-1.5 sm:px-2 py-0.5 sm:py-1 rounded border border-border hover:border-primary/50 hover:bg-primary/5 text-muted-foreground hover:text-primary transition-colors"
                   title={`Copier les horaires de ${short} vers tous les jours ouverts`}
                 >
                   {short} → tous
                 </button>
               ))}
             </div>
-            <Button disabled={!hasChanges || updateSettings.isPending} size="sm" onClick={handleSave}>
+            <Button disabled={!hasChanges || updateSettings.isPending} size="sm" className="w-full sm:w-auto" onClick={handleSave}>
               <Save className="w-4 h-4 mr-2" />
               {updateSettings.isPending ? 'Enregistrement...' : 'Enregistrer'}
             </Button>

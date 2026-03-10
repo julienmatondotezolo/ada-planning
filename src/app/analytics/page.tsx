@@ -248,7 +248,7 @@ export default function AnalyticsPage() {
               Coûts par jour
             </CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-3 md:p-6">
             {laborLoading ? (
               <div className="flex items-end gap-1 h-40">
                 {days.map((_, i) => (
@@ -256,43 +256,45 @@ export default function AnalyticsPage() {
                 ))}
               </div>
             ) : (
-              <div className="flex items-end gap-1 h-40">
-                {days.map((day) => {
-                  const dayStr = format(day, 'yyyy-MM-dd');
-                  const dayData = laborData?.daily_totals?.find(
-                    (d) => d.date === dayStr
-                  );
-                  const cost = dayData?.cost ?? 0;
-                  const heightPct = maxDailyCost > 0 ? (cost / maxDailyCost) * 100 : 0;
-                  const isToday = isSameDay(day, new Date());
+              <div className="overflow-x-auto scrollbar-none -mx-1 px-1">
+                <div className="flex items-end gap-0.5 sm:gap-1 h-36 sm:h-40" style={{ minWidth: days.length > 7 ? `${days.length * 28}px` : undefined }}>
+                  {days.map((day) => {
+                    const dayStr = format(day, 'yyyy-MM-dd');
+                    const dayData = laborData?.daily_totals?.find(
+                      (d) => d.date === dayStr
+                    );
+                    const cost = dayData?.cost ?? 0;
+                    const heightPct = maxDailyCost > 0 ? (cost / maxDailyCost) * 100 : 0;
+                    const isToday = isSameDay(day, new Date());
 
-                  return (
-                    <div
-                      key={dayStr}
-                      className="flex-1 flex flex-col items-center gap-1"
-                      title={`${format(day, 'EEEE d MMM', { locale: fr })}: €${cost.toFixed(2)}`}
-                    >
-                      <div className="w-full flex items-end justify-center" style={{ height: '120px' }}>
-                        <div
-                          className={cn(
-                            'w-full max-w-[40px] rounded-t transition-all',
-                            isToday ? 'bg-primary' : 'bg-primary/30',
-                            cost === 0 && 'bg-gray-100'
-                          )}
-                          style={{ height: `${Math.max(heightPct, cost > 0 ? 4 : 1)}%` }}
-                        />
-                      </div>
-                      <span className="text-[10px] text-muted-foreground">
-                        {format(day, 'EEE', { locale: fr })}
-                      </span>
-                      {cost > 0 && (
-                        <span className="text-[9px] text-muted-foreground font-medium">
-                          €{cost >= 100 ? Math.round(cost) : cost.toFixed(0)}
+                    return (
+                      <div
+                        key={dayStr}
+                        className="flex-1 flex flex-col items-center gap-0.5 sm:gap-1"
+                        title={`${format(day, 'EEEE d MMM', { locale: fr })}: €${cost.toFixed(2)}`}
+                      >
+                        <div className="w-full flex items-end justify-center" style={{ height: days.length > 7 ? '90px' : '120px' }}>
+                          <div
+                            className={cn(
+                              'w-full max-w-[40px] rounded-t transition-all',
+                              isToday ? 'bg-primary' : 'bg-primary/30',
+                              cost === 0 && 'bg-gray-100'
+                            )}
+                            style={{ height: `${Math.max(heightPct, cost > 0 ? 4 : 1)}%` }}
+                          />
+                        </div>
+                        <span className="text-[8px] sm:text-[10px] text-muted-foreground">
+                          {days.length > 7 ? format(day, 'd') : format(day, 'EEE', { locale: fr })}
                         </span>
-                      )}
-                    </div>
-                  );
-                })}
+                        {cost > 0 && (
+                          <span className="text-[7px] sm:text-[9px] text-muted-foreground font-medium">
+                            €{cost >= 100 ? Math.round(cost) : cost.toFixed(0)}
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             )}
           </CardContent>
@@ -323,18 +325,18 @@ export default function AnalyticsPage() {
                 {laborData.breakdown
                   .sort((a, b) => b.cost - a.cost)
                   .map((emp) => (
-                    <div key={emp.employee_id} className="flex items-center justify-between px-4 py-3">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-xs font-semibold text-primary">
+                    <div key={emp.employee_id} className="flex items-center justify-between px-3 sm:px-4 py-2.5 sm:py-3">
+                      <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                        <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-primary/10 flex items-center justify-center text-[10px] sm:text-xs font-semibold text-primary shrink-0">
                           {emp.employee_name
                             .split(' ')
                             .map((n) => n.charAt(0))
                             .join('')
                             .toUpperCase()}
                         </div>
-                        <div>
-                          <div className="text-sm font-medium">{emp.employee_name}</div>
-                          <div className="text-xs text-muted-foreground">
+                        <div className="min-w-0">
+                          <div className="text-xs sm:text-sm font-medium truncate">{emp.employee_name}</div>
+                          <div className="text-[10px] sm:text-xs text-muted-foreground">
                             {emp.hours.toFixed(1)}h × €{emp.hourly_rate.toFixed(2)}/h
                           </div>
                         </div>
