@@ -45,13 +45,15 @@ import {
   Avatar,
   AvatarFallback,
   Skeleton,
+} from 'ada-design-system';
+import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from 'ada-design-system';
+} from '@/components/ui/dialog';
 
 type SettingsTab = 'restaurant' | 'shifts' | 'exclusive-openings' | 'closings' | 'notifications' | 'account';
 
@@ -70,34 +72,34 @@ export default function SettingsPage() {
 
   return (
     <AppShell>
-      <div className="flex-1 overflow-auto p-4 md:p-6">
+      <div className="flex-1 overflow-auto p-3 md:p-6">
         {/* Page header */}
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
-            <SettingsIcon className="w-6 h-6 text-primary" />
+        <div className="mb-4 md:mb-6">
+          <h1 className="text-xl md:text-2xl font-bold text-foreground flex items-center gap-2">
+            <SettingsIcon className="w-5 md:w-6 h-5 md:h-6 text-primary" />
             Paramètres
           </h1>
-          <p className="text-sm text-muted-foreground mt-1">
+          <p className="text-xs md:text-sm text-muted-foreground mt-1">
             Configuration du système et préférences
           </p>
         </div>
 
-        <div className="flex flex-col lg:flex-row gap-6">
-          {/* Settings nav */}
+        <div className="flex flex-col lg:flex-row gap-4 md:gap-6">
+          {/* Settings nav — horizontal scroll on mobile, vertical sidebar on desktop */}
           <nav className="lg:w-[200px] shrink-0">
-            <div className="flex lg:flex-col gap-1 overflow-x-auto pb-2 lg:pb-0">
+            <div className="flex lg:flex-col gap-1 overflow-x-auto scrollbar-none pb-2 lg:pb-0 -mx-1 px-1">
               {TABS.map((tab) => (
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
                   className={cn(
-                    'flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors',
+                    'flex items-center gap-1.5 md:gap-2 px-2.5 md:px-3 py-2 rounded-lg text-xs md:text-sm font-medium whitespace-nowrap transition-colors',
                     activeTab === tab.id
                       ? 'bg-primary text-primary-foreground'
                       : 'text-muted-foreground hover:bg-muted hover:text-foreground'
                   )}
                 >
-                  <tab.icon className="w-4 h-4" />
+                  <tab.icon className="w-3.5 md:w-4 h-3.5 md:h-4" />
                   {tab.label}
                 </button>
               ))}

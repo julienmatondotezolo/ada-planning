@@ -136,22 +136,22 @@ export default function AnalyticsPage() {
   return (
     <AppShell>
       <OwnerGuard>
-      <div className="flex-1 overflow-auto p-4 md:p-6">
+      <div className="flex-1 overflow-auto p-3 md:p-6">
         {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4 md:mb-6">
           <div>
-            <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
-              <BarChart3 className="w-6 h-6 text-primary" />
+            <h1 className="text-xl md:text-2xl font-bold text-foreground flex items-center gap-2">
+              <BarChart3 className="w-5 md:w-6 h-5 md:h-6 text-primary" />
               Analytiques
             </h1>
-            <p className="text-sm text-muted-foreground mt-1">
+            <p className="text-xs md:text-sm text-muted-foreground mt-1">
               Coûts de main-d&apos;œuvre et heures planifiées
             </p>
           </div>
 
           <div className="flex items-center gap-2">
             <Select value={period} onValueChange={(v: string) => setPeriod(v as Period)}>
-              <SelectTrigger className="w-[140px]">
+              <SelectTrigger className="w-[130px] md:w-[140px] h-9">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -163,28 +163,28 @@ export default function AnalyticsPage() {
         </div>
 
         {/* Period navigation */}
-        <div className="flex items-center justify-between mb-6">
-          <Button variant="outline" size="icon" onClick={() => navigate(-1)}>
+        <div className="flex items-center justify-between mb-4 md:mb-6">
+          <Button variant="outline" size="icon" className="h-8 w-8 md:h-9 md:w-9" onClick={() => navigate(-1)}>
             <ChevronLeft className="w-4 h-4" />
           </Button>
-          <h2 className="text-lg font-semibold capitalize">{periodLabel}</h2>
-          <Button variant="outline" size="icon" onClick={() => navigate(1)}>
+          <h2 className="text-sm md:text-lg font-semibold capitalize">{periodLabel}</h2>
+          <Button variant="outline" size="icon" className="h-8 w-8 md:h-9 md:w-9" onClick={() => navigate(1)}>
             <ChevronRight className="w-4 h-4" />
           </Button>
         </div>
 
         {/* Summary cards */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 md:gap-4 mb-4 md:mb-6">
           <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center gap-2 text-muted-foreground mb-1">
+            <CardContent className="p-3 md:p-4">
+              <div className="flex items-center gap-1.5 md:gap-2 text-muted-foreground mb-1">
                 <Euro className="w-4 h-4" />
                 <span className="text-xs font-medium">Coût total</span>
               </div>
               {laborLoading ? (
                 <Skeleton className="h-8 w-24" />
               ) : (
-                <div className="text-2xl font-bold text-foreground">
+                <div className="text-lg md:text-2xl font-bold text-foreground">
                   €{totalCost.toFixed(2)}
                 </div>
               )}
@@ -192,15 +192,15 @@ export default function AnalyticsPage() {
           </Card>
 
           <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center gap-2 text-muted-foreground mb-1">
+            <CardContent className="p-3 md:p-4">
+              <div className="flex items-center gap-1.5 md:gap-2 text-muted-foreground mb-1">
                 <Clock className="w-4 h-4" />
                 <span className="text-xs font-medium">Heures planifiées</span>
               </div>
               {laborLoading ? (
                 <Skeleton className="h-8 w-20" />
               ) : (
-                <div className="text-2xl font-bold text-foreground">
+                <div className="text-lg md:text-2xl font-bold text-foreground">
                   {totalHours.toFixed(1)}h
                 </div>
               )}
@@ -208,15 +208,15 @@ export default function AnalyticsPage() {
           </Card>
 
           <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center gap-2 text-muted-foreground mb-1">
+            <CardContent className="p-3 md:p-4">
+              <div className="flex items-center gap-1.5 md:gap-2 text-muted-foreground mb-1">
                 <TrendingUp className="w-4 h-4" />
                 <span className="text-xs font-medium">Coût moyen/h</span>
               </div>
               {laborLoading ? (
                 <Skeleton className="h-8 w-20" />
               ) : (
-                <div className="text-2xl font-bold text-foreground">
+                <div className="text-lg md:text-2xl font-bold text-foreground">
                   €{avgCostPerHour.toFixed(2)}
                 </div>
               )}
@@ -224,15 +224,15 @@ export default function AnalyticsPage() {
           </Card>
 
           <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center gap-2 text-muted-foreground mb-1">
+            <CardContent className="p-3 md:p-4">
+              <div className="flex items-center gap-1.5 md:gap-2 text-muted-foreground mb-1">
                 <Users className="w-4 h-4" />
                 <span className="text-xs font-medium">Employés planifiés</span>
               </div>
               {laborLoading ? (
                 <Skeleton className="h-8 w-12" />
               ) : (
-                <div className="text-2xl font-bold text-foreground">
+                <div className="text-lg md:text-2xl font-bold text-foreground">
                   {employeeCount}
                 </div>
               )}
@@ -241,7 +241,7 @@ export default function AnalyticsPage() {
         </div>
 
         {/* Daily bar chart */}
-        <Card className="mb-6">
+        <Card className="mb-4 md:mb-6">
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
               <Calendar className="w-4 h-4" />
