@@ -12,7 +12,7 @@ interface OwnerGuardProps {
 export function OwnerGuard({ children }: OwnerGuardProps) {
   const { user } = useAuth();
 
-  if (user?.role !== 'owner') {
+  if (user?.role !== 'owner' && user?.role !== 'admin') {
     return (
       <div className="flex-1 flex items-center justify-center bg-gray-50 px-4">
         <div className="w-full max-w-md text-center space-y-6">

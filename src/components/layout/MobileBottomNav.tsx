@@ -30,7 +30,7 @@ export function MobileBottomNav() {
   });
 
   const visibleTabs = TABS.filter(
-    (tab) => !tab.ownerOnly || user?.role === 'owner',
+    (tab) => !tab.ownerOnly || user?.role === 'owner' || user?.role === 'admin',
   );
 
   const isActive = (href: string) => {

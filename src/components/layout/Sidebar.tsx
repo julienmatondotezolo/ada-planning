@@ -217,7 +217,7 @@ export function Sidebar() {
       {/* Main navigation */}
       <nav className="flex-1 overflow-y-auto py-3 px-2 cursor-default">
         <ul className="space-y-1">
-          {NAVIGATION_ITEMS.filter((item) => !item.ownerOnly || user?.role === 'owner').map((item) => {
+          {NAVIGATION_ITEMS.filter((item) => !item.ownerOnly || user?.role === 'owner' || user?.role === 'admin').map((item) => {
             const active = isActive(item.href);
             return (
               <li key={item.id}>
