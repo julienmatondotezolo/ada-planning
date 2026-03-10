@@ -51,11 +51,6 @@ import {
   AvatarFallback,
   Badge,
   Button,
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
   Input,
   Label,
   Select,
@@ -64,8 +59,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from 'ada-design-system';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 import { toast } from '@/hooks/useToast';
+import { useIsMobile } from '@/hooks/useMediaQuery';
 import { useEmployees, useShifts, shiftKeys } from '@/hooks/useStaff';
 import { useShiftPresets } from '@/hooks/useShiftPresets';
 import { useRestaurantSettings } from '@/hooks/useSettings';
@@ -75,6 +78,10 @@ import { shiftsApi, apiFetch, type Employee, type Shift, type ShiftPreset, type 
 import { useAuth } from '@/contexts/AuthContext';
 import { WeeklyView } from './WeeklyView';
 import { DailyView } from './DailyView';
+import { MobileWeekView } from './MobileWeekView';
+import { MobileDayView } from './MobileDayView';
+import { MobileStaffChips } from './MobileStaffChips';
+import { MobileMonthCell } from './MobileMonthCell';
 import { timeToMinutes } from './types';
 import type { CalendarViewMode, TimeViewProps } from './types';
 
@@ -1024,6 +1031,9 @@ export function CalendarView() {
     return shiftMap;
   }, [shiftsRaw, staff]);
 
+  const isMobile = useIsMobile();
+  const [mobileSelectedStaffId, setMobileSelectedStaffId] = useState<string | null>(null);
+
   const [dialogOpen, setDialogOpen] = useState(false);
   const [overviewOpen, setOverviewOpen] = useState(false);
   const [dialogDate, setDialogDate] = useState<Date>(new Date());
@@ -1153,6 +1163,14 @@ export function CalendarView() {
     const dateKey = format(date, 'yyyy-MM-dd');
     const dayShifts = shifts[dateKey] || [];
     setDialogDate(date);
+
+    // Tap-to-assign: if a mobile staff chip is selected, open dialog with staff pre-filled
+    if (isMobile && mobileSelectedStaffId) {
+      setEditingShift(null);
+      setDialogDefaultStaffId(mobileSelectedStaffId);
+      setDialogOpen(true);
+      return;
+    }
 
     if (dayShifts.length > 0) {
       // Has shifts → open day overview
@@ -1623,9 +1641,12 @@ export function CalendarView() {
   return (
     <div className="flex flex-col h-full">
       {/* ── Top Bar ── */}
-      <div className="flex items-center justify-between px-4 md:px-6 py-2.5 border-b bg-background gap-2">
+      <div className={cn(
+        "flex items-center justify-between border-b bg-background gap-2",
+        isMobile ? "px-2 py-2" : "px-4 md:px-6 py-2.5",
+      )}>
         {/* Left — Navigation */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1 md:gap-2">
           <Button
             variant="ghost"
             size="icon"
@@ -1639,14 +1660,19 @@ export function CalendarView() {
             <ChevronLeft className="w-4 h-4" />
           </Button>
 
-          <h2 className="text-lg font-bold text-foreground min-w-[180px] text-center capitalize">
-            {viewMode === 'month' && format(currentDate, 'MMMM yyyy', { locale: fr })}
+          <h2 className={cn(
+            "font-bold text-foreground text-center capitalize",
+            isMobile ? "text-sm min-w-0" : "text-lg min-w-[180px]",
+          )}>
+            {viewMode === 'month' && format(currentDate, isMobile ? 'MMM yyyy' : 'MMMM yyyy', { locale: fr })}
             {viewMode === 'week' && (() => {
               const ws = startOfWeek(currentDate, { weekStartsOn: 1 });
               const we = endOfWeek(currentDate, { weekStartsOn: 1 });
-              return `${format(ws, 'd MMM', { locale: fr })} – ${format(we, 'd MMM yyyy', { locale: fr })}`;
+              return isMobile
+                ? `${format(ws, 'd', { locale: fr })}–${format(we, 'd MMM', { locale: fr })}`
+                : `${format(ws, 'd MMM', { locale: fr })} – ${format(we, 'd MMM yyyy', { locale: fr })}`;
             })()}
-            {viewMode === 'day' && format(currentDate, 'EEEE d MMMM yyyy', { locale: fr })}
+            {viewMode === 'day' && format(currentDate, isMobile ? 'EEE d MMM' : 'EEEE d MMMM yyyy', { locale: fr })}
           </h2>
 
           <Button
@@ -1664,20 +1690,22 @@ export function CalendarView() {
         </div>
 
         {/* Center — View mode toggle + Today */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1 md:gap-2">
           <div className="flex items-center bg-muted rounded-lg p-0.5">
             {(['month', 'week', 'day'] as CalendarViewMode[]).map((mode) => (
               <button
                 key={mode}
                 onClick={() => setViewMode(mode)}
                 className={cn(
-                  'px-3 py-1 text-xs font-medium rounded-md transition-colors',
+                  'px-2 md:px-3 py-1 text-xs font-medium rounded-md transition-colors',
                   viewMode === mode
                     ? 'bg-background text-foreground shadow-sm'
                     : 'text-muted-foreground hover:text-foreground',
                 )}
               >
-                {mode === 'month' ? 'Mois' : mode === 'week' ? 'Semaine' : 'Jour'}
+                {isMobile
+                  ? (mode === 'month' ? 'Mois' : mode === 'week' ? 'Sem.' : 'Jour')
+                  : (mode === 'month' ? 'Mois' : mode === 'week' ? 'Semaine' : 'Jour')}
               </button>
             ))}
           </div>
@@ -1685,51 +1713,85 @@ export function CalendarView() {
           <Button
             variant="outline"
             size="sm"
-            className="text-xs h-7"
+            className={cn("text-xs h-7", isMobile && "px-2")}
             onClick={() => setCurrentDate(new Date())}
           >
-            Aujourd&apos;hui
+            {isMobile ? 'Auj.' : "Aujourd'hui"}
           </Button>
         </div>
 
-        {/* Right — Manage + Confirm & Send */}
-        <div className="flex items-center gap-2">
-          {['admin', 'owner', 'manager'].includes(user?.role || '') && (
+        {/* Right — Manage + Confirm & Send (hidden on mobile, accessible via bottom actions) */}
+        {!isMobile && (
+          <div className="flex items-center gap-2">
+            {['admin', 'owner', 'manager'].includes(user?.role || '') && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="text-xs h-8 gap-1.5"
+                onClick={handleOpenManage}
+              >
+                <Mail className="w-3.5 h-3.5" />
+                Suivi des envois
+              </Button>
+            )}
+            {['admin', 'owner', 'manager'].includes(user?.role || '') && (
+              <Button
+                size="sm"
+                className="bg-[#4d6aff] hover:bg-[#3d57e0] text-white text-xs h-8 gap-1.5"
+                onClick={() => { setSendResult(null); setConfirmSendOpen(true); }}
+              >
+                <Send className="w-3.5 h-3.5" />
+                Confirmer et envoyer
+              </Button>
+            )}
+          </div>
+        )}
+
+        {/* Mobile: icon-only action buttons */}
+        {isMobile && ['admin', 'owner', 'manager'].includes(user?.role || '') && (
+          <div className="flex items-center gap-1">
             <Button
-              variant="outline"
-              size="sm"
-              className="text-xs h-8 gap-1.5"
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
               onClick={handleOpenManage}
+              title="Suivi des envois"
             >
-              <Mail className="w-3.5 h-3.5" />
-              Suivi des envois
+              <Mail className="w-4 h-4" />
             </Button>
-          )}
-          {['admin', 'owner', 'manager'].includes(user?.role || '') && (
             <Button
-              size="sm"
-              className="bg-[#4d6aff] hover:bg-[#3d57e0] text-white text-xs h-8 gap-1.5"
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 text-[#4d6aff]"
               onClick={() => { setSendResult(null); setConfirmSendOpen(true); }}
+              title="Confirmer et envoyer"
             >
-              <Send className="w-3.5 h-3.5" />
-              Confirmer et envoyer
+              <Send className="w-4 h-4" />
             </Button>
-          )}
-        </div>
+          </div>
+        )}
       </div>
 
-      {/* ── Staff Legend (drag source) ── */}
-      <div className="px-4 md:px-6 py-2 border-b bg-muted/30">
-        <div className="flex items-center gap-3">
-          <span className="text-xs font-medium text-muted-foreground shrink-0">
-            Glisser pour planifier:
-          </span>
-          <StaffLegend
+      {/* ── Staff Legend / Mobile Staff Chips ── */}
+      <div className={cn("border-b bg-muted/30", isMobile ? "px-2 py-1.5" : "px-4 md:px-6 py-2")}>
+        {isMobile ? (
+          <MobileStaffChips
             staff={staff}
-            onDragStart={(staffId) => setDraggingStaffId(staffId)}
-            onDragEnd={handleDragEnd}
+            selectedStaffId={mobileSelectedStaffId}
+            onSelect={setMobileSelectedStaffId}
           />
-        </div>
+        ) : (
+          <div className="flex items-center gap-3">
+            <span className="text-xs font-medium text-muted-foreground shrink-0">
+              Glisser pour planifier:
+            </span>
+            <StaffLegend
+              staff={staff}
+              onDragStart={(staffId) => setDraggingStaffId(staffId)}
+              onDragEnd={handleDragEnd}
+            />
+          </div>
+        )}
       </div>
 
       {/* ── Monthly View ── */}
@@ -1745,8 +1807,14 @@ export function CalendarView() {
                   i >= 5 ? 'text-muted-foreground/50' : 'text-muted-foreground'
                 )}
               >
-                <span className="hidden md:inline">{DAY_NAMES_FULL[i]}</span>
-                <span className="md:hidden">{day}</span>
+                {isMobile ? (
+                  <span>{day.charAt(0)}</span>
+                ) : (
+                  <>
+                    <span className="hidden md:inline">{DAY_NAMES_FULL[i]}</span>
+                    <span className="md:hidden">{day}</span>
+                  </>
+                )}
               </div>
             ))}
           </div>
@@ -1754,12 +1822,12 @@ export function CalendarView() {
           {/* Calendar Grid */}
           <div
             className="flex-1 overflow-auto"
-            onDragLeave={(e) => {
+            onDragLeave={!isMobile ? (e) => {
               const related = e.relatedTarget as Node | null;
               if (!related || !e.currentTarget.contains(related)) {
                 setDragOverDate(null);
               }
-            }}
+            } : undefined}
           >
             <div className="grid grid-cols-7 min-h-full">
               {calendarDays.map((date, index) => {
@@ -1771,6 +1839,21 @@ export function CalendarView() {
                 const closingPeriod = getClosingPeriod(date);
                 const exclusiveOpeningDay = getExclusiveOpeningDay(date);
                 const dropBlocked = !closed && !!draggingStaffId && hasShiftOnDate(draggingStaffId, dateKey);
+
+                if (isMobile) {
+                  return (
+                    <MobileMonthCell
+                      key={index}
+                      date={date}
+                      shifts={dayShifts}
+                      isCurrentMonth={isCurrentMonth}
+                      isToday={isDateToday(date)}
+                      isClosed={closed}
+                      isExclusiveOpening={!!exclusiveOpeningDay}
+                      onClick={() => handleCellClick(date)}
+                    />
+                  );
+                }
 
                 return (
                   <CalendarDayCell
@@ -1802,44 +1885,95 @@ export function CalendarView() {
 
       {/* ── Weekly View ── */}
       {viewMode === 'week' && (
-        <WeeklyView
-          currentDate={currentDate}
-          shifts={shifts}
-          staff={staff}
-          servicePresets={servicePresets}
-          openingHours={openingHours}
-          closingPeriods={closingPeriods}
-          exclusiveOpeningDays={exclusiveOpeningDays}
-          isClosedDay={isClosedDay}
-          getClosingPeriod={getClosingPeriod}
-          getExclusiveOpeningDay={getExclusiveOpeningDay}
-          hasShiftOnDate={hasShiftOnDate}
-          onCellClick={handleCellClick}
-          onShiftClick={handleShiftClick}
-          onDragShift={handleDragShiftToDate}
-          onDropNewStaff={handleDropNewStaff}
-        />
+        isMobile ? (
+          <MobileWeekView
+            currentDate={currentDate}
+            shifts={shifts}
+            staff={staff}
+            isClosedDay={isClosedDay}
+            getClosingPeriod={getClosingPeriod}
+            getExclusiveOpeningDay={getExclusiveOpeningDay}
+            onDayClick={handleCellClick}
+            onShiftClick={handleShiftClick}
+            onNavigate={(dir) => setCurrentDate((d) => dir === 'next' ? addWeeks(d, 1) : subWeeks(d, 1))}
+          />
+        ) : (
+          <WeeklyView
+            currentDate={currentDate}
+            shifts={shifts}
+            staff={staff}
+            servicePresets={servicePresets}
+            openingHours={openingHours}
+            closingPeriods={closingPeriods}
+            exclusiveOpeningDays={exclusiveOpeningDays}
+            isClosedDay={isClosedDay}
+            getClosingPeriod={getClosingPeriod}
+            getExclusiveOpeningDay={getExclusiveOpeningDay}
+            hasShiftOnDate={hasShiftOnDate}
+            onCellClick={handleCellClick}
+            onShiftClick={handleShiftClick}
+            onDragShift={handleDragShiftToDate}
+            onDropNewStaff={handleDropNewStaff}
+          />
+        )
       )}
 
       {/* ── Daily View ── */}
       {viewMode === 'day' && (
-        <DailyView
-          currentDate={currentDate}
-          shifts={shifts}
-          staff={staff}
-          servicePresets={servicePresets}
-          openingHours={openingHours}
-          closingPeriods={closingPeriods}
-          exclusiveOpeningDays={exclusiveOpeningDays}
-          isClosedDay={isClosedDay}
-          getClosingPeriod={getClosingPeriod}
-          getExclusiveOpeningDay={getExclusiveOpeningDay}
-          hasShiftOnDate={hasShiftOnDate}
-          onCellClick={handleCellClick}
-          onShiftClick={handleShiftClick}
-          onDragShift={handleDragShiftToDate}
-          onDropNewStaff={handleDropNewStaff}
-        />
+        isMobile ? (
+          <MobileDayView
+            currentDate={currentDate}
+            shifts={shifts}
+            staff={staff}
+            isClosedDay={isClosedDay}
+            getClosingPeriod={getClosingPeriod}
+            getExclusiveOpeningDay={getExclusiveOpeningDay}
+            onShiftClick={handleShiftClick}
+            onAddShift={(date) => {
+              setEditingShift(null);
+              setDialogDefaultStaffId(mobileSelectedStaffId || undefined);
+              setDialogDate(date);
+              setDialogOpen(true);
+            }}
+            onNavigate={(dir) => setCurrentDate((d) => dir === 'next' ? addDays(d, 1) : subDays(d, 1))}
+          />
+        ) : (
+          <DailyView
+            currentDate={currentDate}
+            shifts={shifts}
+            staff={staff}
+            servicePresets={servicePresets}
+            openingHours={openingHours}
+            closingPeriods={closingPeriods}
+            exclusiveOpeningDays={exclusiveOpeningDays}
+            isClosedDay={isClosedDay}
+            getClosingPeriod={getClosingPeriod}
+            getExclusiveOpeningDay={getExclusiveOpeningDay}
+            hasShiftOnDate={hasShiftOnDate}
+            onCellClick={handleCellClick}
+            onShiftClick={handleShiftClick}
+            onDragShift={handleDragShiftToDate}
+            onDropNewStaff={handleDropNewStaff}
+          />
+        )
+      )}
+
+      {/* ── Mobile FAB (Floating Action Button) ── */}
+      {isMobile && (
+        <button
+          onClick={() => {
+            if (isClosedDay(viewMode === 'day' ? currentDate : new Date())) {
+              // For month/week, use today or fall through to dialog
+            }
+            setEditingShift(null);
+            setDialogDefaultStaffId(mobileSelectedStaffId || undefined);
+            setDialogDate(viewMode === 'day' ? currentDate : new Date());
+            setDialogOpen(true);
+          }}
+          className="fixed right-4 bottom-20 z-40 w-14 h-14 rounded-full bg-primary text-primary-foreground shadow-lg flex items-center justify-center touch-feedback active:scale-90 transition-transform"
+        >
+          <Plus className="w-6 h-6" />
+        </button>
       )}
 
       {/* ── Shift Dialog ── */}

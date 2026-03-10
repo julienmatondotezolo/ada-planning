@@ -142,6 +142,33 @@ body {
   transform: scale(0.95);
 }
 
+/* ── Mobile bottom sheet animation ── */
+@keyframes slide-up {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+@keyframes slide-down {
+  from { transform: translateY(0); }
+  to { transform: translateY(100%); }
+}
+
+/* Hide scrollbars but keep scrolling */
+.scrollbar-none {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+
+/* PWA safe area insets */
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+.pt-safe {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+
 /* Prevent long-press context menu and text selection on touch devices */
 body {
   -webkit-touch-callout: none;
