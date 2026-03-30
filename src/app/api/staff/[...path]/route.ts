@@ -2,14 +2,34 @@ import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 
 const ADASTAFF_API_URL = process.env.ADASTAFF_API_URL || 'https://api-planning.adasystems.app';
-const RESTAURANT_ID = process.env.RESTAURANT_ID || 'c1cbea71-ece5-4d63-bb12-fe06b03d1140';
+const AUTH_URL = process.env.NEXT_PUBLIC_AUTH_URL || 'https://auth.adasystems.app';
 
 /**
- * Proxy API route: forwards client requests to AdaStaff backend
- * with the httpOnly cookie token.
- *
- * Client calls:  /api/staff/settings
- * Proxy calls:   https://adastaff.mindgen.app/api/v1/restaurants/{id}/settings
+ * Get restaurant_id from the user's token via AdaAuth validation.
+ */
+async function getRestaurantId(token: string): Promise<string | null> {
+  try {
+    const res = await fetch(`${AUTH_URL}/auth/validate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ access_token: token, app_slug: 'ada-planning' }),
+    });
+
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (!data.valid) return null;
+
+    // Get first active restaurant from restaurant_access
+    const access = (data.restaurant_access || []).find((ra: any) => ra.active !== false);
+    return access?.restaurant_id || null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Proxy API route: forwards client requests to AdaStaff backend.
+ * Extracts restaurant_id from user's auth token automatically.
  */
 async function proxyRequest(request: NextRequest, { params }: { params: Promise<{ path: string[] }> }) {
   const { path } = await params;
@@ -23,8 +43,16 @@ async function proxyRequest(request: NextRequest, { params }: { params: Promise<
     );
   }
 
+  const restaurantId = await getRestaurantId(token);
+  if (!restaurantId) {
+    return NextResponse.json(
+      { error: 'NO_RESTAURANT', message: 'Could not determine restaurant from token' },
+      { status: 403 }
+    );
+  }
+
   const subPath = path.join('/');
-  const targetUrl = `${ADASTAFF_API_URL}/api/v1/restaurants/${RESTAURANT_ID}/${subPath}`;
+  const targetUrl = `${ADASTAFF_API_URL}/api/v1/restaurants/${restaurantId}/${subPath}`;
 
   // Forward query params
   const { searchParams } = request.nextUrl;

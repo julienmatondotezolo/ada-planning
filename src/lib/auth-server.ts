@@ -63,7 +63,7 @@ export async function getServerUser(): Promise<User | null> {
       last_name: data.user.last_name,
       full_name: data.user.full_name || data.user.first_name || data.user.email?.split('@')[0],
       role: data.user.role || 'staff',
-      restaurant_id: data.user.restaurant_id || 'c1cbea71-ece5-4d63-bb12-fe06b03d1140',
+      restaurant_id: data.user.restaurant_id || data.restaurant_access?.[0]?.restaurant_id || '',
       active: data.user.active !== false
     };
   } catch (error) {

@@ -25,7 +25,7 @@ export async function apiFetch<T = any>(
         'Content-Type': 'application/json',
         ...options.headers,
       },
-      credentials: 'include', // send httpOnly cookie to Next.js proxy
+      credentials: 'include',
     });
 
     const result = await response.json();
