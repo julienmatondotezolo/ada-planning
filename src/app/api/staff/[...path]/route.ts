@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 
-const ADASTAFF_API_URL = process.env.ADASTAFF_API_URL || 'https://adastaff.mindgen.app';
+const ADASTAFF_API_URL = process.env.ADASTAFF_API_URL || 'https://api-planning.adasystems.app';
 const RESTAURANT_ID = process.env.RESTAURANT_ID || 'c1cbea71-ece5-4d63-bb12-fe06b03d1140';
 
 /**
