@@ -6,6 +6,7 @@ import { AuthProvider } from '@/contexts/AuthContext';
 import { QueryProvider } from '@/providers/QueryProvider';
 import { Toaster } from '@/components/Toaster';
 import { ServiceWorkerRegister } from '@/components/ServiceWorkerRegister';
+import { PullToRefresh } from '@/components/PullToRefresh';
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });
 
@@ -55,9 +56,11 @@ export default async function RootLayout({
         <script dangerouslySetInnerHTML={{ __html: `document.addEventListener('contextmenu',function(e){e.preventDefault()});` }} />
         <QueryProvider>
           <AuthProvider initialUser={user}>
-            <div className="min-h-screen bg-background">
-              {children}
-            </div>
+            <PullToRefresh>
+              <div className="min-h-screen bg-background">
+                {children}
+              </div>
+            </PullToRefresh>
             <Toaster />
             <ServiceWorkerRegister />
           </AuthProvider>

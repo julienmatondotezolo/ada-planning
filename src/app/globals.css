@@ -169,11 +169,6 @@ body {
   padding-top: env(safe-area-inset-top, 0px);
 }
 
-/* Prevent pull-to-refresh on PWA */
-html, body {
-  overscroll-behavior-y: contain;
-}
-
 /* Prevent long-press context menu and text selection on touch devices */
 body {
   -webkit-touch-callout: none;
