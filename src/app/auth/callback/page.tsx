@@ -17,6 +17,7 @@ function CallbackHandler() {
     const processAuth = async () => {
       try {
         const token = searchParams.get('token');
+        const refreshToken = searchParams.get('refresh_token');
         const redirect = searchParams.get('redirect') || '/';
         const error = searchParams.get('error');
         
@@ -39,7 +40,11 @@ function CallbackHandler() {
         const response = await fetch('/api/auth/set-token', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ token }),
+          body: JSON.stringify({
+            token,
+            refresh_token: refreshToken,
+            remember_me: !!refreshToken,
+          }),
           credentials: 'include',
         });
 
@@ -49,7 +54,8 @@ function CallbackHandler() {
 
         // Also store in client-readable cookie for direct API calls
         const secure = window.location.protocol === 'https:' ? '; Secure' : '';
-        document.cookie = `ada_token=${encodeURIComponent(token)}; path=/; max-age=${60 * 60 * 24 * 7}; SameSite=Lax${secure}`;
+        const maxAge = refreshToken ? 60 * 60 * 24 * 30 : 60 * 60 * 24 * 7;
+        document.cookie = `ada_token=${encodeURIComponent(token)}; path=/; max-age=${maxAge}; SameSite=Lax${secure}`;
         
         console.log('✅ Authentication token stored successfully');
         setStatus('success');

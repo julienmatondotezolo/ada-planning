@@ -30,8 +30,9 @@ export async function POST(request: NextRequest) {
       }
     }
     
-    // Clear the authentication cookie
+    // Clear authentication cookies
     cookieStore.delete('ada_access_token');
+    cookieStore.delete('ada_refresh_token');
     
     console.log('✅ Authentication cookie cleared');
     
@@ -44,9 +45,10 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('❌ Logout error:', error);
     
-    // Still try to clear cookie even on error
+    // Still try to clear cookies even on error
     const cookieStore = await cookies();
     cookieStore.delete('ada_access_token');
+    cookieStore.delete('ada_refresh_token');
     
     return NextResponse.json({ 
       error: 'Logout failed', 

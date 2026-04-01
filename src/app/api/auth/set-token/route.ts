@@ -1,38 +1,42 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
+
+const SEVEN_DAYS = 60 * 60 * 24 * 7;
+const THIRTY_DAYS = 60 * 60 * 24 * 30;
 
 export async function POST(request: NextRequest) {
   try {
-    const { token } = await request.json();
-    
+    const { token, refresh_token, remember_me } = await request.json();
+
     if (!token || typeof token !== 'string') {
-      console.log('❌ Invalid token in set-token request');
       return NextResponse.json({ error: 'Valid token required' }, { status: 400 });
     }
-    
-    console.log('🔐 Setting authentication cookie...');
-    
-    // Set secure httpOnly cookie
-    const cookieStore = await cookies();
-    cookieStore.set('ada_access_token', token, {
+
+    const maxAge = remember_me ? THIRTY_DAYS : SEVEN_DAYS;
+    const isProduction = process.env.NODE_ENV === 'production';
+
+    const response = NextResponse.json({ success: true });
+
+    response.cookies.set('ada_access_token', token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
+      secure: isProduction,
       sameSite: 'lax',
-      maxAge: 60 * 60 * 24 * 7, // 7 days
-      path: '/'
+      path: '/',
+      maxAge,
     });
-    
-    console.log('✅ Authentication cookie set successfully');
-    
-    return NextResponse.json({ 
-      success: true,
-      message: 'Token stored successfully'
-    });
-    
+
+    if (remember_me && refresh_token) {
+      response.cookies.set('ada_refresh_token', refresh_token, {
+        httpOnly: true,
+        secure: isProduction,
+        sameSite: 'lax',
+        path: '/',
+        maxAge: THIRTY_DAYS,
+      });
+    }
+
+    return response;
   } catch (error) {
-    console.error('❌ Set token error:', error);
-    return NextResponse.json({ 
-      error: 'Failed to store token' 
-    }, { status: 500 });
+    console.error('Set token error:', error);
+    return NextResponse.json({ error: 'Failed to store token' }, { status: 500 });
   }
 }
