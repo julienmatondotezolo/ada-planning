@@ -7,22 +7,19 @@ import { staffApi, type Employee } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
 import {
   Users,
-  Plus,
   Edit,
   Trash2,
   Phone,
   Mail,
   Search,
   UserPlus,
-  X,
   Save,
+  GripVertical,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
   Card,
   CardContent,
-  CardHeader,
-  CardTitle,
   Button,
   Input,
   Label,
@@ -39,7 +36,6 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
   Table,
   TableBody,
   TableCell,
@@ -48,6 +44,24 @@ import {
   TableRow,
   Skeleton,
 } from 'ada-design-system';
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  TouchSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 
 const POSITIONS = [
   'Serveur',
@@ -73,6 +87,103 @@ const EMPTY_FORM = {
   emergency_contact_phone: '',
 };
 
+function SortableRow({
+  emp,
+  isStaff,
+  getInitials,
+  openEdit,
+  handleDelete,
+}: {
+  emp: Employee;
+  isStaff: boolean;
+  getInitials: (e: Employee) => string;
+  openEdit: (e: Employee) => void;
+  handleDelete: (id: string) => void;
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: emp.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  return (
+    <TableRow ref={setNodeRef} style={style}>
+      {!isStaff && (
+        <TableCell className="w-12">
+          <button
+            {...attributes}
+            {...listeners}
+            className="cursor-grab active:cursor-grabbing p-2.5 -m-1 text-muted-foreground hover:text-foreground touch-none min-h-[44px] min-w-[44px] flex items-center justify-center"
+          >
+            <GripVertical className="w-5 h-5" />
+          </button>
+        </TableCell>
+      )}
+      <TableCell>
+        <div className="flex items-center gap-3">
+          <Avatar className="h-8 w-8">
+            <AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold">
+              {getInitials(emp)}
+            </AvatarFallback>
+          </Avatar>
+          <div>
+            <div className="font-medium">{emp.first_name} {emp.last_name}</div>
+            <div className="text-xs text-muted-foreground md:hidden">{emp.position}</div>
+          </div>
+        </div>
+      </TableCell>
+      <TableCell className="hidden md:table-cell">
+        <Badge variant="outline">{emp.position}</Badge>
+      </TableCell>
+      <TableCell className="hidden md:table-cell">
+        <div className="space-y-0.5 text-sm">
+          {emp.email && (
+            <div className="flex items-center gap-1 text-muted-foreground">
+              <Mail className="w-3 h-3" />
+              <span className="truncate max-w-[160px]">{emp.email}</span>
+            </div>
+          )}
+          {emp.phone && (
+            <div className="flex items-center gap-1 text-muted-foreground">
+              <Phone className="w-3 h-3" />
+              {emp.phone}
+            </div>
+          )}
+        </div>
+      </TableCell>
+      <TableCell className="hidden lg:table-cell text-sm">
+        &euro;{emp.hourly_rate}/h
+      </TableCell>
+      <TableCell>
+        <Badge variant={emp.active ? 'default' : 'secondary'}>
+          {emp.active ? 'Actif' : 'Inactif'}
+        </Badge>
+      </TableCell>
+      {!isStaff && (
+        <TableCell className="text-right">
+          <div className="flex items-center justify-end gap-6">
+            <Button variant="ghost" size="icon" className="h-12 w-12" onClick={() => openEdit(emp)}>
+              <Edit className="w-5 h-5" />
+            </Button>
+            <Button variant="ghost" size="icon" className="h-12 w-12 text-destructive hover:text-destructive" onClick={() => handleDelete(emp.id)}>
+              <Trash2 className="w-5 h-5" />
+            </Button>
+          </div>
+        </TableCell>
+      )}
+    </TableRow>
+  );
+}
+
 export default function StaffPage() {
   const { user } = useAuth();
   const isStaff = user?.role === 'staff';
@@ -85,6 +196,18 @@ export default function StaffPage() {
   const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const sensors = useSensors(
+    useSensor(TouchSensor, {
+      activationConstraint: { delay: 200, tolerance: 5 },
+    }),
+    useSensor(PointerSensor, {
+      activationConstraint: { distance: 8 },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    }),
+  );
 
   useEffect(() => {
     fetchEmployees();
@@ -105,6 +228,8 @@ export default function StaffPage() {
     const matchesPosition = filterPosition === 'all' || e.position === filterPosition;
     return matchesSearch && matchesPosition;
   });
+
+  const isFiltering = search !== '' || filterPosition !== 'all';
 
   const activeCount = employees.filter((e) => e.active).length;
 
@@ -165,6 +290,48 @@ export default function StaffPage() {
     if (!confirm('Supprimer ce membre du personnel ?')) return;
     const res = await staffApi.delete(id);
     if (res.success) setEmployees((prev) => prev.filter((e) => e.id !== id));
+  };
+
+  const handleDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    const oldIndex = filtered.findIndex((e) => e.id === active.id);
+    const newIndex = filtered.findIndex((e) => e.id === over.id);
+    const reordered = arrayMove(filtered, oldIndex, newIndex);
+
+    // If not filtering, update the full list directly
+    if (!isFiltering) {
+      setEmployees(reordered);
+    } else {
+      // When filtering, update positions within the full employees array
+      const newEmployees = [...employees];
+      const filteredIds = new Set(filtered.map((e) => e.id));
+      const filteredSlots = newEmployees
+        .map((e, i) => (filteredIds.has(e.id) ? i : -1))
+        .filter((i) => i >= 0);
+      reordered.forEach((emp, i) => {
+        newEmployees[filteredSlots[i]] = emp;
+      });
+      setEmployees(newEmployees);
+    }
+
+    // Persist the new order — send all employee IDs in their new order
+    const allIds = (isFiltering ? employees : reordered).map((e) => e.id);
+    // For filtered case, we already updated newEmployees above, but we need the full order
+    if (isFiltering) {
+      const newEmployees = [...employees];
+      const filteredIds = new Set(filtered.map((e) => e.id));
+      const filteredSlots = newEmployees
+        .map((e, i) => (filteredIds.has(e.id) ? i : -1))
+        .filter((i) => i >= 0);
+      reordered.forEach((emp, i) => {
+        newEmployees[filteredSlots[i]] = emp;
+      });
+      await staffApi.reorder(newEmployees.map((e) => e.id));
+    } else {
+      await staffApi.reorder(reordered.map((e) => e.id));
+    }
   };
 
   const getInitials = (e: Employee) =>
@@ -233,76 +400,42 @@ export default function StaffPage() {
                 <p>Aucun personnel trouvé</p>
               </div>
             ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Nom</TableHead>
-                    <TableHead className="hidden md:table-cell">Position</TableHead>
-                    <TableHead className="hidden md:table-cell">Contact</TableHead>
-                    <TableHead className="hidden lg:table-cell">Taux</TableHead>
-                    <TableHead>Statut</TableHead>
-                    {!isStaff && <TableHead className="text-right">Actions</TableHead>}
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filtered.map((emp) => (
-                    <TableRow key={emp.id}>
-                      <TableCell>
-                        <div className="flex items-center gap-3">
-                          <Avatar className="h-8 w-8">
-                            <AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold">
-                              {getInitials(emp)}
-                            </AvatarFallback>
-                          </Avatar>
-                          <div>
-                            <div className="font-medium">{emp.first_name} {emp.last_name}</div>
-                            <div className="text-xs text-muted-foreground md:hidden">{emp.position}</div>
-                          </div>
-                        </div>
-                      </TableCell>
-                      <TableCell className="hidden md:table-cell">
-                        <Badge variant="outline">{emp.position}</Badge>
-                      </TableCell>
-                      <TableCell className="hidden md:table-cell">
-                        <div className="space-y-0.5 text-sm">
-                          {emp.email && (
-                            <div className="flex items-center gap-1 text-muted-foreground">
-                              <Mail className="w-3 h-3" />
-                              <span className="truncate max-w-[160px]">{emp.email}</span>
-                            </div>
-                          )}
-                          {emp.phone && (
-                            <div className="flex items-center gap-1 text-muted-foreground">
-                              <Phone className="w-3 h-3" />
-                              {emp.phone}
-                            </div>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell className="hidden lg:table-cell text-sm">
-                        €{emp.hourly_rate}/h
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={emp.active ? 'default' : 'secondary'}>
-                          {emp.active ? 'Actif' : 'Inactif'}
-                        </Badge>
-                      </TableCell>
-                      {!isStaff && (
-                        <TableCell className="text-right">
-                          <div className="flex items-center justify-end gap-1">
-                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(emp)}>
-                              <Edit className="w-4 h-4" />
-                            </Button>
-                            <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => handleDelete(emp.id)}>
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      )}
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+              <DndContext
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                onDragEnd={handleDragEnd}
+              >
+                <SortableContext
+                  items={filtered.map((e) => e.id)}
+                  strategy={verticalListSortingStrategy}
+                >
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        {!isStaff && <TableHead className="w-10" />}
+                        <TableHead>Nom</TableHead>
+                        <TableHead className="hidden md:table-cell">Position</TableHead>
+                        <TableHead className="hidden md:table-cell">Contact</TableHead>
+                        <TableHead className="hidden lg:table-cell">Taux</TableHead>
+                        <TableHead>Statut</TableHead>
+                        {!isStaff && <TableHead className="text-right">Actions</TableHead>}
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filtered.map((emp) => (
+                        <SortableRow
+                          key={emp.id}
+                          emp={emp}
+                          isStaff={isStaff}
+                          getInitials={getInitials}
+                          openEdit={openEdit}
+                          handleDelete={handleDelete}
+                        />
+                      ))}
+                    </TableBody>
+                  </Table>
+                </SortableContext>
+              </DndContext>
             )}
           </CardContent>
         </Card>
@@ -326,18 +459,18 @@ export default function StaffPage() {
             )}
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label>Prénom</Label>
+                <Label>Prénom <span className="text-destructive">*</span></Label>
                 <Input value={form.first_name} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, first_name: e.target.value })} />
               </div>
               <div>
-                <Label>Nom</Label>
+                <Label>Nom <span className="text-destructive">*</span></Label>
                 <Input value={form.last_name} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, last_name: e.target.value })} />
               </div>
             </div>
 
             <div>
-              <Label>Email</Label>
-              <Input type="email" value={form.email} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, email: e.target.value })} />
+              <Label>Email <span className="text-destructive">*</span></Label>
+              <Input type="email" required value={form.email} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, email: e.target.value })} />
             </div>
 
             <div>
@@ -360,7 +493,7 @@ export default function StaffPage() {
                 </Select>
               </div>
               <div>
-                <Label>Taux horaire (€)</Label>
+                <Label>Taux horaire (&euro;)</Label>
                 <Input type="number" value={form.hourly_rate} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, hourly_rate: Number(e.target.value) })} />
               </div>
             </div>
@@ -383,7 +516,7 @@ export default function StaffPage() {
 
             <div className="flex justify-end gap-2 pt-2">
               <Button variant="outline" onClick={() => setShowDialog(false)}>Annuler</Button>
-              <Button onClick={handleSave} disabled={saving || !form.first_name || !form.last_name}>
+              <Button onClick={handleSave} disabled={saving || !form.first_name || !form.last_name || !form.email}>
                 <Save className="w-4 h-4 mr-2" />
                 {saving ? 'Enregistrement...' : editingId ? 'Mettre à jour' : 'Ajouter'}
               </Button>

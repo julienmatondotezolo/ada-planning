@@ -1,6 +1,7 @@
 'use client';
 
 import { usePathname } from 'next/navigation';
+import Link from 'next/link';
 import { Calendar, Users, BarChart3, Bell, Settings } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
@@ -44,7 +45,7 @@ export function MobileBottomNav() {
         {visibleTabs.map((tab) => {
           const active = isActive(tab.href);
           return (
-            <a
+            <Link
               key={tab.id}
               href={tab.href}
               className={cn(
@@ -61,7 +62,7 @@ export function MobileBottomNav() {
                 )}
               </div>
               <span className="text-[10px] font-medium">{tab.label}</span>
-            </a>
+            </Link>
           );
         })}
       </div>

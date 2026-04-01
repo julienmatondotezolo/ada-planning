@@ -35,17 +35,21 @@ function CallbackHandler() {
         console.log('🔐 Processing authentication token...');
         setMessage('Storing authentication credentials...');
         
-        // Store token via API route (sets httpOnly cookie)
+        // Store token via API route (sets httpOnly cookie for middleware/SSR)
         const response = await fetch('/api/auth/set-token', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ token }),
-          credentials: 'include' // Important for cookies
+          credentials: 'include',
         });
-        
+
         if (!response.ok) {
           throw new Error('Failed to store authentication token');
         }
+
+        // Also store in client-readable cookie for direct API calls
+        const secure = window.location.protocol === 'https:' ? '; Secure' : '';
+        document.cookie = `ada_token=${encodeURIComponent(token)}; path=/; max-age=${60 * 60 * 24 * 7}; SameSite=Lax${secure}`;
         
         console.log('✅ Authentication token stored successfully');
         setStatus('success');

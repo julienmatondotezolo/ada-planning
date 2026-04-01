@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { usePathname } from 'next/navigation';
+import Link from 'next/link';
 import {
   Calendar,
   Users,
@@ -190,7 +191,7 @@ export function Sidebar() {
 
       {/* Notifications */}
       <div className={cn('border-b border-gray-200 cursor-default', collapsed ? 'px-2 py-2' : 'px-2 py-2')}>
-        <a
+        <Link
           href="/notifications"
           onClick={(e) => e.stopPropagation()}
           className={cn(
@@ -211,7 +212,7 @@ export function Sidebar() {
             )}
           </div>
           {!collapsed && <span className="text-sm font-medium">Notifications</span>}
-        </a>
+        </Link>
       </div>
 
       {/* Main navigation */}
@@ -221,7 +222,7 @@ export function Sidebar() {
             const active = isActive(item.href);
             return (
               <li key={item.id}>
-                <a
+                <Link
                   href={item.href}
                   onClick={(e) => e.stopPropagation()}
                   className={cn(
@@ -237,7 +238,7 @@ export function Sidebar() {
                   {!collapsed && (
                     <span className="text-sm font-medium truncate">{item.label}</span>
                   )}
-                </a>
+                </Link>
               </li>
             );
           })}

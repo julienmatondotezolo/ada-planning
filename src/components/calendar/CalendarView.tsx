@@ -434,7 +434,11 @@ function ShiftDialog({
   defaultStaffId,
   existingShifts,
   onSave,
+  onBulkSave,
   onDelete,
+  isClosedDay,
+  monthStart,
+  monthEnd,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -450,12 +454,28 @@ function ShiftDialog({
     endTime: string;
     date: string;
   }) => void;
+  onBulkSave: (data: {
+    staffId: string;
+    startTime: string;
+    endTime: string;
+    dates: string[];
+  }) => void;
   onDelete?: () => void;
+  isClosedDay: (date: Date) => boolean;
+  monthStart: Date;
+  monthEnd: Date;
 }) {
   const [selectedStaff, setSelectedStaff] = useState(shift?.staffId || defaultStaffId || '');
   const [selectedService, setSelectedService] = useState('');
   const [startTime, setStartTime] = useState(shift?.startTime || '');
   const [endTime, setEndTime] = useState(shift?.endTime || '');
+  const [repeatMonth, setRepeatMonth] = useState(false);
+
+  // Compute opening days for the current month
+  const openingDaysCount = useMemo(() => {
+    const days = eachDayOfInterval({ start: monthStart, end: monthEnd });
+    return days.filter((d) => !isClosedDay(d)).length;
+  }, [monthStart, monthEnd, isClosedDay]);
 
   // Reset form when dialog opens with new data
   useEffect(() => {
@@ -463,6 +483,7 @@ function ShiftDialog({
       setSelectedStaff(shift?.staffId || defaultStaffId || '');
       setStartTime(shift?.startTime || '');
       setEndTime(shift?.endTime || '');
+      setRepeatMonth(false);
 
       // Try to match existing shift times to a service preset
       if (shift) {
@@ -498,12 +519,21 @@ function ShiftDialog({
 
   const handleSave = () => {
     if (!selectedStaff) return;
-    onSave({
-      staffId: selectedStaff,
-      startTime,
-      endTime,
-      date: format(date, 'yyyy-MM-dd'),
-    });
+
+    if (repeatMonth) {
+      const allDays = eachDayOfInterval({ start: monthStart, end: monthEnd });
+      const openDates = allDays
+        .filter((d) => !isClosedDay(d))
+        .map((d) => format(d, 'yyyy-MM-dd'));
+      onBulkSave({ staffId: selectedStaff, startTime, endTime, dates: openDates });
+    } else {
+      onSave({
+        staffId: selectedStaff,
+        startTime,
+        endTime,
+        date: format(date, 'yyyy-MM-dd'),
+      });
+    }
     onOpenChange(false);
   };
 
@@ -648,6 +678,34 @@ function ShiftDialog({
             </div>
           </div>
 
+          {/* Repeat for all opening days */}
+          {!isEditing && (
+            <button
+              type="button"
+              onClick={() => setRepeatMonth(!repeatMonth)}
+              className={cn(
+                'w-full flex items-center gap-3 rounded-lg border px-3 py-2.5 text-left transition-colors',
+                repeatMonth
+                  ? 'border-primary bg-primary/5 text-primary'
+                  : 'border-border text-muted-foreground hover:bg-muted/50'
+              )}
+            >
+              <CalendarCheck className="w-5 h-5 shrink-0" />
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-medium">Tous les jours d&apos;ouverture</div>
+                <div className="text-xs opacity-70">
+                  {format(monthStart, 'MMMM yyyy', { locale: fr })} — {openingDaysCount} jours
+                </div>
+              </div>
+              <div className={cn(
+                'w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 transition-colors',
+                repeatMonth ? 'border-primary bg-primary' : 'border-muted-foreground/30'
+              )}>
+                {repeatMonth && <Check className="w-3 h-3 text-white" />}
+              </div>
+            </button>
+          )}
+
           {/* Actions */}
           <div className="flex items-center gap-2 pt-2 border-t">
             {isEditing && onDelete && (
@@ -673,7 +731,7 @@ function ShiftDialog({
               onClick={handleSave}
               disabled={!selectedStaff || !startTime || !endTime}
             >
-              {isEditing ? 'Modifier' : 'Ajouter'}
+              {isEditing ? 'Modifier' : repeatMonth ? `Planifier ${openingDaysCount} jours` : 'Ajouter'}
             </Button>
           </div>
         </div>
@@ -693,6 +751,8 @@ function DayOverviewDialog({
   onAddShift,
   onEditShift,
   onDeleteShift,
+  onBulkDelete,
+  canManage,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -702,6 +762,8 @@ function DayOverviewDialog({
   onAddShift: () => void;
   onEditShift: (shift: ShiftAssignment) => void;
   onDeleteShift: (shift: ShiftAssignment) => void;
+  onBulkDelete: () => void;
+  canManage: boolean;
 }) {
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
@@ -859,8 +921,8 @@ function DayOverviewDialog({
           </div>
         </div>
 
-        {/* Footer: Add button */}
-        <div className="border-t pt-3 -mx-6 px-6">
+        {/* Footer */}
+        <div className="border-t pt-3 -mx-6 px-6 space-y-2">
           <Button
             className="w-full"
             size="sm"
@@ -869,6 +931,17 @@ function DayOverviewDialog({
             <Plus className="w-4 h-4 mr-1.5" />
             Ajouter un service
           </Button>
+          {canManage && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full text-destructive border-destructive/30 hover:bg-destructive/10"
+              onClick={onBulkDelete}
+            >
+              <Trash2 className="w-4 h-4 mr-1.5" />
+              Supprimer en masse
+            </Button>
+          )}
         </div>
       </DialogContent>
     </Dialog>
@@ -1042,6 +1115,11 @@ export function CalendarView() {
   const [dragOverDate, setDragOverDate] = useState<string | null>(null);
   const [draggingStaffId, setDraggingStaffId] = useState<string | null>(null);
   const [draggingShiftTimes, setDraggingShiftTimes] = useState<{ startTime: string; endTime: string } | null>(null);
+
+  // Bulk delete state
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [bulkDeleteStaff, setBulkDeleteStaff] = useState('');
+  const [bulkDeleting, setBulkDeleting] = useState(false);
 
   // Confirm & Send state
   const [confirmSendOpen, setConfirmSendOpen] = useState(false);
@@ -1299,6 +1377,66 @@ export function CalendarView() {
     }
   };
 
+  const handleBulkSave = async (data: {
+    staffId: string;
+    startTime: string;
+    endTime: string;
+    dates: string[];
+  }) => {
+    const staffMember = staff.find((s) => s.id === data.staffId);
+    if (!staffMember) return;
+
+    // Filter out dates with overlapping shifts
+    const skippedDates: string[] = [];
+    const validDates = data.dates.filter((d) => {
+      if (hasOverlappingShift(data.staffId, d, data.startTime, data.endTime)) {
+        skippedDates.push(d);
+        return false;
+      }
+      return true;
+    });
+
+    if (validDates.length === 0) {
+      toast({
+        title: 'Aucun service créé',
+        description: `${staffMember.name} a déjà des services qui chevauchent cet horaire sur toutes les dates sélectionnées.`,
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (skippedDates.length > 0) {
+      const skippedFormatted = skippedDates
+        .map((d) => format(new Date(d + 'T00:00:00'), 'd MMM', { locale: fr }))
+        .join(', ');
+      toast({
+        title: 'Dates ignorées (chevauchement)',
+        description: `${skippedDates.length} date(s) ignorée(s) pour ${staffMember.name} : ${skippedFormatted}`,
+        variant: 'destructive',
+      });
+    }
+
+    const bulkShifts = validDates.map((d) => ({
+      employee_id: data.staffId,
+      scheduled_date: d,
+      start_time: data.startTime,
+      end_time: data.endTime,
+      position: staffMember.position,
+    }));
+
+    const res = await shiftsApi.bulkCreate(bulkShifts);
+
+    if (res.success && res.data) {
+      queryClient.invalidateQueries({ queryKey: shiftQueryKey });
+      toast({
+        title: 'Services créés',
+        description: `${res.data.created_count} services ajoutés pour ${staffMember.name}.`,
+      });
+    } else {
+      toast({ title: 'Erreur', description: 'Impossible de créer les services.', variant: 'destructive' });
+    }
+  };
+
   const handleDelete = async () => {
     if (!editingShift) return;
 
@@ -1311,6 +1449,42 @@ export function CalendarView() {
       queryClient.setQueryData<Shift[]>(shiftQueryKey, snapshot);
       toast({ title: 'Erreur', description: 'Impossible de supprimer le service.', variant: 'destructive' });
     }
+  };
+
+  const handleBulkDelete = async () => {
+    if (!bulkDeleteStaff) return;
+    setBulkDeleting(true);
+
+    const staffMember = staff.find((s) => s.id === bulkDeleteStaff);
+    // Collect all shift IDs for this employee in the current month
+    const shiftIds: string[] = [];
+    for (const [, dayShifts] of Object.entries(shifts)) {
+      for (const s of dayShifts) {
+        if (s.staffId === bulkDeleteStaff) {
+          shiftIds.push(s.id);
+        }
+      }
+    }
+
+    if (shiftIds.length === 0) {
+      toast({ title: 'Aucun service', description: `${staffMember?.name || 'Cet employé'} n'a aucun service ce mois.`, variant: 'destructive' });
+      setBulkDeleting(false);
+      return;
+    }
+
+    const res = await shiftsApi.bulkDelete(shiftIds);
+    if (res.success) {
+      queryClient.invalidateQueries({ queryKey: shiftQueryKey });
+      toast({
+        title: 'Services supprimés',
+        description: `${res.data.deleted_count} services supprimés pour ${staffMember?.name}.`,
+      });
+      setBulkDeleteOpen(false);
+      setBulkDeleteStaff('');
+    } else {
+      toast({ title: 'Erreur', description: 'Impossible de supprimer les services.', variant: 'destructive' });
+    }
+    setBulkDeleting(false);
   };
 
   // ── Drag & Drop ──
@@ -1987,6 +2161,8 @@ export function CalendarView() {
         onAddShift={handleOverviewAdd}
         onEditShift={handleOverviewEdit}
         onDeleteShift={handleOverviewDelete}
+        onBulkDelete={() => { setOverviewOpen(false); setBulkDeleteStaff(''); setBulkDeleteOpen(true); }}
+        canManage={['owner', 'manager', 'admin'].includes(user?.role || '')}
       />
 
       {/* Add/Edit Shift Dialog */}
@@ -2000,8 +2176,80 @@ export function CalendarView() {
         defaultStaffId={dialogDefaultStaffId}
         existingShifts={shifts[format(dialogDate, 'yyyy-MM-dd')] || []}
         onSave={handleSave}
+        onBulkSave={handleBulkSave}
         onDelete={editingShift ? handleDelete : undefined}
+        isClosedDay={isClosedDay}
+        monthStart={monthStart}
+        monthEnd={monthEnd}
       />
+
+      {/* Bulk Delete Dialog */}
+      <Dialog open={bulkDeleteOpen} onOpenChange={(open) => { if (!bulkDeleting) setBulkDeleteOpen(open); }}>
+        <DialogContent className="sm:max-w-[420px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              <Trash2 className="w-5 h-5" />
+              Supprimer les services du mois
+            </DialogTitle>
+            <DialogDescription>
+              Supprimez tous les services d&apos;un employé pour {format(monthStart, 'MMMM yyyy', { locale: fr })}.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 pt-2">
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">Personnel</Label>
+              <Select value={bulkDeleteStaff} onValueChange={setBulkDeleteStaff}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Sélectionner un employé" />
+                </SelectTrigger>
+                <SelectContent>
+                  {staff.map((s) => {
+                    const count = Object.values(shifts).flat().filter((sh) => sh.staffId === s.id).length;
+                    return (
+                      <SelectItem key={s.id} value={s.id}>
+                        <div className="flex items-center gap-2">
+                          <div
+                            className="w-5 h-5 rounded-full flex items-center justify-center text-white text-[9px] font-bold shrink-0"
+                            style={{ backgroundColor: s.color }}
+                          >
+                            {s.initials}
+                          </div>
+                          <span>{s.name}</span>
+                          <span className="text-muted-foreground text-xs">({count} services)</span>
+                        </div>
+                      </SelectItem>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {bulkDeleteStaff && (() => {
+              const member = staff.find((s) => s.id === bulkDeleteStaff);
+              const count = Object.values(shifts).flat().filter((sh) => sh.staffId === bulkDeleteStaff).length;
+              return (
+                <div className="rounded-lg border border-destructive/20 bg-destructive/5 px-3 py-2.5 text-sm">
+                  <span className="font-medium">{count}</span> service{count > 1 ? 's' : ''} de <span className="font-medium">{member?.name}</span> seront supprimés en {format(monthStart, 'MMMM yyyy', { locale: fr })}.
+                </div>
+              );
+            })()}
+
+            <div className="flex justify-end gap-2 pt-2 border-t">
+              <Button variant="outline" size="sm" onClick={() => setBulkDeleteOpen(false)} disabled={bulkDeleting}>
+                Annuler
+              </Button>
+              <Button
+                size="sm"
+                variant="destructive"
+                onClick={handleBulkDelete}
+                disabled={!bulkDeleteStaff || bulkDeleting}
+              >
+                {bulkDeleting ? 'Suppression...' : 'Supprimer tout'}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Confirm & Send Weekly Dialog */}
       <Dialog open={confirmSendOpen} onOpenChange={(open) => { if (!sendingEmails) setConfirmSendOpen(open); }}>

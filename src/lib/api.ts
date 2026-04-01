@@ -1,14 +1,23 @@
 /**
  * AdaPlanning API client
  *
- * All requests go through Next.js API proxy (/api/staff/...) which:
- * 1. Reads the httpOnly auth cookie
- * 2. Forwards to AdaStaff backend with Bearer token
- *
- * This avoids exposing tokens to client-side JavaScript.
+ * Calls the AdaStaff backend directly with Bearer token + restaurant_id.
+ * Token and restaurant_id are read from cookies / AuthContext.
  */
 
-const AUTH_URL = process.env.NEXT_PUBLIC_AUTH_URL || 'https://auth.adasystems.app';
+const STAFF_API_URL = process.env.NEXT_PUBLIC_STAFF_API_URL || 'http://localhost:5003';
+
+function getTokenFromCookie(): string | null {
+  if (typeof document === 'undefined') return null;
+  const match = document.cookie.match(/(?:^|; )ada_token=([^;]*)/);
+  return match ? decodeURIComponent(match[1]) : null;
+}
+
+function getRestaurantIdFromCookie(): string | null {
+  if (typeof document === 'undefined') return null;
+  const match = document.cookie.match(/(?:^|; )ada_restaurant_id=([^;]*)/);
+  return match ? decodeURIComponent(match[1]) : null;
+}
 
 // ─── Core fetch helper ──────────────────────────────────────────────────────
 
@@ -17,15 +26,26 @@ export async function apiFetch<T = any>(
   options: RequestInit = {}
 ): Promise<{ data: T; success: boolean; error?: string }> {
   try {
-    const url = `/api/staff/${path}`;
+    const token = getTokenFromCookie();
+    const restaurantId = getRestaurantIdFromCookie();
+
+    if (!token || !restaurantId) {
+      return {
+        data: null as T,
+        success: false,
+        error: 'Not authenticated',
+      };
+    }
+
+    const url = `${STAFF_API_URL}/api/v1/restaurants/${restaurantId}/${path}`;
 
     const response = await fetch(url, {
       ...options,
       headers: {
         'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
         ...options.headers,
       },
-      credentials: 'include',
     });
 
     const result = await response.json();
@@ -67,6 +87,7 @@ export interface Employee {
   notes?: string;
   emergency_contact?: { name?: string; phone?: string };
   availability?: Record<string, unknown>;
+  sort_order?: number;
   created_at?: string;
   updated_at?: string;
 }
@@ -150,6 +171,12 @@ export const staffApi = {
 
   delete: (id: string) =>
     apiFetch<void>(`employees/${id}`, { method: 'DELETE' }),
+
+  reorder: (orderedIds: string[]) =>
+    apiFetch<void>('employees/reorder', {
+      method: 'PUT',
+      body: JSON.stringify({ ordered_ids: orderedIds }),
+    }),
 };
 
 // ─── Shifts ─────────────────────────────────────────────────────────────────
@@ -178,6 +205,18 @@ export const shiftsApi = {
 
   delete: (id: string) =>
     apiFetch<void>(`planning/shifts/${id}`, { method: 'DELETE' }),
+
+  bulkCreate: (shifts: Partial<Shift>[]) =>
+    apiFetch<{ created_count: number; error_count: number; created_shifts: Shift[]; errors: any[] }>('planning/shifts/bulk', {
+      method: 'POST',
+      body: JSON.stringify({ shifts }),
+    }),
+
+  bulkDelete: (shiftIds: string[]) =>
+    apiFetch<{ deleted_count: number }>('planning/shifts/bulk', {
+      method: 'DELETE',
+      body: JSON.stringify({ shift_ids: shiftIds }),
+    }),
 };
 
 // ─── Settings ───────────────────────────────────────────────────────────────
@@ -425,7 +464,7 @@ export const authApi = {
 // ─── Health ─────────────────────────────────────────────────────────────────
 
 export const healthApi = {
-  check: () => fetch('/api/staff/health').then(r => r.json()).catch(() => null),
+  check: () => fetch(`${STAFF_API_URL}/health`).then(r => r.json()).catch(() => null),
 };
 
 export default {
