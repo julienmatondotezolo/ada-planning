@@ -116,12 +116,20 @@ const STAFF_COLORS = [
 
 let shiftIdCounter = 0;
 
-function employeeToStaffMember(emp: Employee, index: number): StaffMember {
+function stableColorIndex(id: string): number {
+  let hash = 0;
+  for (let i = 0; i < id.length; i++) {
+    hash = ((hash << 5) - hash + id.charCodeAt(i)) | 0;
+  }
+  return Math.abs(hash) % STAFF_COLORS.length;
+}
+
+function employeeToStaffMember(emp: Employee): StaffMember {
   const initials = `${emp.first_name.charAt(0)}${emp.last_name.charAt(0)}`.toUpperCase();
   return {
     id: emp.id,
     name: `${emp.first_name} ${emp.last_name}`,
-    color: STAFF_COLORS[index % STAFF_COLORS.length],
+    color: emp.color || STAFF_COLORS[stableColorIndex(emp.id)],
     position: emp.position || emp.role || '',
     initials,
   };
@@ -1067,7 +1075,7 @@ export function CalendarView() {
   // Derived state: employees → StaffMember[]
   const staff = useMemo<StaffMember[]>(() => {
     if (!employeesRaw?.length) return [];
-    return employeesRaw.map((emp, i) => employeeToStaffMember(emp, i));
+    return employeesRaw.map((emp) => employeeToStaffMember(emp));
   }, [employeesRaw]);
 
   // Derived state: presets
@@ -1115,6 +1123,23 @@ export function CalendarView() {
   const [dragOverDate, setDragOverDate] = useState<string | null>(null);
   const [draggingStaffId, setDraggingStaffId] = useState<string | null>(null);
   const [draggingShiftTimes, setDraggingShiftTimes] = useState<{ startTime: string; endTime: string } | null>(null);
+
+  // Clear drag state on scroll or when drag ends outside the grid
+  useEffect(() => {
+    const clearDrag = () => {
+      if (draggingStaffId) {
+        setDraggingStaffId(null);
+        setDraggingShiftTimes(null);
+        setDragOverDate(null);
+      }
+    };
+    window.addEventListener('scroll', clearDrag, true);
+    document.addEventListener('dragend', clearDrag);
+    return () => {
+      window.removeEventListener('scroll', clearDrag, true);
+      document.removeEventListener('dragend', clearDrag);
+    };
+  }, [draggingStaffId]);
 
   // Bulk delete state
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
