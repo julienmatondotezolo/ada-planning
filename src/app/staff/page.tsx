@@ -43,6 +43,7 @@ import {
   TableHeader,
   TableRow,
   Skeleton,
+  Switch,
 } from 'ada-design-system';
 import {
   DndContext,
@@ -83,9 +84,44 @@ const EMPTY_FORM = {
   position: 'Serveur',
   hourly_rate: 14,
   notes: '',
+  language: 'nl',
+  receive_notifications: true,
   emergency_contact_name: '',
   emergency_contact_phone: '',
 };
+
+function FlagIcon({ language }: { language?: string }) {
+  const lang = language || 'nl';
+  const title = lang === 'fr' ? 'Français' : lang === 'en' ? 'English' : 'Nederlands';
+  return (
+    <svg width="20" height="14" viewBox="0 0 20 14" className="shrink-0 rounded-[2px] overflow-hidden" role="img" aria-label={title}>
+      <title>{title}</title>
+      {lang === 'nl' && (
+        <>
+          <rect width="20" height="4.67" fill="#AE1C28" />
+          <rect y="4.67" width="20" height="4.67" fill="#FFF" />
+          <rect y="9.33" width="20" height="4.67" fill="#21468B" />
+        </>
+      )}
+      {lang === 'fr' && (
+        <>
+          <rect width="6.67" height="14" fill="#002395" />
+          <rect x="6.67" width="6.67" height="14" fill="#FFF" />
+          <rect x="13.33" width="6.67" height="14" fill="#ED2939" />
+        </>
+      )}
+      {lang === 'en' && (
+        <>
+          <rect width="20" height="14" fill="#012169" />
+          <path d="M0 0L20 14M20 0L0 14" stroke="#FFF" strokeWidth="2.4" />
+          <path d="M0 0L20 14M20 0L0 14" stroke="#C8102E" strokeWidth="1.2" />
+          <path d="M10 0V14M0 7H20" stroke="#FFF" strokeWidth="4" />
+          <path d="M10 0V14M0 7H20" stroke="#C8102E" strokeWidth="2.4" />
+        </>
+      )}
+    </svg>
+  );
+}
 
 function SortableRow({
   emp,
@@ -145,11 +181,19 @@ function SortableRow({
         <Badge variant="outline">{emp.position}</Badge>
       </TableCell>
       <TableCell className="hidden md:table-cell">
+        <div className="flex items-center gap-2">
+          <FlagIcon language={emp.language} />
+          <span className="text-xs text-muted-foreground">
+            {emp.language === 'fr' ? 'FR' : emp.language === 'en' ? 'EN' : 'NL'}
+          </span>
+        </div>
+      </TableCell>
+      <TableCell className="hidden md:table-cell">
         <div className="space-y-0.5 text-sm">
           {emp.email && (
             <div className="flex items-center gap-1 text-muted-foreground">
-              <Mail className="w-3 h-3" />
-              <span className="truncate max-w-[160px]">{emp.email}</span>
+              <Mail className={cn("w-3 h-3", emp.receive_notifications === false && "text-destructive/50")} />
+              <span className={cn("truncate max-w-[160px]", emp.receive_notifications === false && "line-through opacity-50")}>{emp.email}</span>
             </div>
           )}
           {emp.phone && (
@@ -164,8 +208,8 @@ function SortableRow({
         &euro;{emp.hourly_rate}/h
       </TableCell>
       <TableCell>
-        <Badge variant={emp.active ? 'default' : 'secondary'}>
-          {emp.active ? 'Actif' : 'Inactif'}
+        <Badge variant={emp.receive_notifications !== false ? 'default' : 'secondary'}>
+          {emp.receive_notifications !== false ? 'Notifié' : 'Non notifié'}
         </Badge>
       </TableCell>
       {!isStaff && (
@@ -251,6 +295,8 @@ export default function StaffPage() {
       position: emp.position,
       hourly_rate: emp.hourly_rate ?? 14,
       notes: emp.notes || '',
+      language: emp.language || 'nl',
+      receive_notifications: emp.receive_notifications !== false,
       emergency_contact_name: emp.emergency_contact?.name || '',
       emergency_contact_phone: emp.emergency_contact?.phone || '',
     });
@@ -415,9 +461,10 @@ export default function StaffPage() {
                         {!isStaff && <TableHead className="w-10" />}
                         <TableHead>Nom</TableHead>
                         <TableHead className="hidden md:table-cell">Position</TableHead>
+                        <TableHead className="hidden md:table-cell">Langue</TableHead>
                         <TableHead className="hidden md:table-cell">Contact</TableHead>
                         <TableHead className="hidden lg:table-cell">Taux</TableHead>
-                        <TableHead>Statut</TableHead>
+                        <TableHead>Notifications</TableHead>
                         {!isStaff && <TableHead className="text-right">Actions</TableHead>}
                       </TableRow>
                     </TableHeader>
@@ -501,6 +548,31 @@ export default function StaffPage() {
             <div>
               <Label>Notes</Label>
               <Input value={form.notes} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, notes: e.target.value })} placeholder="Allergies, préférences…" />
+            </div>
+
+            <div>
+              <Label>Langue</Label>
+              <Select value={form.language} onValueChange={(v: string) => setForm({ ...form, language: v })}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="nl">Nederlands</SelectItem>
+                  <SelectItem value="fr">Français</SelectItem>
+                  <SelectItem value="en">English</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="flex items-center justify-between rounded-lg border px-3 py-3">
+              <div>
+                <Label className="text-sm font-medium">Recevoir les notifications</Label>
+                <p className="text-xs text-muted-foreground">Envoi des horaires par email</p>
+              </div>
+              <Switch
+                checked={form.receive_notifications}
+                onCheckedChange={(checked: boolean) => setForm({ ...form, receive_notifications: checked })}
+              />
             </div>
 
             <div className="grid grid-cols-2 gap-3">

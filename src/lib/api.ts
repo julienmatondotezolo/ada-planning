@@ -87,6 +87,8 @@ export interface Employee {
   notes?: string;
   emergency_contact?: { name?: string; phone?: string };
   availability?: Record<string, unknown>;
+  language?: string;
+  receive_notifications?: boolean;
   sort_order?: number;
   created_at?: string;
   updated_at?: string;
