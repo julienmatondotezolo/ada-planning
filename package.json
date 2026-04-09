@@ -52,6 +52,7 @@
     "sonner": "^1.4.3",
     "tailwind-merge": "^3.4.0",
     "tailwindcss-animate": "^1.0.7",
+    "web-haptics": "^0.0.6",
     "zod": "^3.22.4",
     "zustand": "^4.5.1"
   },

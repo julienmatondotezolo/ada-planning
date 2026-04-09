@@ -82,6 +82,8 @@ import { MobileWeekView } from './MobileWeekView';
 import { MobileDayView } from './MobileDayView';
 import { MobileStaffChips } from './MobileStaffChips';
 import { MobileMonthCell } from './MobileMonthCell';
+import { MobileShiftActionsSheet } from './MobileShiftActionsSheet';
+import { NextServiceHero } from './NextServiceHero';
 import { timeToMinutes } from './types';
 import type { CalendarViewMode, TimeViewProps } from './types';
 
@@ -1120,6 +1122,10 @@ export function CalendarView() {
   const [dialogDate, setDialogDate] = useState<Date>(new Date());
   const [editingShift, setEditingShift] = useState<ShiftAssignment | null>(null);
   const [dialogDefaultStaffId, setDialogDefaultStaffId] = useState<string | undefined>();
+  // Mobile long-press quick-actions sheet
+  const [actionsSheetOpen, setActionsSheetOpen] = useState(false);
+  const [actionsSheetShift, setActionsSheetShift] = useState<ShiftAssignment | null>(null);
+  const [actionsSheetDate, setActionsSheetDate] = useState<Date>(new Date());
   const [dragOverDate, setDragOverDate] = useState<string | null>(null);
   const [draggingStaffId, setDraggingStaffId] = useState<string | null>(null);
   const [draggingShiftTimes, setDraggingShiftTimes] = useState<{ startTime: string; endTime: string } | null>(null);
@@ -1316,6 +1322,77 @@ export function CalendarView() {
     if (!res.success) {
       queryClient.setQueryData<Shift[]>(shiftQueryKey, snapshot);
       toast({ title: 'Erreur', description: 'Impossible de supprimer le service.', variant: 'destructive' });
+    }
+  };
+
+  // Mobile: long-press opens the quick-actions bottom sheet.
+  const handleShiftLongPress = (shift: ShiftAssignment, date: Date) => {
+    if (!['owner', 'manager', 'admin'].includes(user?.role || '')) return;
+    setActionsSheetShift(shift);
+    setActionsSheetDate(date);
+    setActionsSheetOpen(true);
+  };
+
+  // Mobile quick action: duplicate a shift to the next day.
+  // Same employee, same times, skipping closed days up to 7 attempts.
+  const handleDuplicateToNextDay = async (shift: ShiftAssignment, fromDate: Date) => {
+    const staffMember = staff.find((s) => s.id === shift.staffId);
+    if (!staffMember) return;
+
+    // Find the next open day (max 7 iterations)
+    let target = addDays(fromDate, 1);
+    for (let i = 0; i < 7; i++) {
+      if (!isClosedDay(target)) break;
+      target = addDays(target, 1);
+    }
+    const targetKey = format(target, 'yyyy-MM-dd');
+
+    if (hasOverlappingShift(shift.staffId, targetKey, shift.startTime, shift.endTime)) {
+      toast({
+        title: 'Chevauchement d\'horaires',
+        description: `${staffMember.name} a déjà un service qui chevauche cet horaire le ${format(target, 'd MMM', { locale: fr })}.`,
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const tempId = `temp-${Date.now()}`;
+    const snapshot = optimisticUpdate((old) => [
+      ...old,
+      {
+        id: tempId,
+        employee_id: shift.staffId,
+        scheduled_date: targetKey,
+        start_time: shift.startTime,
+        end_time: shift.endTime,
+        position: staffMember.position,
+      } as Shift,
+    ]);
+
+    const res = await shiftsApi.create({
+      employee_id: shift.staffId,
+      scheduled_date: targetKey,
+      start_time: shift.startTime,
+      end_time: shift.endTime,
+      position: staffMember.position,
+    });
+
+    if (res.success && res.data) {
+      queryClient.setQueryData<Shift[]>(shiftQueryKey, (old) =>
+        (old ?? []).map((s) => (s.id === tempId ? { ...s, id: res.data.id } : s)),
+      );
+      toast({
+        title: 'Service dupliqué',
+        description: `${staffMember.name} · ${format(target, 'EEEE d MMMM', { locale: fr })}`,
+        variant: 'success',
+      });
+    } else {
+      queryClient.setQueryData<Shift[]>(shiftQueryKey, snapshot);
+      toast({
+        title: 'Erreur',
+        description: 'Impossible de dupliquer le service.',
+        variant: 'destructive',
+      });
     }
   };
 
@@ -1993,6 +2070,19 @@ export function CalendarView() {
         )}
       </div>
 
+      {/* ── Mobile: Next service hero card ── */}
+      {isMobile && (
+        <NextServiceHero
+          shifts={shifts}
+          onOpen={(date, shift) => {
+            setCurrentDate(date);
+            setViewMode('day');
+            // slight delay so the view switches before the edit dialog opens
+            setTimeout(() => handleShiftClick(shift, date), 120);
+          }}
+        />
+      )}
+
       {/* ── Monthly View ── */}
       {viewMode === 'month' && (
         <>
@@ -2094,6 +2184,7 @@ export function CalendarView() {
             getExclusiveOpeningDay={getExclusiveOpeningDay}
             onDayClick={handleCellClick}
             onShiftClick={handleShiftClick}
+            onShiftLongPress={handleShiftLongPress}
             onNavigate={(dir) => setCurrentDate((d) => dir === 'next' ? addWeeks(d, 1) : subWeeks(d, 1))}
           />
         ) : (
@@ -2128,6 +2219,7 @@ export function CalendarView() {
             getClosingPeriod={getClosingPeriod}
             getExclusiveOpeningDay={getExclusiveOpeningDay}
             onShiftClick={handleShiftClick}
+            onShiftLongPress={handleShiftLongPress}
             onAddShift={(date) => {
               setEditingShift(null);
               setDialogDefaultStaffId(mobileSelectedStaffId || undefined);
@@ -2174,6 +2266,23 @@ export function CalendarView() {
           <Plus className="w-6 h-6" />
         </button>
       )}
+
+      {/* ── Mobile quick actions bottom sheet (long-press) ── */}
+      <MobileShiftActionsSheet
+        open={actionsSheetOpen}
+        onOpenChange={setActionsSheetOpen}
+        shift={actionsSheetShift}
+        date={actionsSheetDate}
+        onEdit={() => {
+          if (actionsSheetShift) handleShiftClick(actionsSheetShift, actionsSheetDate);
+        }}
+        onDuplicate={() => {
+          if (actionsSheetShift) handleDuplicateToNextDay(actionsSheetShift, actionsSheetDate);
+        }}
+        onDelete={() => {
+          if (actionsSheetShift) handleOverviewDelete(actionsSheetShift);
+        }}
+      />
 
       {/* ── Shift Dialog ── */}
       {/* Day Overview Dialog */}
