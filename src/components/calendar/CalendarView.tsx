@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useMemo, useEffect } from 'react';
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   format,
@@ -18,6 +18,7 @@ import {
   addDays,
   subDays,
   isToday as isDateToday,
+  isSameDay,
 } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import {
@@ -83,7 +84,6 @@ import { MobileDayView } from './MobileDayView';
 import { MobileStaffChips } from './MobileStaffChips';
 import { MobileMonthCell } from './MobileMonthCell';
 import { MobileShiftActionsSheet } from './MobileShiftActionsSheet';
-import { NextServiceHero } from './NextServiceHero';
 import { timeToMinutes } from './types';
 import type { CalendarViewMode, TimeViewProps } from './types';
 
@@ -1024,16 +1024,31 @@ function MonthStats({ shifts }: { shifts: Record<string, ShiftAssignment[]> }) {
 
 export function CalendarView() {
   const [currentDate, setCurrentDate] = useState(new Date());
-  const [viewMode, setViewMode] = useState<CalendarViewMode>(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('ada-planning-view-mode');
-      if (saved === 'month' || saved === 'week' || saved === 'day') return saved;
-    }
-    return 'month';
-  });
+  // SSR-safe default: always 'month' on the server to avoid hydration
+  // mismatches. After mount we restore a saved preference or apply the
+  // mobile-first default (week on phones, month on tablet/desktop).
+  const [viewMode, setViewMode] = useState<CalendarViewMode>('month');
+  const viewModeHydratedRef = useRef(false);
 
-  // Persist view mode to localStorage
   useEffect(() => {
+    if (viewModeHydratedRef.current) return;
+    viewModeHydratedRef.current = true;
+    const saved = localStorage.getItem('ada-planning-view-mode');
+    if (saved === 'month' || saved === 'week' || saved === 'day') {
+      setViewMode(saved);
+      return;
+    }
+    // First-time default: weekly on phones (< 768px), monthly on
+    // tablets and desktops.
+    if (window.matchMedia('(max-width: 767px)').matches) {
+      setViewMode('week');
+    }
+  }, []);
+
+  // Persist view mode to localStorage (skip the initial SSR default so we
+  // don't clobber a not-yet-hydrated saved value).
+  useEffect(() => {
+    if (!viewModeHydratedRef.current) return;
     localStorage.setItem('ada-planning-view-mode', viewMode);
   }, [viewMode]);
 
@@ -1914,92 +1929,187 @@ export function CalendarView() {
 
   // ── Render ──
 
+  // Label for the current period (used in both desktop and mobile headers)
+  const periodLabel = (() => {
+    if (viewMode === 'month') {
+      return format(currentDate, isMobile ? 'MMMM yyyy' : 'MMMM yyyy', { locale: fr });
+    }
+    if (viewMode === 'week') {
+      const ws = startOfWeek(currentDate, { weekStartsOn: 1 });
+      const we = endOfWeek(currentDate, { weekStartsOn: 1 });
+      return isMobile
+        ? `${format(ws, 'd MMM', { locale: fr })} – ${format(we, 'd MMM', { locale: fr })}`
+        : `${format(ws, 'd MMM', { locale: fr })} – ${format(we, 'd MMM yyyy', { locale: fr })}`;
+    }
+    return format(currentDate, isMobile ? 'EEEE d MMMM' : 'EEEE d MMMM yyyy', { locale: fr });
+  })();
+
+  const goPrev = () => {
+    if (viewMode === 'month') setCurrentDate((d) => subMonths(d, 1));
+    else if (viewMode === 'week') setCurrentDate((d) => subWeeks(d, 1));
+    else setCurrentDate((d) => subDays(d, 1));
+  };
+  const goNext = () => {
+    if (viewMode === 'month') setCurrentDate((d) => addMonths(d, 1));
+    else if (viewMode === 'week') setCurrentDate((d) => addWeeks(d, 1));
+    else setCurrentDate((d) => addDays(d, 1));
+  };
+  const goToday = () => setCurrentDate(new Date());
+  const isOnToday = isSameDay(currentDate, new Date());
+  const canManage = ['admin', 'owner', 'manager'].includes(user?.role || '');
+
   return (
     <div className="flex flex-col h-full">
       {/* ── Top Bar ── */}
-      <div className={cn(
-        "flex items-center justify-between border-b bg-background gap-2",
-        isMobile ? "px-2 py-2" : "px-4 md:px-6 py-2.5",
-      )}>
-        {/* Left — Navigation */}
-        <div className="flex items-center gap-1 md:gap-2">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8"
-            onClick={() => {
-              if (viewMode === 'month') setCurrentDate((d) => subMonths(d, 1));
-              else if (viewMode === 'week') setCurrentDate((d) => subWeeks(d, 1));
-              else setCurrentDate((d) => subDays(d, 1));
-            }}
-          >
-            <ChevronLeft className="w-4 h-4" />
-          </Button>
+      {isMobile ? (
+        // ─────────────────────────────────────────────────────────────
+        // Mobile: two-row header.
+        // Row 1: prev | date label (tap = today) | next | mail | send
+        // Row 2: full-width segmented control (Mois / Semaine / Jour)
+        // ─────────────────────────────────────────────────────────────
+        <div className="border-b bg-background">
+          {/* Row 1 — context + actions */}
+          <div className="flex items-center gap-1 px-2 pt-2 pb-1.5">
+            <button
+              type="button"
+              onClick={goPrev}
+              aria-label="Période précédente"
+              className="w-10 h-10 rounded-xl flex items-center justify-center text-foreground touch-feedback active:bg-muted/70 active:scale-95 transition-transform"
+            >
+              <ChevronLeft className="w-5 h-5" strokeWidth={2.4} />
+            </button>
 
-          <h2 className={cn(
-            "font-bold text-foreground text-center capitalize",
-            isMobile ? "text-sm min-w-0" : "text-lg min-w-[180px]",
-          )}>
-            {viewMode === 'month' && format(currentDate, isMobile ? 'MMM yyyy' : 'MMMM yyyy', { locale: fr })}
-            {viewMode === 'week' && (() => {
-              const ws = startOfWeek(currentDate, { weekStartsOn: 1 });
-              const we = endOfWeek(currentDate, { weekStartsOn: 1 });
-              return isMobile
-                ? `${format(ws, 'd', { locale: fr })}–${format(we, 'd MMM', { locale: fr })}`
-                : `${format(ws, 'd MMM', { locale: fr })} – ${format(we, 'd MMM yyyy', { locale: fr })}`;
-            })()}
-            {viewMode === 'day' && format(currentDate, isMobile ? 'EEE d MMM' : 'EEEE d MMMM yyyy', { locale: fr })}
-          </h2>
+            <button
+              type="button"
+              onClick={goToday}
+              aria-label="Aller à aujourd'hui"
+              className="flex-1 min-w-0 flex items-center justify-center gap-1.5 h-10 px-2 rounded-xl touch-feedback active:bg-muted/60 transition-colors"
+            >
+              <h2 className="text-[17px] font-extrabold text-foreground capitalize tracking-tight truncate tabular-nums">
+                {periodLabel}
+              </h2>
+              {!isOnToday && (
+                <span className="text-[9px] font-bold uppercase tracking-[0.1em] text-primary/80 bg-primary/10 px-1.5 py-0.5 rounded-md shrink-0">
+                  Auj.
+                </span>
+              )}
+            </button>
 
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8"
-            onClick={() => {
-              if (viewMode === 'month') setCurrentDate((d) => addMonths(d, 1));
-              else if (viewMode === 'week') setCurrentDate((d) => addWeeks(d, 1));
-              else setCurrentDate((d) => addDays(d, 1));
-            }}
-          >
-            <ChevronRight className="w-4 h-4" />
-          </Button>
-        </div>
+            <button
+              type="button"
+              onClick={goNext}
+              aria-label="Période suivante"
+              className="w-10 h-10 rounded-xl flex items-center justify-center text-foreground touch-feedback active:bg-muted/70 active:scale-95 transition-transform"
+            >
+              <ChevronRight className="w-5 h-5" strokeWidth={2.4} />
+            </button>
 
-        {/* Center — View mode toggle + Today */}
-        <div className="flex items-center gap-1 md:gap-2">
-          <div className="flex items-center bg-muted rounded-lg p-0.5">
-            {(['month', 'week', 'day'] as CalendarViewMode[]).map((mode) => (
-              <button
-                key={mode}
-                onClick={() => setViewMode(mode)}
-                className={cn(
-                  'px-2 md:px-3 py-1 text-xs font-medium rounded-md transition-colors',
-                  viewMode === mode
-                    ? 'bg-background text-foreground shadow-sm'
-                    : 'text-muted-foreground hover:text-foreground',
-                )}
-              >
-                {isMobile
-                  ? (mode === 'month' ? 'Mois' : mode === 'week' ? 'Sem.' : 'Jour')
-                  : (mode === 'month' ? 'Mois' : mode === 'week' ? 'Semaine' : 'Jour')}
-              </button>
-            ))}
+            {canManage && (
+              <>
+                <div className="w-px h-6 bg-border/60 mx-1 shrink-0" aria-hidden />
+                <button
+                  type="button"
+                  onClick={handleOpenManage}
+                  aria-label="Suivi des envois"
+                  className="w-10 h-10 rounded-xl flex items-center justify-center text-muted-foreground touch-feedback active:bg-muted/70 active:scale-95 transition-transform"
+                >
+                  <Mail className="w-[18px] h-[18px]" strokeWidth={2} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setSendResult(null); setConfirmSendOpen(true); }}
+                  aria-label="Confirmer et envoyer"
+                  data-haptic="success"
+                  className="w-10 h-10 rounded-xl flex items-center justify-center bg-primary text-primary-foreground shadow-[0_2px_8px_-2px_rgba(77,106,255,0.5)] touch-feedback active:scale-90 transition-transform"
+                >
+                  <Send className="w-[18px] h-[18px]" strokeWidth={2.2} />
+                </button>
+              </>
+            )}
           </div>
 
-          <Button
-            variant="outline"
-            size="sm"
-            className={cn("text-xs h-7", isMobile && "px-2")}
-            onClick={() => setCurrentDate(new Date())}
-          >
-            {isMobile ? 'Auj.' : "Aujourd'hui"}
-          </Button>
+          {/* Row 2 — view mode segmented control */}
+          <div className="px-2 pb-2">
+            <div
+              className="flex items-stretch bg-muted rounded-2xl p-1 h-12"
+              role="tablist"
+              aria-label="Mode d'affichage"
+            >
+              {(['month', 'week', 'day'] as CalendarViewMode[]).map((mode) => {
+                const active = viewMode === mode;
+                const label = mode === 'month' ? 'Mois' : mode === 'week' ? 'Semaine' : 'Jour';
+                return (
+                  <button
+                    key={mode}
+                    type="button"
+                    role="tab"
+                    aria-selected={active}
+                    onClick={() => setViewMode(mode)}
+                    className={cn(
+                      'flex-1 flex items-center justify-center rounded-xl text-[14px] font-semibold tracking-tight transition-all touch-feedback',
+                      active
+                        ? 'bg-white text-foreground shadow-[0_1px_3px_rgba(15,23,42,0.1),0_3px_8px_-2px_rgba(15,23,42,0.08)]'
+                        : 'text-muted-foreground active:bg-white/40',
+                    )}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
         </div>
+      ) : (
+        // ─────────────────────────────────────────────────────────────
+        // Desktop / tablet: single-row header (unchanged).
+        // ─────────────────────────────────────────────────────────────
+        <div className="flex items-center justify-between border-b bg-background gap-2 px-4 md:px-6 py-2.5">
+          <div className="flex items-center gap-1 md:gap-2">
+            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={goPrev}>
+              <ChevronLeft className="w-4 h-4" />
+            </Button>
+            <h2 className="font-bold text-foreground text-center capitalize text-lg min-w-[180px]">
+              {periodLabel}
+            </h2>
+            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={goNext}>
+              <ChevronRight className="w-4 h-4" />
+            </Button>
+          </div>
 
-        {/* Right — Manage + Confirm & Send (hidden on mobile, accessible via bottom actions) */}
-        {!isMobile && (
+          <div className="flex items-center gap-1 md:gap-2">
+            <div
+              className="flex items-center bg-muted rounded-lg p-0.5"
+              role="tablist"
+              aria-label="Mode d'affichage"
+            >
+              {(['month', 'week', 'day'] as CalendarViewMode[]).map((mode) => {
+                const active = viewMode === mode;
+                return (
+                  <button
+                    key={mode}
+                    role="tab"
+                    aria-selected={active}
+                    onClick={() => setViewMode(mode)}
+                    className={cn(
+                      'px-2 md:px-3 py-1 text-xs font-medium rounded-md transition-colors',
+                      active
+                        ? 'bg-background text-foreground shadow-sm'
+                        : 'text-muted-foreground hover:text-foreground',
+                    )}
+                  >
+                    {mode === 'month' ? 'Mois' : mode === 'week' ? 'Semaine' : 'Jour'}
+                  </button>
+                );
+              })}
+            </div>
+
+            <Button variant="outline" size="sm" className="text-xs h-7" onClick={goToday}>
+              Aujourd&apos;hui
+            </Button>
+          </div>
+
           <div className="flex items-center gap-2">
-            {['admin', 'owner', 'manager'].includes(user?.role || '') && (
+            {canManage && (
               <Button
                 variant="outline"
                 size="sm"
@@ -2010,7 +2120,7 @@ export function CalendarView() {
                 Suivi des envois
               </Button>
             )}
-            {['admin', 'owner', 'manager'].includes(user?.role || '') && (
+            {canManage && (
               <Button
                 size="sm"
                 className="bg-[#4d6aff] hover:bg-[#3d57e0] text-white text-xs h-8 gap-1.5"
@@ -2021,32 +2131,8 @@ export function CalendarView() {
               </Button>
             )}
           </div>
-        )}
-
-        {/* Mobile: icon-only action buttons */}
-        {isMobile && ['admin', 'owner', 'manager'].includes(user?.role || '') && (
-          <div className="flex items-center gap-1">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8"
-              onClick={handleOpenManage}
-              title="Suivi des envois"
-            >
-              <Mail className="w-4 h-4" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 text-[#4d6aff]"
-              onClick={() => { setSendResult(null); setConfirmSendOpen(true); }}
-              title="Confirmer et envoyer"
-            >
-              <Send className="w-4 h-4" />
-            </Button>
-          </div>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* ── Staff Legend / Mobile Staff Chips ── */}
       <div className={cn("border-b bg-muted/30", isMobile ? "px-2 py-1.5" : "px-4 md:px-6 py-2")}>
@@ -2069,19 +2155,6 @@ export function CalendarView() {
           </div>
         )}
       </div>
-
-      {/* ── Mobile: Next service hero card ── */}
-      {isMobile && (
-        <NextServiceHero
-          shifts={shifts}
-          onOpen={(date, shift) => {
-            setCurrentDate(date);
-            setViewMode('day');
-            // slight delay so the view switches before the edit dialog opens
-            setTimeout(() => handleShiftClick(shift, date), 120);
-          }}
-        />
-      )}
 
       {/* ── Monthly View ── */}
       {viewMode === 'month' && (
